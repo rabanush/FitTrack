@@ -18,6 +18,7 @@ data class WorkoutExercise(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(name = "workout_id") val workoutId: Long,
     @ColumnInfo(name = "exercise_id") val exerciseId: Long,
+    @ColumnInfo(name = "set_count") val setCount: Int = 3,
     @ColumnInfo(name = "order_index") val orderIndex: Int = 0,
     @ColumnInfo(name = "rest_timer_seconds") val restTimerSeconds: Int = 90
 )

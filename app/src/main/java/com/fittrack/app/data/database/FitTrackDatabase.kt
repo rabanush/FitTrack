@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {
@@ -37,12 +37,16 @@ abstract class FitTrackDatabase : RoomDatabase() {
                     FitTrackDatabase::class.java,
                     "fittrack_database"
                 )
+                    .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            super.onOpen(db)
                             INSTANCE?.let { database ->
                                 CoroutineScope(Dispatchers.IO).launch {
-                                    populateInitialData(database.exerciseDao())
+                                    val dao = database.exerciseDao()
+                                    if (dao.getCount() == 0) {
+                                        populateInitialData(dao)
+                                    }
                                 }
                             }
                         }

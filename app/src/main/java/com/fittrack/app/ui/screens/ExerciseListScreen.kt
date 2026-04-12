@@ -1,16 +1,20 @@
 package com.fittrack.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.viewmodel.ExerciseViewModel
 
@@ -20,7 +24,7 @@ fun ExerciseListScreen(
     viewModel: ExerciseViewModel,
     onBack: () -> Unit
 ) {
-    val exercises by viewModel.allExercises.observeAsState(emptyList())
+    val exercises by viewModel.allExercises.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingExercise by remember { mutableStateOf<Exercise?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -31,18 +35,42 @@ fun ExerciseListScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Exercise Database") },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        "Exercise Library", 
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack, 
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = Color.White
+                ),
+                actions = {
+                    IconButton(onClick = { /* Info action */ }) {
+                        Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Exercise")
             }
         }
@@ -52,12 +80,20 @@ fun ExerciseListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Search Bar inspired by the clean look
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Search exercises") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                placeholder = { Text("Search exercises...", color = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                 singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -65,19 +101,32 @@ fun ExerciseListScreen(
 
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val grouped = filtered.groupBy { it.muscleGroup }
                 grouped.forEach { (group, exList) ->
-                    item {
-                        Text(
-                            group,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                    item(key = group) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                        )
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp, 16.dp)
+                                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                group.uppercase(),
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                                ),
+                                color = Color.Gray
+                            )
+                        }
                     }
-                    items(exList) { exercise ->
+                    items(exList, key = { it.id }) { exercise ->
                         ExerciseItem(
                             exercise = exercise,
                             onEdit = { editingExercise = exercise },
@@ -97,13 +146,16 @@ fun ExerciseListScreen(
             onSave = { name, muscleGroup ->
                 if (editingExercise != null) {
                     viewModel.updateExercise(editingExercise!!.copy(name = name, muscleGroup = muscleGroup))
+                    editingExercise = null
                 } else {
                     viewModel.insertExercise(name, muscleGroup, isCustom = true)
+                    showAddDialog = false
                 }
-                showAddDialog = false
-                editingExercise = null
             },
-            onDismiss = { showAddDialog = false; editingExercise = null }
+            onDismiss = { 
+                showAddDialog = false
+                editingExercise = null 
+            }
         )
     }
 }
@@ -114,25 +166,83 @@ fun ExerciseItem(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(exercise.name, style = MaterialTheme.typography.bodyLarge)
-                if (exercise.isCustom) {
-                    Text("Custom", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+            // Illustration placeholder
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.FitnessCenter,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = Color.Black
+                    )
                 }
             }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    exercise.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+                Text(
+                    exercise.muscleGroup,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (exercise.isCustom) "Custom Exercise" else "Standard",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                }
             }
-            if (exercise.isCustom) {
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+
+            Column(horizontalAlignment = Alignment.End) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Default.Edit, 
+                        contentDescription = "Edit", 
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                if (exercise.isCustom) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Default.Delete, 
+                            contentDescription = "Delete", 
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -150,14 +260,28 @@ fun ExerciseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (exercise == null) "Add Exercise" else "Edit Exercise") },
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { 
+            Text(
+                if (exercise == null) "New Exercise" else "Edit Exercise",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            ) 
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Exercise Name") },
+                    label = { Text("Name") },
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -165,18 +289,29 @@ fun ExerciseDialog(
                     onValueChange = { muscleGroup = it },
                     label = { Text("Muscle Group") },
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = { if (name.isNotBlank() && muscleGroup.isNotBlank()) onSave(name, muscleGroup) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp),
                 enabled = name.isNotBlank() && muscleGroup.isNotBlank()
-            ) { Text("Save") }
+            ) { Text("Save", color = Color.White) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { 
+                Text("Cancel", color = MaterialTheme.colorScheme.primary) 
+            }
         }
     )
 }
