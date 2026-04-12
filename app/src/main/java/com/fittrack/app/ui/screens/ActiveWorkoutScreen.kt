@@ -42,6 +42,7 @@ fun ActiveWorkoutScreen(
             try {
                 val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
                 toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 600)
+                toneGen.release()
             } catch (_: Exception) {}
         }
     }

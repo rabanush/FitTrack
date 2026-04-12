@@ -130,11 +130,12 @@ class ActiveWorkoutViewModel(
             setNumber = setNumber
         )
         timerJob = viewModelScope.launch {
-            var remaining = seconds
-            while (remaining > 0) {
+            while (_timerState.value.remainingSeconds > 0) {
                 delay(1000L)
-                remaining--
-                _timerState.value = _timerState.value.copy(remainingSeconds = remaining)
+                val current = _timerState.value
+                if (!current.isRunning) return@launch
+                val newRemaining = current.remainingSeconds - 1
+                _timerState.value = current.copy(remainingSeconds = newRemaining)
             }
             _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
         }
