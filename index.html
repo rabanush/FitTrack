@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="FitTrack – explore fitness exercises with step-by-step descriptions and tutorial videos." />
+  <title>FitTrack – Exercise Library</title>
+
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a href="#" class="logo" aria-label="FitTrack home">
+        <span class="logo-icon" aria-hidden="true">⚡</span>
+        FitTrack
+      </a>
+      <p class="header-tagline">Your personal exercise library</p>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" aria-labelledby="heroHeading">
+    <div class="hero-inner">
+      <h1 id="heroHeading">Train smarter,<br>not harder.</h1>
+      <p>Browse 16+ exercises with detailed descriptions and embedded tutorial videos. Filter by muscle group, difficulty, or search by name.</p>
+    </div>
+  </section>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main-content" id="main">
+
+    <!-- Controls -->
+    <div class="controls" role="search" aria-label="Exercise filters">
+
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          type="search"
+          id="searchInput"
+          class="search-input"
+          placeholder="Search exercises or muscles…"
+          aria-label="Search exercises"
+          autocomplete="off"
+        />
+      </div>
+
+      <select
+        id="difficultySelect"
+        class="difficulty-select"
+        aria-label="Filter by difficulty"
+      >
+        <option value="all">All levels</option>
+        <option value="beginner">Beginner</option>
+        <option value="intermediate">Intermediate</option>
+        <option value="advanced">Advanced</option>
+      </select>
+    </div>
+
+    <!-- Category filter pills -->
+    <nav class="filters-row" aria-label="Filter by category">
+      <span class="filters-label" aria-hidden="true">Category</span>
+      <button class="filter-btn active" data-category="all" aria-pressed="true">All</button>
+      <button class="filter-btn" data-category="chest"     aria-pressed="false">Chest</button>
+      <button class="filter-btn" data-category="back"      aria-pressed="false">Back</button>
+      <button class="filter-btn" data-category="legs"      aria-pressed="false">Legs</button>
+      <button class="filter-btn" data-category="core"      aria-pressed="false">Core</button>
+      <button class="filter-btn" data-category="shoulders" aria-pressed="false">Shoulders</button>
+      <button class="filter-btn" data-category="arms"      aria-pressed="false">Arms</button>
+      <button class="filter-btn" data-category="cardio"    aria-pressed="false">Cardio</button>
+    </nav>
+
+    <!-- Results header -->
+    <div class="results-header">
+      <p class="results-count" aria-live="polite" aria-atomic="true">
+        <span id="exerciseCount"></span>
+      </p>
+    </div>
+
+    <!-- Exercise grid -->
+    <div
+      id="exerciseGrid"
+      class="exercise-grid"
+      role="list"
+      aria-label="Exercise list"
+    ></div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="empty-state" role="status" hidden>
+      <div class="empty-state-icon" aria-hidden="true">🔍</div>
+      <p>No exercises match your search. Try adjusting your filters.</p>
+    </div>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer" role="contentinfo">
+    <p>FitTrack &copy; 2025 &mdash; Exercise descriptions are for informational purposes only.</p>
+  </footer>
+
+  <!-- ===== VIDEO MODAL ===== -->
+  <div
+    id="videoModal"
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modalTitle"
+    aria-hidden="true"
+    hidden
+  >
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle"></h2>
+        <button
+          id="closeModal"
+          class="modal-close"
+          aria-label="Close exercise details"
+        >✕</button>
+      </div>
+
+      <!-- 16:9 YouTube embed -->
+      <div class="video-wrapper">
+        <iframe
+          id="videoFrame"
+          src=""
+          title="Exercise tutorial video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>
+
+      <div class="modal-body">
+        <p id="modalDescription" class="modal-description"></p>
+        <div id="modalMuscles" class="modal-muscles" aria-label="Muscles targeted"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (exercises data must be loaded first) -->
+  <script src="exercises.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
