@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+*.class
+
+# Android
+local.properties
+*.keystore
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Generated
+app/src/main/java/com/fittrack/app/BuildConfig.java
