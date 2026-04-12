@@ -2,6 +2,8 @@
 
 A dark-mode fitness exercise library inspired by [Gymky](https://gymky.app).
 
+> **Platform note:** This is the web version of FitTrack. The project was originally described as an Android fitness tracker; this web app serves as a feature-complete UI reference and can be used directly in any modern browser without a build step.
+
 ## Features
 
 - **16+ exercises** spanning Chest, Back, Legs, Core, Shoulders, Arms, and Cardio
