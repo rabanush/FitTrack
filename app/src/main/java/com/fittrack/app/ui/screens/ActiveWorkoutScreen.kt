@@ -93,8 +93,8 @@ fun ActiveWorkoutScreen(
                     exerciseIndex = exerciseIndex,
                     onAddSet = { viewModel.addSet(exerciseIndex) },
                     onRemoveSet = { viewModel.removeSet(exerciseIndex) },
-                    onUpdateSet = { setIndex, weight, reps, rir ->
-                        viewModel.updateSetData(exerciseIndex, setIndex, weight, reps, rir)
+                    onUpdateSet = { setIndex, weight, reps ->
+                        viewModel.updateSetData(exerciseIndex, setIndex, weight, reps)
                     },
                     onCompleteSet = { setIndex ->
                         viewModel.completeSet(exerciseIndex, setIndex)
@@ -201,7 +201,7 @@ fun ExerciseSessionCard(
     exerciseIndex: Int,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
-    onUpdateSet: (Int, String?, String?, String?) -> Unit,
+    onUpdateSet: (Int, String?, String?) -> Unit,
     onCompleteSet: (Int) -> Unit
 ) {
     Card(
@@ -240,16 +240,14 @@ fun ExerciseSessionCard(
                 Text("PREVIOUS", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Text("KG", modifier = Modifier.width(60.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Text("REPS", modifier = Modifier.width(60.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                Text("RIR", modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Spacer(Modifier.width(40.dp))
             }
 
             session.sets.forEachIndexed { setIndex, set ->
                 SetRow(
                     set = set,
-                    onWeightChange = { onUpdateSet(setIndex, it, null, null) },
-                    onRepsChange = { onUpdateSet(setIndex, null, it, null) },
-                    onRirChange = { onUpdateSet(setIndex, null, null, it) },
+                    onWeightChange = { onUpdateSet(setIndex, it, null) },
+                    onRepsChange = { onUpdateSet(setIndex, null, it) },
                     onComplete = { onCompleteSet(setIndex) }
                 )
             }
@@ -286,7 +284,6 @@ fun SetRow(
     set: SetData,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
-    onRirChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White
@@ -336,15 +333,6 @@ fun SetRow(
         }
 
         Spacer(modifier = Modifier.width(4.dp))
-
-        Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.Center) {
-            SetInputField(
-                value = set.rir,
-                placeholder = set.prevRir.ifEmpty { "0" },
-                onValueChange = onRirChange,
-                enabled = !set.isCompleted
-            )
-        }
 
         IconButton(
             onClick = onComplete, 

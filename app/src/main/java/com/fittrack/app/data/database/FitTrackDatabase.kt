@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {

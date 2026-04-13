@@ -12,11 +12,9 @@ data class SetData(
     val setNumber: Int,
     var weight: String = "",
     var reps: String = "",
-    var rir: String = "0",
     var isCompleted: Boolean = false,
     val prevWeight: String = "",
-    val prevReps: String = "",
-    val prevRir: String = ""
+    val prevReps: String = ""
 )
 
 data class ExerciseSessionData(
@@ -65,8 +63,7 @@ class ActiveWorkoutViewModel(
                         SetData(
                             setNumber = setNum,
                             prevWeight = prev?.weight?.toString() ?: "",
-                            prevReps = prev?.reps?.toString() ?: "",
-                            prevRir = prev?.rir?.toString() ?: ""
+                            prevReps = prev?.reps?.toString() ?: ""
                         )
                     }
                     
@@ -92,8 +89,7 @@ class ActiveWorkoutViewModel(
             add(SetData(
                 setNumber = newSetNumber,
                 prevWeight = template?.prevWeight ?: "",
-                prevReps = template?.prevReps ?: "",
-                prevRir = template?.prevRir ?: ""
+                prevReps = template?.prevReps ?: ""
             )) 
         }
         sessions[exerciseIndex] = session.copy(sets = updatedSets)
@@ -110,7 +106,7 @@ class ActiveWorkoutViewModel(
         _exerciseSessions.value = sessions
     }
 
-    fun updateSetData(exerciseIndex: Int, setIndex: Int, weight: String? = null, reps: String? = null, rir: String? = null) {
+    fun updateSetData(exerciseIndex: Int, setIndex: Int, weight: String? = null, reps: String? = null) {
         val sessions = _exerciseSessions.value.toMutableList()
         if (exerciseIndex >= sessions.size) return
         val session = sessions[exerciseIndex]
@@ -119,8 +115,7 @@ class ActiveWorkoutViewModel(
         val set = sets[setIndex]
         sets[setIndex] = set.copy(
             weight = weight ?: set.weight,
-            reps = reps ?: set.reps,
-            rir = rir ?: set.rir
+            reps = reps ?: set.reps
         )
         sessions[exerciseIndex] = session.copy(sets = sets)
         _exerciseSessions.value = sessions
@@ -138,8 +133,7 @@ class ActiveWorkoutViewModel(
         sets[setIndex] = currentSet.copy(
             isCompleted = true,
             weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
-            reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps,
-            rir = if (currentSet.rir.isEmpty()) currentSet.prevRir else currentSet.rir
+            reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps
         )
         
         sessions[exerciseIndex] = session.copy(sets = sets)
@@ -200,7 +194,6 @@ class ActiveWorkoutViewModel(
                     if (set.isCompleted || set.weight.isNotEmpty() || set.reps.isNotEmpty()) {
                         val w = set.weight.toFloatOrNull() ?: set.prevWeight.toFloatOrNull() ?: 0f
                         val r = set.reps.toIntOrNull() ?: set.prevReps.toIntOrNull() ?: 0
-                        val rir = set.rir.toIntOrNull() ?: set.prevRir.toIntOrNull() ?: 0
                         entries.add(
                             LogEntry(
                                 exerciseId = session.workoutExercise.exercise.id,
@@ -208,8 +201,7 @@ class ActiveWorkoutViewModel(
                                 date = date,
                                 setNumber = set.setNumber,
                                 weight = w,
-                                reps = r,
-                                rir = rir
+                                reps = r
                             )
                         )
                     }
