@@ -37,16 +37,25 @@ fun ActiveWorkoutScreen(
     val (showFinishConfirm, setShowFinishConfirm) = remember { mutableStateOf(false) }
     val (showCancelConfirm, setShowCancelConfirm) = remember { mutableStateOf(false) }
 
+<<<<<<< copilot/fix-timer-sound-issues
     // Fix 2: intercept hardware back button and show cancel dialog
+=======
+    // Intercept system back button - show the cancel dialog instead of leaving silently
+>>>>>>> main
     BackHandler {
         setShowCancelConfirm(true)
     }
 
+<<<<<<< copilot/fix-timer-sound-issues
     // Fix 3: only show exercises that still have incomplete sets
     val visibleSessions = remember(sessions) {
         sessions.mapIndexed { index, session -> index to session }
             .filter { (_, session) -> session.sets.any { !it.isCompleted } }
     }
+=======
+    // Only show exercises that still have at least one incomplete set
+    val visibleSessions = sessions.filter { session -> !session.sets.all { it.isCompleted } }
+>>>>>>> main
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -79,7 +88,12 @@ fun ActiveWorkoutScreen(
                 }
             }
 
+<<<<<<< copilot/fix-timer-sound-issues
             itemsIndexed(visibleSessions) { _, (sessionIndex, session) ->
+=======
+            itemsIndexed(visibleSessions) { _, session ->
+                val exerciseIndex = sessions.indexOf(session)
+>>>>>>> main
                 ExerciseSessionCard(
                     session = session,
                     onAddSet = { viewModel.addSet(sessionIndex) },
@@ -300,12 +314,19 @@ fun SetRow(
     onRepsChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
+<<<<<<< copilot/fix-timer-sound-issues
     // Fix 5: allow completing when a placeholder (prevReps) exists even if the field is empty
     val hasReps = set.reps.isNotBlank() && (set.reps.toIntOrNull() ?: 0) > 0
     val hasPrevReps = set.prevReps.isNotBlank() && (set.prevReps.toIntOrNull() ?: 0) > 0
     val canComplete = !set.isCompleted && (hasReps || hasPrevReps)
     // Fix 4: also allow clicking to un-complete a set
     val canInteract = canComplete || set.isCompleted
+=======
+    // Allow completing when actual reps are entered OR when a ghost/placeholder value exists
+    val hasReps = set.reps.isNotBlank() && (set.reps.toIntOrNull() ?: 0) > 0
+    val hasGhostReps = set.reps.isBlank() && set.prevReps.isNotBlank() && (set.prevReps.toIntOrNull() ?: 0) > 0
+    val canComplete = hasReps || hasGhostReps
+>>>>>>> main
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
 
     Row(
@@ -333,7 +354,11 @@ fun SetRow(
                 value = set.weight,
                 placeholder = set.prevWeight,
                 onValueChange = onWeightChange,
+<<<<<<< copilot/fix-timer-sound-issues
                 enabled = true  // Fix 4: always allow editing weight
+=======
+                enabled = true
+>>>>>>> main
             )
         }
         
@@ -344,7 +369,11 @@ fun SetRow(
                 value = set.reps,
                 placeholder = set.prevReps,
                 onValueChange = onRepsChange,
+<<<<<<< copilot/fix-timer-sound-issues
                 enabled = true  // Fix 4: always allow editing reps
+=======
+                enabled = true
+>>>>>>> main
             )
         }
 

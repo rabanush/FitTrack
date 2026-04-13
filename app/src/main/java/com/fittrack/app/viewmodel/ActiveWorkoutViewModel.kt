@@ -137,6 +137,7 @@ class ActiveWorkoutViewModel(
         val sets = session.sets.toMutableList()
         if (setIndex >= sets.size) return
 
+<<<<<<< copilot/fix-timer-sound-issues
         val currentSet = sets[setIndex]
         if (currentSet.isCompleted) {
             // Toggle: un-complete the set so it can be re-edited
@@ -154,6 +155,22 @@ class ActiveWorkoutViewModel(
             _exerciseSessions.value = sessions
 
             // Start rest timer
+=======
+        // If values are empty, use previous values as defaults
+        val currentSet = sets[setIndex]
+        val wasCompleted = currentSet.isCompleted
+        sets[setIndex] = currentSet.copy(
+            isCompleted = true,
+            weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
+            reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps
+        )
+
+        sessions[exerciseIndex] = session.copy(sets = sets)
+        _exerciseSessions.value = sessions
+
+        // Only start rest timer on first completion, not when re-editing a completed set
+        if (!wasCompleted) {
+>>>>>>> main
             val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
             if (restSeconds > 0) {
                 startTimer(restSeconds, exerciseIndex, setIndex + 1)
