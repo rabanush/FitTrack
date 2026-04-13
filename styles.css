@@ -73,6 +73,10 @@ a:hover { text-decoration: underline; }
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
   padding: 0 clamp(1rem, 5vw, 2.5rem);
+  /* Promote to own compositing layer so backdrop-filter isn't
+     recalculated on every scroll frame */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .header-inner {
@@ -297,6 +301,10 @@ a:hover { text-decoration: underline; }
   flex-direction: column;
   gap: 0.75rem;
   outline: none;
+  /* Hint GPU that transform will change on hover; also scope layout/style
+     recalculations to within the card */
+  will-change: transform;
+  contain: layout style;
 }
 
 .exercise-card:hover {

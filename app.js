@@ -49,7 +49,9 @@
       emptyState.hidden = false;
     } else {
       emptyState.hidden = true;
-      filtered.forEach((ex) => grid.appendChild(createCard(ex)));
+      const fragment = document.createDocumentFragment();
+      filtered.forEach((ex) => fragment.appendChild(createCard(ex)));
+      grid.appendChild(fragment);
     }
   }
 
@@ -147,10 +149,10 @@
     });
   });
 
-  searchInput.addEventListener("input", () => {
+  searchInput.addEventListener("input", debounce(() => {
     state.search = searchInput.value;
     render();
-  });
+  }, 150));
 
   difficultySelect.addEventListener("change", () => {
     state.difficulty = difficultySelect.value;
@@ -160,6 +162,14 @@
   /* ---------- Helpers ---------- */
   function capitalise(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  function debounce(fn, delay) {
+    let timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
   }
 
   /* ---------- Boot ---------- */
