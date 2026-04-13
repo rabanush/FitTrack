@@ -3,6 +3,9 @@ package com.fittrack.app.viewmodel
 import androidx.lifecycle.*
 import com.fittrack.app.data.model.*
 import com.fittrack.app.data.repository.FitTrackRepository
+import android.media.AudioManager
+import android.media.ToneGenerator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -27,7 +30,8 @@ data class TimerState(
     val remainingSeconds: Int = 0,
     val totalSeconds: Int = 0,
     val exerciseIndex: Int = -1,
-    val setNumber: Int = -1
+    val setNumber: Int = -1,
+    val endTimeMillis: Long = 0
 )
 
 class ActiveWorkoutViewModel(
@@ -46,8 +50,13 @@ class ActiveWorkoutViewModel(
 
     private val _workoutStartTime = System.currentTimeMillis()
     private var timerJob: Job? = null
+    private var toneGenerator: ToneGenerator? = null
 
     init {
+        try {
+            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+        } catch (_: Exception) {}
+
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
             repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
@@ -148,22 +157,44 @@ class ActiveWorkoutViewModel(
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
         timerJob?.cancel()
+        val endTime = System.currentTimeMillis() + (seconds * 1000L)
         _timerState.value = TimerState(
             isRunning = true,
             remainingSeconds = seconds,
             totalSeconds = seconds,
             exerciseIndex = exerciseIndex,
-            setNumber = setNumber
+            setNumber = setNumber,
+            endTimeMillis = endTime
         )
+
         timerJob = viewModelScope.launch {
-            while (_timerState.value.remainingSeconds > 0) {
-                delay(1000L)
-                val current = _timerState.value
-                if (!current.isRunning) return@launch
-                val newRemaining = current.remainingSeconds - 1
-                _timerState.value = current.copy(remainingSeconds = newRemaining)
+            var lastBeep = -1
+            while (true) {
+                val now = System.currentTimeMillis()
+                val remaining = ((_timerState.value.endTimeMillis - now) / 1000L).toInt().coerceAtLeast(0)
+
+                _timerState.value = _timerState.value.copy(remainingSeconds = remaining)
+
+                if (remaining in 1..3 && remaining != lastBeep) {
+                    lastBeep = remaining
+                    playTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                }
+
+                if (remaining <= 0) {
+                    _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
+                    playTone(ToneGenerator.TONE_PROP_BEEP, 400)
+                    break
+                }
+                delay(200L) // Oft genug prüfen
             }
-            _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
+        }
+    }
+
+    private fun playTone(toneType: Int, durationMs: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                toneGenerator?.startTone(toneType, durationMs)
+            } catch (_: Exception) {}
         }
     }
 
@@ -175,10 +206,15 @@ class ActiveWorkoutViewModel(
     fun adjustTimer(deltaSecs: Int) {
         val current = _timerState.value
         if (!current.isRunning) return
-        val newRemaining = maxOf(0, current.remainingSeconds + deltaSecs)
-        _timerState.value = current.copy(remainingSeconds = newRemaining)
-        if (newRemaining == 0) {
+
+        val newEndTime = current.endTimeMillis + (deltaSecs * 1000L)
+        val now = System.currentTimeMillis()
+        val newRemaining = ((newEndTime - now) / 1000L).toInt().coerceAtLeast(0)
+
+        if (newRemaining <= 0) {
             skipTimer()
+        } else {
+            _timerState.value = current.copy(endTimeMillis = newEndTime, remainingSeconds = newRemaining)
         }
     }
 
@@ -218,6 +254,9 @@ class ActiveWorkoutViewModel(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
+        try {
+            toneGenerator?.release()
+        } catch (_: Exception) {}
     }
 }
 

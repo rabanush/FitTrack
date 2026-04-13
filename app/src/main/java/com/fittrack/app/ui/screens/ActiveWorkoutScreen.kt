@@ -2,8 +2,6 @@ package com.fittrack.app.ui.screens
 
 import android.media.ToneGenerator
 import android.media.AudioManager
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -35,34 +33,17 @@ fun ActiveWorkoutScreen(
     val workout by viewModel.workout.collectAsState()
     val sessions by viewModel.exerciseSessions.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
-    var showFinishConfirm by remember { mutableStateOf(false) }
-
-    // Beep when timer reaches 0
-    LaunchedEffect(timerState.remainingSeconds, timerState.isRunning) {
-        if (!timerState.isRunning && timerState.remainingSeconds == 0 && timerState.totalSeconds > 0) {
-            try {
-                val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 600)
-                toneGen.release()
-            } catch (_: Exception) {}
-        }
-    }
+    val (showFinishConfirm, setShowFinishConfirm) = remember { mutableStateOf(false) }
+    val (showCancelConfirm, setShowCancelConfirm) = remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(workout?.name ?: "Active Workout", color = Color.White) },
+                title = { Text(workout?.name ?: "Active Workout", color = MaterialTheme.colorScheme.onBackground) },
                 navigationIcon = {
-                    IconButton(onClick = { showFinishConfirm = true }) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = { showFinishConfirm = true }
-                    ) {
-                        Text("FINISH", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { setShowCancelConfirm(true) }) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -73,9 +54,8 @@ fun ActiveWorkoutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            contentPadding = PaddingValues(bottom = 32.dp)
         ) {
-            // Timer overlay
             if (timerState.isRunning || timerState.remainingSeconds > 0) {
                 item {
                     RestTimerBanner(
@@ -90,7 +70,6 @@ fun ActiveWorkoutScreen(
             itemsIndexed(sessions) { exerciseIndex, session ->
                 ExerciseSessionCard(
                     session = session,
-                    exerciseIndex = exerciseIndex,
                     onAddSet = { viewModel.addSet(exerciseIndex) },
                     onRemoveSet = { viewModel.removeSet(exerciseIndex) },
                     onUpdateSet = { setIndex, weight, reps ->
@@ -101,27 +80,66 @@ fun ActiveWorkoutScreen(
                     }
                 )
             }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { setShowFinishConfirm(true) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("FINISH WORKOUT", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(48.dp))
+            }
         }
     }
 
     if (showFinishConfirm) {
         AlertDialog(
-            onDismissRequest = { showFinishConfirm = false },
+            onDismissRequest = { setShowFinishConfirm(false) },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Finish Workout", color = Color.White) },
-            text = { Text("Save and finish this workout session?", color = Color.White) },
+            title = { Text("Finish Workout", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Save and finish this workout session?", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.finishWorkout { onFinish() }
-                        showFinishConfirm = false
+                        setShowFinishConfirm(false)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) { Text("Finish") }
+                ) { Text("Finish", color = MaterialTheme.colorScheme.onPrimary) }
             },
             dismissButton = {
-                TextButton(onClick = { showFinishConfirm = false }) { 
-                    Text("Cancel", color = MaterialTheme.colorScheme.primary) 
+                TextButton(onClick = { setShowFinishConfirm(false) }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        )
+    }
+
+    if (showCancelConfirm) {
+        AlertDialog(
+            onDismissRequest = { setShowCancelConfirm(false) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Cancel Workout", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Do you really want to cancel this workout? All progress for this session will be lost.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        setShowCancelConfirm(false)
+                        onFinish()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Discard", color = MaterialTheme.colorScheme.onError) }
+            },
+            dismissButton = {
+                TextButton(onClick = { setShowCancelConfirm(false) }) {
+                    Text("Keep Training", color = MaterialTheme.colorScheme.primary)
                 }
             }
         )
@@ -139,13 +157,11 @@ fun RestTimerBanner(
         timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()
     else 0f
 
-    val bgColor = MaterialTheme.colorScheme.surface
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -154,11 +170,7 @@ fun RestTimerBanner(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                "Resting",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray
-            )
+            Text("Resting", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
             Text(
                 formatTime(timerState.remainingSeconds),
                 style = MaterialTheme.typography.displayLarge,
@@ -168,9 +180,7 @@ fun RestTimerBanner(
             )
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
@@ -198,7 +208,6 @@ private fun formatTime(seconds: Int): String {
 @Composable
 fun ExerciseSessionCard(
     session: ExerciseSessionData,
-    exerciseIndex: Int,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
     onUpdateSet: (Int, String?, String?) -> Unit,
@@ -220,20 +229,17 @@ fun ExerciseSessionCard(
                 text = session.workoutExercise.exercise.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = session.workoutExercise.exercise.muscleGroup,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            // Header row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("SET", modifier = Modifier.width(36.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
@@ -253,9 +259,7 @@ fun ExerciseSessionCard(
             }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -267,9 +271,7 @@ fun ExerciseSessionCard(
                     Spacer(Modifier.width(4.dp))
                     Text("REMOVE SET", style = MaterialTheme.typography.labelLarge)
                 }
-                TextButton(
-                    onClick = onAddSet
-                ) {
+                TextButton(onClick = onAddSet) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("ADD SET", style = MaterialTheme.typography.labelLarge)
@@ -286,12 +288,11 @@ fun SetRow(
     onRepsChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
-    val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White
-    
+    val canComplete = !set.isCompleted && set.reps.isNotBlank() && (set.reps.toIntOrNull() ?: 0) > 0
+    val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -302,7 +303,6 @@ fun SetRow(
             color = tintColor
         )
         
-        // Previous performance as hint
         Text(
             text = if (set.prevWeight.isNotEmpty()) "${set.prevWeight}kg × ${set.prevReps}" else "-",
             modifier = Modifier.weight(1f),
@@ -311,7 +311,6 @@ fun SetRow(
             color = Color.Gray
         )
 
-        // Inputs
         Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
             SetInputField(
                 value = set.weight,
@@ -336,13 +335,17 @@ fun SetRow(
 
         IconButton(
             onClick = onComplete, 
-            enabled = !set.isCompleted, 
+            enabled = canComplete, 
             modifier = Modifier.size(40.dp)
         ) {
             Icon(
                 if (set.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 contentDescription = "Complete",
-                tint = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f)
+                tint = when {
+                    set.isCompleted -> MaterialTheme.colorScheme.primary
+                    canComplete -> MaterialTheme.colorScheme.onSurface
+                    else -> Color.Gray.copy(alpha = 0.3f)
+                }
             )
         }
     }
@@ -371,14 +374,14 @@ fun SetInputField(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             textAlign = TextAlign.Center,
-            color = if (enabled) Color.White else Color.Gray
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Gray
         ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent,
             disabledContainerColor = Color.Transparent,
             focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-            unfocusedIndicatorColor = Color.Gray.copy(alpha = 0.3f),
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
             disabledIndicatorColor = Color.Transparent
         ),
         modifier = Modifier.fillMaxWidth()

@@ -31,6 +31,7 @@ fun ExerciseListScreen(
 
     val filtered = exercises.filter {
         it.name.contains(searchQuery, ignoreCase = true) ||
+                (it.germanName?.contains(searchQuery, ignoreCase = true) ?: false) ||
                 it.muscleGroup.contains(searchQuery, ignoreCase = true)
     }
 
@@ -203,6 +204,13 @@ fun ExerciseItem(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
+                if (exercise.germanName != null) {
+                    Text(
+                        exercise.germanName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.LightGray
+                    )
+                }
                 Text(
                     exercise.muscleGroup,
                     style = MaterialTheme.typography.bodySmall,
