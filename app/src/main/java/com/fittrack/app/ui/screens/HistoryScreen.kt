@@ -108,7 +108,7 @@ fun ExerciseHistorySection(entries: List<LogEntry>) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Set ${entry.setNumber}", style = MaterialTheme.typography.bodySmall)
-                Text("${entry.weight}kg × ${entry.reps} reps, RIR: ${entry.rir}", style = MaterialTheme.typography.bodySmall)
+                Text("${entry.weight}kg × ${entry.reps} reps", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

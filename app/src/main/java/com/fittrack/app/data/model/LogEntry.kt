@@ -21,6 +21,5 @@ data class LogEntry(
     val date: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "set_number") val setNumber: Int,
     val weight: Float,
-    val reps: Int,
-    val rir: Int
+    val reps: Int
 )
