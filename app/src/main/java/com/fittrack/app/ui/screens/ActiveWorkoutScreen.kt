@@ -2,7 +2,7 @@ package com.fittrack.app.ui.screens
 
 import android.media.ToneGenerator
 import android.media.AudioManager
-import androidx.compose.animation.animateColorAsState
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,12 +41,19 @@ fun ActiveWorkoutScreen(
     LaunchedEffect(timerState.remainingSeconds, timerState.isRunning) {
         if (!timerState.isRunning && timerState.remainingSeconds == 0 && timerState.totalSeconds > 0) {
             try {
-                val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 600)
-                toneGen.release()
+                val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                try {
+                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 800)
+                    kotlinx.coroutines.delay(900L)
+                } finally {
+                    toneGen.release()
+                }
             } catch (_: Exception) {}
         }
     }
+
+    // Intercept system back press – show confirmation instead of silently leaving
+    BackHandler { showFinishConfirm = true }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -87,14 +94,20 @@ fun ActiveWorkoutScreen(
                 }
             }
 
-            itemsIndexed(sessions) { exerciseIndex, session ->
+            // Only show exercises that still have incomplete sets
+            val activeIndices = sessions.indices.filter { i ->
+                !sessions[i].sets.all { it.isCompleted }
+            }
+
+            itemsIndexed(activeIndices) { _, exerciseIndex ->
+                val session = sessions[exerciseIndex]
                 ExerciseSessionCard(
                     session = session,
                     exerciseIndex = exerciseIndex,
                     onAddSet = { viewModel.addSet(exerciseIndex) },
                     onRemoveSet = { viewModel.removeSet(exerciseIndex) },
-                    onUpdateSet = { setIndex, weight, reps, rir ->
-                        viewModel.updateSetData(exerciseIndex, setIndex, weight, reps, rir)
+                    onUpdateSet = { setIndex, weight, reps ->
+                        viewModel.updateSetData(exerciseIndex, setIndex, weight, reps)
                     },
                     onCompleteSet = { setIndex ->
                         viewModel.completeSet(exerciseIndex, setIndex)
@@ -201,7 +214,7 @@ fun ExerciseSessionCard(
     exerciseIndex: Int,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
-    onUpdateSet: (Int, String?, String?, String?) -> Unit,
+    onUpdateSet: (Int, String?, String?) -> Unit,
     onCompleteSet: (Int) -> Unit
 ) {
     Card(
@@ -240,16 +253,14 @@ fun ExerciseSessionCard(
                 Text("PREVIOUS", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Text("KG", modifier = Modifier.width(60.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Text("REPS", modifier = Modifier.width(60.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                Text("RIR", modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 Spacer(Modifier.width(40.dp))
             }
 
             session.sets.forEachIndexed { setIndex, set ->
                 SetRow(
                     set = set,
-                    onWeightChange = { onUpdateSet(setIndex, it, null, null) },
-                    onRepsChange = { onUpdateSet(setIndex, null, it, null) },
-                    onRirChange = { onUpdateSet(setIndex, null, null, it) },
+                    onWeightChange = { onUpdateSet(setIndex, it, null) },
+                    onRepsChange = { onUpdateSet(setIndex, null, it) },
                     onComplete = { onCompleteSet(setIndex) }
                 )
             }
@@ -286,15 +297,19 @@ fun SetRow(
     set: SetData,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
-    onRirChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
+    val completedBg = if (set.isCompleted)
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+    else
+        Color.Transparent
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 6.dp)
+            .background(completedBg, RoundedCornerShape(8.dp)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -314,13 +329,13 @@ fun SetRow(
             color = Color.Gray
         )
 
-        // Inputs
+        // Inputs – always enabled so completed sets remain editable
         Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
             SetInputField(
                 value = set.weight,
                 placeholder = set.prevWeight,
                 onValueChange = onWeightChange,
-                enabled = !set.isCompleted
+                isCompleted = set.isCompleted
             )
         }
         
@@ -331,30 +346,19 @@ fun SetRow(
                 value = set.reps,
                 placeholder = set.prevReps,
                 onValueChange = onRepsChange,
-                enabled = !set.isCompleted
+                isCompleted = set.isCompleted
             )
         }
 
-        Spacer(modifier = Modifier.width(4.dp))
-
-        Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.Center) {
-            SetInputField(
-                value = set.rir,
-                placeholder = set.prevRir.ifEmpty { "0" },
-                onValueChange = onRirChange,
-                enabled = !set.isCompleted
-            )
-        }
-
+        // Complete / un-complete toggle button – always enabled
         IconButton(
-            onClick = onComplete, 
-            enabled = !set.isCompleted, 
+            onClick = onComplete,
             modifier = Modifier.size(40.dp)
         ) {
             Icon(
                 if (set.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = "Complete",
-                tint = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f)
+                contentDescription = if (set.isCompleted) "Unmark complete" else "Mark complete",
+                tint = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
             )
         }
     }
@@ -365,7 +369,7 @@ fun SetInputField(
     value: String,
     placeholder: String,
     onValueChange: (String) -> Unit,
-    enabled: Boolean
+    isCompleted: Boolean = false
 ) {
     TextField(
         value = value,
@@ -378,12 +382,11 @@ fun SetInputField(
                 modifier = Modifier.fillMaxWidth()
             ) 
         },
-        enabled = enabled,
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         textStyle = MaterialTheme.typography.bodyMedium.copy(
             textAlign = TextAlign.Center,
-            color = if (enabled) Color.White else Color.Gray
+            color = if (isCompleted) MaterialTheme.colorScheme.primary else Color.White
         ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,

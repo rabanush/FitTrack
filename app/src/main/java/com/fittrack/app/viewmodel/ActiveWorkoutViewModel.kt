@@ -110,7 +110,7 @@ class ActiveWorkoutViewModel(
         _exerciseSessions.value = sessions
     }
 
-    fun updateSetData(exerciseIndex: Int, setIndex: Int, weight: String? = null, reps: String? = null, rir: String? = null) {
+    fun updateSetData(exerciseIndex: Int, setIndex: Int, weight: String? = null, reps: String? = null) {
         val sessions = _exerciseSessions.value.toMutableList()
         if (exerciseIndex >= sessions.size) return
         val session = sessions[exerciseIndex]
@@ -119,8 +119,7 @@ class ActiveWorkoutViewModel(
         val set = sets[setIndex]
         sets[setIndex] = set.copy(
             weight = weight ?: set.weight,
-            reps = reps ?: set.reps,
-            rir = rir ?: set.rir
+            reps = reps ?: set.reps
         )
         sessions[exerciseIndex] = session.copy(sets = sets)
         _exerciseSessions.value = sessions
@@ -133,23 +132,27 @@ class ActiveWorkoutViewModel(
         val sets = session.sets.toMutableList()
         if (setIndex >= sets.size) return
         
-        // If values are empty, use previous values as defaults
         val currentSet = sets[setIndex]
-        sets[setIndex] = currentSet.copy(
-            isCompleted = true,
-            weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
-            reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps,
-            rir = if (currentSet.rir.isEmpty()) currentSet.prevRir else currentSet.rir
-        )
+        if (currentSet.isCompleted) {
+            // Un-complete: allow editing again
+            sets[setIndex] = currentSet.copy(isCompleted = false)
+        } else {
+            // Complete: use placeholder values if fields are empty
+            sets[setIndex] = currentSet.copy(
+                isCompleted = true,
+                weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
+                reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps,
+                rir = if (currentSet.rir.isEmpty()) currentSet.prevRir else currentSet.rir
+            )
+            // Start rest timer
+            val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
+            if (restSeconds > 0) {
+                startTimer(restSeconds, exerciseIndex, setIndex + 1)
+            }
+        }
         
         sessions[exerciseIndex] = session.copy(sets = sets)
         _exerciseSessions.value = sessions
-
-        // Start rest timer
-        val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
-        if (restSeconds > 0) {
-            startTimer(restSeconds, exerciseIndex, setIndex + 1)
-        }
     }
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
