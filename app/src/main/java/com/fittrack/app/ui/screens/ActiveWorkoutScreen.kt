@@ -2,6 +2,7 @@ package com.fittrack.app.ui.screens
 
 import android.media.ToneGenerator
 import android.media.AudioManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -36,6 +37,14 @@ fun ActiveWorkoutScreen(
     val (showFinishConfirm, setShowFinishConfirm) = remember { mutableStateOf(false) }
     val (showCancelConfirm, setShowCancelConfirm) = remember { mutableStateOf(false) }
 
+    // Intercept system back button - show the cancel dialog instead of leaving silently
+    BackHandler {
+        setShowCancelConfirm(true)
+    }
+
+    // Only show exercises that still have at least one incomplete set
+    val visibleSessions = sessions.filter { session -> !session.sets.all { it.isCompleted } }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -67,7 +76,8 @@ fun ActiveWorkoutScreen(
                 }
             }
 
-            itemsIndexed(sessions) { exerciseIndex, session ->
+            itemsIndexed(visibleSessions) { _, session ->
+                val exerciseIndex = sessions.indexOf(session)
                 ExerciseSessionCard(
                     session = session,
                     onAddSet = { viewModel.addSet(exerciseIndex) },
@@ -288,7 +298,10 @@ fun SetRow(
     onRepsChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
-    val canComplete = !set.isCompleted && set.reps.isNotBlank() && (set.reps.toIntOrNull() ?: 0) > 0
+    // Allow completing when actual reps are entered OR when a ghost/placeholder value exists
+    val hasReps = set.reps.isNotBlank() && (set.reps.toIntOrNull() ?: 0) > 0
+    val hasGhostReps = set.reps.isBlank() && set.prevReps.isNotBlank() && (set.prevReps.toIntOrNull() ?: 0) > 0
+    val canComplete = hasReps || hasGhostReps
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
 
     Row(
@@ -316,7 +329,7 @@ fun SetRow(
                 value = set.weight,
                 placeholder = set.prevWeight,
                 onValueChange = onWeightChange,
-                enabled = !set.isCompleted
+                enabled = true
             )
         }
         
@@ -327,7 +340,7 @@ fun SetRow(
                 value = set.reps,
                 placeholder = set.prevReps,
                 onValueChange = onRepsChange,
-                enabled = !set.isCompleted
+                enabled = true
             )
         }
 

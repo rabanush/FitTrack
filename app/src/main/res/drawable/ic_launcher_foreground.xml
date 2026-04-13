@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dumbbell scaled to ~65% of the icon canvas (centered) -->
+    <group
+        android:translateX="21.6"
+        android:translateY="21.6"
+        android:scaleX="0.65"
+        android:scaleY="0.65">
+        <!-- Left weight plate outer -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M10,38 L10,70 Q10,75 15,75 L22,75 Q27,75 27,70 L27,38 Q27,33 22,33 L15,33 Q10,33 10,38 Z" />
+        <!-- Left weight plate inner (cut-out effect) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M22,42 L22,66 Q22,68 20,68 L17,68 Q15,68 15,66 L15,42 Q15,40 17,40 L20,40 Q22,40 22,42 Z"
+            android:fillAlpha="0.0" />
+        <!-- Bar -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M27,50 L81,50 L81,58 L27,58 Z" />
+        <!-- Right weight plate outer -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M98,38 L98,70 Q98,75 93,75 L86,75 Q81,75 81,70 L81,38 Q81,33 86,33 L93,33 Q98,33 98,38 Z" />
+    </group>
+</vector>

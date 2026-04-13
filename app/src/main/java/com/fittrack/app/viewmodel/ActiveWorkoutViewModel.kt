@@ -54,7 +54,7 @@ class ActiveWorkoutViewModel(
 
     init {
         try {
-            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
         } catch (_: Exception) {}
 
         viewModelScope.launch {
@@ -136,22 +136,25 @@ class ActiveWorkoutViewModel(
         val session = sessions[exerciseIndex]
         val sets = session.sets.toMutableList()
         if (setIndex >= sets.size) return
-        
+
         // If values are empty, use previous values as defaults
         val currentSet = sets[setIndex]
+        val wasCompleted = currentSet.isCompleted
         sets[setIndex] = currentSet.copy(
             isCompleted = true,
             weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
             reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps
         )
-        
+
         sessions[exerciseIndex] = session.copy(sets = sets)
         _exerciseSessions.value = sessions
 
-        // Start rest timer
-        val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
-        if (restSeconds > 0) {
-            startTimer(restSeconds, exerciseIndex, setIndex + 1)
+        // Only start rest timer on first completion, not when re-editing a completed set
+        if (!wasCompleted) {
+            val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
+            if (restSeconds > 0) {
+                startTimer(restSeconds, exerciseIndex, setIndex + 1)
+            }
         }
     }
 
