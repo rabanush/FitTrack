@@ -6,7 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -34,31 +34,20 @@ fun ActiveWorkoutScreen(
 ) {
     val workout by viewModel.workout.collectAsState()
     val sessions by viewModel.exerciseSessions.collectAsState()
+    
+    // We collect timerState here only for the visibility check. 
+    // The actual tick updates are handled inside RestTimerBanner to prevent screen-wide recomposition.
     val timerState by viewModel.timerState.collectAsState()
+    
     var showFinishConfirm by remember { mutableStateOf(false) }
 
-    val activeIndices by remember(sessions) {
-        derivedStateOf {
-            sessions.indices.filter { i -> !sessions[i].sets.all { it.isCompleted } }
-        }
+    // Derived state for visible exercises to avoid filtering on every recomposition
+    val visibleSessions = remember(sessions) {
+        sessions.mapIndexed { index, session -> index to session }
+            .filter { !it.second.sets.all { set -> set.isCompleted } }
     }
 
-    // Beep when timer reaches 0
-    LaunchedEffect(timerState.remainingSeconds, timerState.isRunning) {
-        if (!timerState.isRunning && timerState.remainingSeconds == 0 && timerState.totalSeconds > 0) {
-            try {
-                val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                try {
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 800)
-                    kotlinx.coroutines.delay(900L)
-                } finally {
-                    toneGen.release()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    // Intercept system back press – show confirmation instead of silently leaving
+    // Intercept system back press
     BackHandler { showFinishConfirm = true }
 
     Scaffold(
@@ -72,9 +61,7 @@ fun ActiveWorkoutScreen(
                     }
                 },
                 actions = {
-                    TextButton(
-                        onClick = { showFinishConfirm = true }
-                    ) {
+                    TextButton(onClick = { showFinishConfirm = true }) {
                         Text("FINISH", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 },
@@ -86,13 +73,13 @@ fun ActiveWorkoutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            contentPadding = PaddingValues(bottom = 32.dp)
         ) {
-            // Timer overlay
+            // Timer section - isolated recomposition
             if (timerState.isRunning || timerState.remainingSeconds > 0) {
-                item {
+                item(key = "timer_banner") {
                     RestTimerBanner(
-                        timerState = timerState,
+                        viewModel = viewModel,
                         onSkip = { viewModel.skipTimer() },
                         onAdd15 = { viewModel.adjustTimer(15) },
                         onMinus15 = { viewModel.adjustTimer(-15) }
@@ -100,19 +87,20 @@ fun ActiveWorkoutScreen(
                 }
             }
 
-            // Only show exercises that still have incomplete sets
-            itemsIndexed(activeIndices, key = { _, exerciseIndex -> exerciseIndex }) { _, exerciseIndex ->
-                val session = sessions[exerciseIndex]
+            // Exercise items with stable keys
+            items(
+                items = visibleSessions,
+                key = { it.second.workoutExercise.workoutExercise.id }
+            ) { (originalIndex, session) ->
                 ExerciseSessionCard(
                     session = session,
-                    exerciseIndex = exerciseIndex,
-                    onAddSet = { viewModel.addSet(exerciseIndex) },
-                    onRemoveSet = { viewModel.removeSet(exerciseIndex) },
+                    onAddSet = { viewModel.addSet(originalIndex) },
+                    onRemoveSet = { viewModel.removeSet(originalIndex) },
                     onUpdateSet = { setIndex, weight, reps ->
-                        viewModel.updateSetData(exerciseIndex, setIndex, weight, reps)
+                        viewModel.updateSetData(originalIndex, setIndex, weight, reps)
                     },
                     onCompleteSet = { setIndex ->
-                        viewModel.completeSet(exerciseIndex, setIndex)
+                        viewModel.completeSet(originalIndex, setIndex)
                     }
                 )
             }
@@ -145,22 +133,25 @@ fun ActiveWorkoutScreen(
 
 @Composable
 fun RestTimerBanner(
-    timerState: TimerState,
+    viewModel: ActiveWorkoutViewModel,
     onSkip: () -> Unit,
     onAdd15: () -> Unit,
     onMinus15: () -> Unit
 ) {
-    val progress = if (timerState.totalSeconds > 0)
-        timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()
-    else 0f
-
-    val bgColor = MaterialTheme.colorScheme.surface
+    // Collecting the timer state here isolates recomposition to this component
+    val timerState by viewModel.timerState.collectAsState()
+    
+    val progress = remember(timerState.remainingSeconds, timerState.totalSeconds) {
+        if (timerState.totalSeconds > 0)
+            timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()
+        else 0f
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -169,13 +160,9 @@ fun RestTimerBanner(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text("Resting", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
             Text(
-                "Resting",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray
-            )
-            Text(
-                formatTime(timerState.remainingSeconds),
+                text = formatTime(timerState.remainingSeconds),
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 fontSize = 48.sp,
@@ -213,7 +200,6 @@ private fun formatTime(seconds: Int): String {
 @Composable
 fun ExerciseSessionCard(
     session: ExerciseSessionData,
-    exerciseIndex: Int,
     onAddSet: () -> Unit,
     onRemoveSet: () -> Unit,
     onUpdateSet: (Int, String?, String?) -> Unit,
@@ -226,11 +212,7 @@ fun ExerciseSessionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = session.workoutExercise.exercise.name,
                 style = MaterialTheme.typography.titleMedium,
@@ -244,11 +226,8 @@ fun ExerciseSessionCard(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            // Header row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("SET", modifier = Modifier.width(36.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
@@ -258,36 +237,28 @@ fun ExerciseSessionCard(
                 Spacer(Modifier.width(40.dp))
             }
 
-            session.sets.forEachIndexed { setIndex, set ->
+            session.sets.forEachIndexed { index, set ->
                 SetRow(
                     set = set,
-                    onWeightChange = { onUpdateSet(setIndex, it, null) },
-                    onRepsChange = { onUpdateSet(setIndex, null, it) },
-                    onComplete = { onCompleteSet(setIndex) }
+                    onWeightChange = { onUpdateSet(index, it, null) },
+                    onRepsChange = { onUpdateSet(index, null, it) },
+                    onComplete = { onCompleteSet(index) }
                 )
             }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(
-                    onClick = onRemoveSet,
-                    enabled = session.sets.size > 1
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(16.dp))
+                TextButton(onClick = onRemoveSet, enabled = session.sets.size > 1) {
+                    Icon(Icons.Default.Remove, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("REMOVE SET", style = MaterialTheme.typography.labelLarge)
+                    Text("REMOVE SET")
                 }
-                TextButton(
-                    onClick = onAddSet
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                TextButton(onClick = onAddSet) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("ADD SET", style = MaterialTheme.typography.labelLarge)
+                    Text("ADD SET")
                 }
             }
         }
@@ -301,28 +272,20 @@ fun SetRow(
     onRepsChange: (String) -> Unit,
     onComplete: () -> Unit
 ) {
-    val completedBg = if (set.isCompleted)
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-    else
-        Color.Transparent
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White
     
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .background(completedBg, RoundedCornerShape(8.dp)),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "${set.setNumber}",
+            text = "${set.setNumber}",
             modifier = Modifier.width(36.dp),
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
             color = tintColor
         )
         
-        // Previous performance as hint
         Text(
             text = if (set.prevWeight.isNotEmpty()) "${set.prevWeight}kg × ${set.prevReps}" else "-",
             modifier = Modifier.weight(1f),
@@ -331,8 +294,7 @@ fun SetRow(
             color = Color.Gray
         )
 
-        // Inputs – always enabled so completed sets remain editable
-        Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.width(60.dp)) {
             SetInputField(
                 value = set.weight,
                 placeholder = set.prevWeight,
@@ -343,7 +305,7 @@ fun SetRow(
         
         Spacer(modifier = Modifier.width(4.dp))
 
-        Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.width(60.dp)) {
             SetInputField(
                 value = set.reps,
                 placeholder = set.prevReps,
@@ -352,15 +314,11 @@ fun SetRow(
             )
         }
 
-        // Complete / un-complete toggle button – always enabled
-        IconButton(
-            onClick = onComplete,
-            modifier = Modifier.size(40.dp)
-        ) {
+        IconButton(onClick = onComplete, modifier = Modifier.size(40.dp)) {
             Icon(
-                if (set.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = if (set.isCompleted) "Unmark complete" else "Mark complete",
-                tint = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
+                imageVector = if (set.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.4f)
             )
         }
     }
@@ -371,32 +329,24 @@ fun SetInputField(
     value: String,
     placeholder: String,
     onValueChange: (String) -> Unit,
-    isCompleted: Boolean = false
+    isCompleted: Boolean
 ) {
     TextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = { 
-            Text(
-                placeholder, 
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) 
-        },
+        placeholder = { Text(placeholder, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontSize = 12.sp) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
+        textStyle = LocalTextStyle.current.copy(
             textAlign = TextAlign.Center,
+            fontSize = 14.sp,
             color = if (isCompleted) MaterialTheme.colorScheme.primary else Color.White
         ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent,
-            disabledContainerColor = Color.Transparent,
             focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-            unfocusedIndicatorColor = Color.Gray.copy(alpha = 0.3f),
-            disabledIndicatorColor = Color.Transparent
+            unfocusedIndicatorColor = Color.Gray.copy(alpha = 0.2f)
         ),
         modifier = Modifier.fillMaxWidth()
     )
