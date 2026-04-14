@@ -74,143 +74,133 @@ class ActiveWorkoutViewModel(
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
             repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                val sessions = withContext(Dispatchers.IO) {
+                _exerciseSessions.value = withContext(Dispatchers.IO) {
                     coroutineScope {
-                        exercises.map { weWithEx ->
-                            async {
-                                val previousLogs = repository.getPreviousLogEntriesForExercise(
-                                    weWithEx.exercise.id,
-                                    _workoutStartTime
-                                ).sortedBy { it.setNumber }
-
-                                val targetSetCount = weWithEx.workoutExercise.setCount
-                                val initialSets = (1..targetSetCount).map { setNum ->
-                                    val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
-                                    SetData(
-                                        setNumber = setNum,
-                                        prevWeight = prev?.weight?.toString() ?: "",
-                                        prevReps = prev?.reps?.toString() ?: "",
-                                        prevRir = prev?.rir?.toString() ?: ""
-                                    )
-                                }
-
-                                ExerciseSessionData(
-                                    workoutExercise = weWithEx,
-                                    sets = initialSets
-                                )
-                            }
-                        }.awaitAll()
+                        exercises.map { async { buildSessionForExercise(it) } }.awaitAll()
                     }
                 }
-                _exerciseSessions.value = sessions
             }
         }
+    }
+
+    // Applies a transformation to the session at the given index.
+    private fun updateSessionAt(exerciseIndex: Int, transform: (ExerciseSessionData) -> ExerciseSessionData) {
+        val sessions = _exerciseSessions.value.toMutableList()
+        if (exerciseIndex >= sessions.size) return
+        sessions[exerciseIndex] = transform(sessions[exerciseIndex])
+        _exerciseSessions.value = sessions
+    }
+
+    // Returns a copy of this SetData that is marked as completed, back-filling any empty fields
+    // from the previous-session values.
+    private fun SetData.toCompleted() = copy(
+        isCompleted = true,
+        weight = weight.ifEmpty { prevWeight },
+        reps = reps.ifEmpty { prevReps },
+        rir = rir.ifEmpty { prevRir }
+    )
+
+    private fun buildInitialSet(setNum: Int, previousLogs: List<LogEntry>): SetData {
+        val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
+        return SetData(
+            setNumber = setNum,
+            prevWeight = prev?.weight?.toString() ?: "",
+            prevReps = prev?.reps?.toString() ?: "",
+            prevRir = prev?.rir?.toString() ?: ""
+        )
+    }
+
+    private suspend fun buildSessionForExercise(weWithEx: WorkoutExerciseWithExercise): ExerciseSessionData {
+        val previousLogs = repository.getPreviousLogEntriesForExercise(
+            weWithEx.exercise.id, _workoutStartTime
+        ).sortedBy { it.setNumber }
+        val initialSets = (1..weWithEx.workoutExercise.setCount).map { buildInitialSet(it, previousLogs) }
+        return ExerciseSessionData(workoutExercise = weWithEx, sets = initialSets)
+    }
+
+    private fun buildLogEntry(session: ExerciseSessionData, set: SetData): LogEntry? {
+        if (!set.isCompleted && set.weight.isEmpty() && set.reps.isEmpty()) return null
+        return LogEntry(
+            exerciseId = session.workoutExercise.exercise.id,
+            workoutId = workoutId,
+            date = _workoutStartTime,
+            setNumber = set.setNumber,
+            weight = set.weight.toFloatOrNull() ?: set.prevWeight.toFloatOrNull() ?: 0f,
+            reps = set.reps.toIntOrNull() ?: set.prevReps.toIntOrNull() ?: 0,
+            rir = set.rir.toIntOrNull() ?: set.prevRir.toIntOrNull() ?: 0
+        )
     }
 
     fun addSet(exerciseIndex: Int) {
-        val sessions = _exerciseSessions.value.toMutableList()
-        if (exerciseIndex >= sessions.size) return
-        val session = sessions[exerciseIndex]
-        val newSetNumber = session.sets.size + 1
-        
-        // Use last set or previous log as template for the new set
-        val template = session.sets.lastOrNull()
-        val updatedSets = session.sets.toMutableList().apply { 
-            add(SetData(
-                setNumber = newSetNumber,
-                prevWeight = template?.prevWeight ?: "",
-                prevReps = template?.prevReps ?: "",
-                prevRir = template?.prevRir ?: ""
-            )) 
+        updateSessionAt(exerciseIndex) { session ->
+            val template = session.sets.lastOrNull()
+            session.copy(
+                sets = session.sets + SetData(
+                    setNumber = session.sets.size + 1,
+                    prevWeight = template?.prevWeight ?: "",
+                    prevReps = template?.prevReps ?: "",
+                    prevRir = template?.prevRir ?: ""
+                )
+            )
         }
-        sessions[exerciseIndex] = session.copy(sets = updatedSets)
-        _exerciseSessions.value = sessions
     }
 
     fun removeSet(exerciseIndex: Int) {
-        val sessions = _exerciseSessions.value.toMutableList()
-        if (exerciseIndex >= sessions.size) return
-        val session = sessions[exerciseIndex]
-        if (session.sets.size <= 1) return
-        val updatedSets = session.sets.toMutableList().apply { removeLastOrNull() }
-        sessions[exerciseIndex] = session.copy(sets = updatedSets)
-        _exerciseSessions.value = sessions
+        updateSessionAt(exerciseIndex) { session ->
+            if (session.sets.size <= 1) return@updateSessionAt session
+            session.copy(sets = session.sets.dropLast(1))
+        }
     }
 
     fun updateSetData(exerciseIndex: Int, setIndex: Int, weight: String? = null, reps: String? = null) {
-        val sessions = _exerciseSessions.value.toMutableList()
-        if (exerciseIndex >= sessions.size) return
-        val session = sessions[exerciseIndex]
-        val sets = session.sets.toMutableList()
-        if (setIndex >= sets.size) return
-        val set = sets[setIndex]
-        sets[setIndex] = set.copy(
-            weight = weight ?: set.weight,
-            reps = reps ?: set.reps
-        )
-        sessions[exerciseIndex] = session.copy(sets = sets)
-        _exerciseSessions.value = sessions
+        updateSessionAt(exerciseIndex) { session ->
+            if (setIndex >= session.sets.size) return@updateSessionAt session
+            session.copy(sets = session.sets.mapIndexed { i, set ->
+                if (i == setIndex) set.copy(weight = weight ?: set.weight, reps = reps ?: set.reps) else set
+            })
+        }
     }
 
     fun completeSet(exerciseIndex: Int, setIndex: Int) {
-        val sessions = _exerciseSessions.value.toMutableList()
-        if (exerciseIndex >= sessions.size) return
-        val session = sessions[exerciseIndex]
-        val sets = session.sets.toMutableList()
-        if (setIndex >= sets.size) return
-
-        val currentSet = sets[setIndex]
-        if (currentSet.isCompleted) {
-            sets[setIndex] = currentSet.copy(isCompleted = false)
-        } else {
-            sets[setIndex] = currentSet.copy(
-                isCompleted = true,
-                weight = if (currentSet.weight.isEmpty()) currentSet.prevWeight else currentSet.weight,
-                reps = if (currentSet.reps.isEmpty()) currentSet.prevReps else currentSet.reps,
-                rir = if (currentSet.rir.isEmpty()) currentSet.prevRir else currentSet.rir
-            )
-            // Start rest timer
+        updateSessionAt(exerciseIndex) { session ->
+            if (setIndex >= session.sets.size) return@updateSessionAt session
+            val currentSet = session.sets[setIndex]
+            val updatedSet = if (currentSet.isCompleted) currentSet.copy(isCompleted = false) else currentSet.toCompleted()
             val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
-            if (restSeconds > 0) {
-                startTimer(restSeconds, exerciseIndex, setIndex + 1)
-            }
+            if (!currentSet.isCompleted && restSeconds > 0) startTimer(restSeconds, exerciseIndex, setIndex + 1)
+            session.copy(sets = session.sets.mapIndexed { i, s -> if (i == setIndex) updatedSet else s })
         }
-        sessions[exerciseIndex] = session.copy(sets = sets)
-        _exerciseSessions.value = sessions
     }
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
         timerJob?.cancel()
-        val endTime = System.currentTimeMillis() + (seconds * 1000L)
         _timerState.value = TimerState(
             isRunning = true,
             remainingSeconds = seconds,
             totalSeconds = seconds,
             exerciseIndex = exerciseIndex,
             setNumber = setNumber,
-            endTimeMillis = endTime
+            endTimeMillis = System.currentTimeMillis() + (seconds * 1000L)
         )
+        timerJob = viewModelScope.launch { tickTimer() }
+    }
 
-        timerJob = viewModelScope.launch {
-            var lastBeep = -1
-            while (true) {
-                val now = System.currentTimeMillis()
-                val remaining = ((_timerState.value.endTimeMillis - now) / 1000L).toInt().coerceAtLeast(0)
-
-                _timerState.value = _timerState.value.copy(remainingSeconds = remaining)
-
-                if (remaining in 1..3 && remaining != lastBeep) {
-                    lastBeep = remaining
-                    playTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                }
-
-                if (remaining <= 0) {
-                    _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
-                    playEndTone()
-                    break
-                }
-                delay(200L) // Oft genug prüfen
+    private suspend fun tickTimer() {
+        var lastBeep = -1
+        while (true) {
+            val remaining = ((_timerState.value.endTimeMillis - System.currentTimeMillis()) / 1000L)
+                .toInt().coerceAtLeast(0)
+            _timerState.value = _timerState.value.copy(remainingSeconds = remaining)
+            if (remaining in 1..3 && remaining != lastBeep) {
+                lastBeep = remaining
+                playTone(ToneGenerator.TONE_PROP_BEEP, 150)
             }
+            if (remaining <= 0) {
+                _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
+                playEndTone()
+                break
+            }
+            delay(200L) // Poll frequently enough for a smooth countdown display
         }
     }
 
@@ -258,34 +248,10 @@ class ActiveWorkoutViewModel(
 
     fun finishWorkout(onFinished: () -> Unit) {
         viewModelScope.launch {
-            val entries = mutableListOf<LogEntry>()
-            val workoutIdVal = workoutId
-            val date = _workoutStartTime
-
-            _exerciseSessions.value.forEach { session ->
-                session.sets.forEach { set ->
-                    // Only save sets that were completed or have data
-                    if (set.isCompleted || set.weight.isNotEmpty() || set.reps.isNotEmpty()) {
-                        val w = set.weight.toFloatOrNull() ?: set.prevWeight.toFloatOrNull() ?: 0f
-                        val r = set.reps.toIntOrNull() ?: set.prevReps.toIntOrNull() ?: 0
-                        val rir = set.rir.toIntOrNull() ?: set.prevRir.toIntOrNull() ?: 0
-                        entries.add(
-                            LogEntry(
-                                exerciseId = session.workoutExercise.exercise.id,
-                                workoutId = workoutIdVal,
-                                date = date,
-                                setNumber = set.setNumber,
-                                weight = w,
-                                reps = r,
-                                rir = rir
-                            )
-                        )
-                    }
-                }
+            val entries = _exerciseSessions.value.flatMap { session ->
+                session.sets.mapNotNull { set -> buildLogEntry(session, set) }
             }
-            if (entries.isNotEmpty()) {
-                repository.insertLogEntries(entries)
-            }
+            if (entries.isNotEmpty()) repository.insertLogEntries(entries)
             timerJob?.cancel()
             onFinished()
         }
@@ -300,15 +266,15 @@ class ActiveWorkoutViewModel(
     }
 }
 
+// Each factory below uses an unchecked cast instead of an isAssignableFrom guard:
+// these factories are single-purpose and are always paired with the correct ViewModel
+// class by their call sites, so a ClassCastException would be equally informative.
+
 class ActiveWorkoutViewModelFactory(
     private val repository: FitTrackRepository,
     private val workoutId: Long
 ) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ActiveWorkoutViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ActiveWorkoutViewModel(repository, workoutId) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        ActiveWorkoutViewModel(repository, workoutId) as T
 }

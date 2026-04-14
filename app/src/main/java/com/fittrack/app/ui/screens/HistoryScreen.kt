@@ -97,10 +97,10 @@ fun HistoryDateCard(date: Long, viewModel: HistoryViewModel) {
 @Composable
 fun ExerciseHistorySection(entries: List<LogEntry>) {
     Column(modifier = Modifier.padding(top = 8.dp)) {
-        entries.forEachIndexed { i, entry ->
-            if (i == 0) {
-                Text("Exercise #${entry.exerciseId}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
+        entries.firstOrNull()?.let {
+            Text("Exercise #${it.exerciseId}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
+        entries.forEach { entry ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

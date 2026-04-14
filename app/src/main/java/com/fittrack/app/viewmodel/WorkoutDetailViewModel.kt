@@ -76,11 +76,7 @@ class WorkoutDetailViewModelFactory(
     private val repository: FitTrackRepository,
     private val workoutId: Long
 ) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(WorkoutDetailViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return WorkoutDetailViewModel(repository, workoutId) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        WorkoutDetailViewModel(repository, workoutId) as T
 }
