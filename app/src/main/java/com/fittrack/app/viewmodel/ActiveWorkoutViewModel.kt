@@ -50,6 +50,11 @@ class ActiveWorkoutViewModel(
     private val _timerState = MutableStateFlow(TimerState())
     val timerState: StateFlow<TimerState> = _timerState
 
+    /** Emits only when the timer banner should appear or disappear, preventing full-screen recomposition on every tick. */
+    val isTimerVisible: StateFlow<Boolean> = _timerState
+        .map { it.isRunning || it.remainingSeconds > 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     private val _workoutStartTime = System.currentTimeMillis()
     private var timerJob: Job? = null
     private var toneGenerator: ToneGenerator? = null
@@ -188,7 +193,7 @@ class ActiveWorkoutViewModel(
 
                 if (remaining <= 0) {
                     _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
-                    playTone(ToneGenerator.TONE_PROP_BEEP, 400)
+                    playEndTone()
                     break
                 }
                 delay(200L) // Oft genug prüfen
@@ -200,6 +205,20 @@ class ActiveWorkoutViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 toneGenerator?.startTone(toneType, durationMs)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Two-beep sequence used when the rest timer expires – distinct from the per-second countdown beeps. */
+    private fun playEndTone() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val shortBeepMs = 250
+                // Wait slightly longer than the first beep so the two tones are clearly separate
+                val delayBetweenBeepsMs = 380L
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, shortBeepMs)
+                delay(delayBetweenBeepsMs)
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
             } catch (_: Exception) {}
         }
     }

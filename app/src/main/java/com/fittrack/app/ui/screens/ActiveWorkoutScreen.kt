@@ -35,9 +35,9 @@ fun ActiveWorkoutScreen(
     val workout by viewModel.workout.collectAsState()
     val sessions by viewModel.exerciseSessions.collectAsState()
     
-    // We collect timerState here only for the visibility check. 
-    // The actual tick updates are handled inside RestTimerBanner to prevent screen-wide recomposition.
-    val timerState by viewModel.timerState.collectAsState()
+    // Collect only a boolean flag so that the 200 ms timer tick does NOT recompose the entire screen.
+    // The actual countdown is handled inside RestTimerBanner, which is the only component that recomposes on each tick.
+    val isTimerVisible by viewModel.isTimerVisible.collectAsState()
     
     var showFinishConfirm by remember { mutableStateOf(false) }
 
@@ -76,7 +76,7 @@ fun ActiveWorkoutScreen(
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             // Timer section - isolated recomposition
-            if (timerState.isRunning || timerState.remainingSeconds > 0) {
+            if (isTimerVisible) {
                 item(key = "timer_banner") {
                     RestTimerBanner(
                         viewModel = viewModel,
