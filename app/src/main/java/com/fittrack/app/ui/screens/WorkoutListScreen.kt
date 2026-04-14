@@ -140,7 +140,7 @@ fun WorkoutCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(workout.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(workout.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = onStart) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Start", tint = MaterialTheme.colorScheme.primary)

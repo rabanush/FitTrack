@@ -37,6 +37,12 @@ fun ActiveWorkoutScreen(
     val timerState by viewModel.timerState.collectAsState()
     var showFinishConfirm by remember { mutableStateOf(false) }
 
+    val activeIndices by remember(sessions) {
+        derivedStateOf {
+            sessions.indices.filter { i -> !sessions[i].sets.all { it.isCompleted } }
+        }
+    }
+
     // Beep when timer reaches 0
     LaunchedEffect(timerState.remainingSeconds, timerState.isRunning) {
         if (!timerState.isRunning && timerState.remainingSeconds == 0 && timerState.totalSeconds > 0) {
@@ -95,11 +101,7 @@ fun ActiveWorkoutScreen(
             }
 
             // Only show exercises that still have incomplete sets
-            val activeIndices = sessions.indices.filter { i ->
-                !sessions[i].sets.all { it.isCompleted }
-            }
-
-            itemsIndexed(activeIndices) { _, exerciseIndex ->
+            itemsIndexed(activeIndices, key = { _, exerciseIndex -> exerciseIndex }) { _, exerciseIndex ->
                 val session = sessions[exerciseIndex]
                 ExerciseSessionCard(
                     session = session,
