@@ -87,21 +87,24 @@ fun ActiveWorkoutScreen(
                 }
             }
 
-            // Exercise items with stable keys
             items(
                 items = visibleSessions,
                 key = { it.second.workoutExercise.workoutExercise.id }
             ) { (originalIndex, session) ->
+                val onAddSet = remember(originalIndex) { { viewModel.addSet(originalIndex) } }
+                val onRemoveSet = remember(originalIndex) { { viewModel.removeSet(originalIndex) } }
+                val onUpdateSet: (Int, String?, String?) -> Unit = remember(originalIndex) {
+                    { setIndex, weight, reps -> viewModel.updateSetData(originalIndex, setIndex, weight, reps) }
+                }
+                val onCompleteSet: (Int) -> Unit = remember(originalIndex) {
+                    { setIndex -> viewModel.completeSet(originalIndex, setIndex) }
+                }
                 ExerciseSessionCard(
                     session = session,
-                    onAddSet = { viewModel.addSet(originalIndex) },
-                    onRemoveSet = { viewModel.removeSet(originalIndex) },
-                    onUpdateSet = { setIndex, weight, reps ->
-                        viewModel.updateSetData(originalIndex, setIndex, weight, reps)
-                    },
-                    onCompleteSet = { setIndex ->
-                        viewModel.completeSet(originalIndex, setIndex)
-                    }
+                    onAddSet = onAddSet,
+                    onRemoveSet = onRemoveSet,
+                    onUpdateSet = onUpdateSet,
+                    onCompleteSet = onCompleteSet
                 )
             }
         }

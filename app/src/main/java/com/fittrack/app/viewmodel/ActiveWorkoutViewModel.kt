@@ -1,27 +1,34 @@
 package com.fittrack.app.viewmodel
 
 import androidx.lifecycle.*
+import androidx.compose.runtime.Immutable
 import com.fittrack.app.data.model.*
 import com.fittrack.app.data.repository.FitTrackRepository
 import android.media.AudioManager
 import android.media.ToneGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+@Immutable
 data class SetData(
     val setNumber: Int,
-    var weight: String = "",
-    var reps: String = "",
-    var rir: String = "0",
-    var isCompleted: Boolean = false,
+    val weight: String = "",
+    val reps: String = "",
+    val rir: String = "0",
+    val isCompleted: Boolean = false,
     val prevWeight: String = "",
     val prevReps: String = "",
     val prevRir: String = ""
 )
 
+@Immutable
 data class ExerciseSessionData(
     val workoutExercise: WorkoutExerciseWithExercise,
     val sets: List<SetData> = emptyList()
@@ -67,27 +74,33 @@ class ActiveWorkoutViewModel(
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
             repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                val sessions = exercises.map { weWithEx ->
-                    val previousLogs = repository.getPreviousLogEntriesForExercise(
-                        weWithEx.exercise.id,
-                        _workoutStartTime
-                    ).sortedBy { it.setNumber }
+                val sessions = withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        exercises.map { weWithEx ->
+                            async {
+                                val previousLogs = repository.getPreviousLogEntriesForExercise(
+                                    weWithEx.exercise.id,
+                                    _workoutStartTime
+                                ).sortedBy { it.setNumber }
 
-                    val targetSetCount = weWithEx.workoutExercise.setCount
-                    val initialSets = (1..targetSetCount).map { setNum ->
-                        val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
-                        SetData(
-                            setNumber = setNum,
-                            prevWeight = prev?.weight?.toString() ?: "",
-                            prevReps = prev?.reps?.toString() ?: "",
-                            prevRir = prev?.rir?.toString() ?: ""
-                        )
+                                val targetSetCount = weWithEx.workoutExercise.setCount
+                                val initialSets = (1..targetSetCount).map { setNum ->
+                                    val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
+                                    SetData(
+                                        setNumber = setNum,
+                                        prevWeight = prev?.weight?.toString() ?: "",
+                                        prevReps = prev?.reps?.toString() ?: "",
+                                        prevRir = prev?.rir?.toString() ?: ""
+                                    )
+                                }
+
+                                ExerciseSessionData(
+                                    workoutExercise = weWithEx,
+                                    sets = initialSets
+                                )
+                            }
+                        }.awaitAll()
                     }
-                    
-                    ExerciseSessionData(
-                        workoutExercise = weWithEx,
-                        sets = initialSets
-                    )
                 }
                 _exerciseSessions.value = sessions
             }

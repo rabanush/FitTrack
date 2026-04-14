@@ -10,7 +10,7 @@ class WorkoutListViewModel(private val repository: FitTrackRepository) : ViewMod
 
     fun createWorkout(name: String, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
-            val id = repository.insertWorkout(Workout(name = name))
+            val id = repository.insertWorkout(Workout(name = name.uppercase()))
             onCreated(id)
         }
     }

@@ -27,7 +27,7 @@ class WorkoutDetailViewModel(
     fun updateWorkoutName(name: String) {
         viewModelScope.launch {
             val current = _workout.value ?: return@launch
-            val updated = current.copy(name = name)
+            val updated = current.copy(name = name.uppercase())
             repository.updateWorkout(updated)
             _workout.value = updated
         }
