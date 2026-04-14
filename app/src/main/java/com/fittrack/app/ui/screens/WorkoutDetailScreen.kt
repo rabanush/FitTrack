@@ -206,7 +206,8 @@ fun AddExerciseDialog(
 ) {
     val filtered = allExercises.filter {
         it.name.contains(searchQuery, ignoreCase = true) ||
-                it.muscleGroup.contains(searchQuery, ignoreCase = true)
+                it.muscleGroup.contains(searchQuery, ignoreCase = true) ||
+                it.germanName.contains(searchQuery, ignoreCase = true)
     }
 
     AlertDialog(
