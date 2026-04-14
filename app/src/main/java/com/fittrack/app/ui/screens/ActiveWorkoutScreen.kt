@@ -1,20 +1,18 @@
 package com.fittrack.app.ui.screens
 
-import android.media.ToneGenerator
-import android.media.AudioManager
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import com.fittrack.app.viewmodel.ActiveWorkoutViewModel
 import com.fittrack.app.viewmodel.ExerciseSessionData
 import com.fittrack.app.viewmodel.SetData
-import com.fittrack.app.viewmodel.TimerState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,12 +37,6 @@ fun ActiveWorkoutScreen(
     val isTimerVisible by viewModel.isTimerVisible.collectAsState()
     
     var showFinishConfirm by remember { mutableStateOf(false) }
-
-    // Derived state for visible exercises to avoid filtering on every recomposition
-    val visibleSessions = remember(sessions) {
-        sessions.mapIndexed { index, session -> index to session }
-            .filter { !it.second.sets.all { set -> set.isCompleted } }
-    }
 
     // Intercept system back press
     BackHandler { showFinishConfirm = true }
@@ -69,43 +60,38 @@ fun ActiveWorkoutScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
+        // Column + verticalScroll is preferred over LazyColumn here: a workout has at most ~15
+        // exercises, so eager composition is negligible. LazyColumn's per-scroll-frame
+        // lazy-composition of TextField-heavy cards was the primary source of scroll jank.
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(bottom = 32.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(padding)
+                .padding(bottom = 32.dp)
         ) {
             // Timer section - isolated recomposition
             if (isTimerVisible) {
-                item(key = "timer_banner") {
-                    RestTimerBanner(
-                        viewModel = viewModel,
-                        onSkip = { viewModel.skipTimer() },
-                        onAdd15 = { viewModel.adjustTimer(15) },
-                        onMinus15 = { viewModel.adjustTimer(-15) }
-                    )
-                }
+                RestTimerBanner(
+                    viewModel = viewModel,
+                    onSkip = { viewModel.skipTimer() },
+                    onAdd15 = { viewModel.adjustTimer(15) },
+                    onMinus15 = { viewModel.adjustTimer(-15) }
+                )
             }
 
-            items(
-                items = visibleSessions,
-                key = { it.second.workoutExercise.workoutExercise.id }
-            ) { (originalIndex, session) ->
-                val onAddSet = remember(originalIndex) { { viewModel.addSet(originalIndex) } }
-                val onRemoveSet = remember(originalIndex) { { viewModel.removeSet(originalIndex) } }
-                val onUpdateSet: (Int, String?, String?) -> Unit = remember(originalIndex) {
-                    { setIndex, weight, reps -> viewModel.updateSetData(originalIndex, setIndex, weight, reps) }
+            sessions.forEachIndexed { index, session ->
+                if (!session.sets.all { it.isCompleted }) {
+                    ExerciseSessionCard(
+                        session = session,
+                        onAddSet = { viewModel.addSet(index) },
+                        onRemoveSet = { viewModel.removeSet(index) },
+                        onUpdateSet = { setIndex, weight, reps ->
+                            viewModel.updateSetData(index, setIndex, weight, reps)
+                        },
+                        onCompleteSet = { setIndex -> viewModel.completeSet(index, setIndex) }
+                    )
                 }
-                val onCompleteSet: (Int) -> Unit = remember(originalIndex) {
-                    { setIndex -> viewModel.completeSet(originalIndex, setIndex) }
-                }
-                ExerciseSessionCard(
-                    session = session,
-                    onAddSet = onAddSet,
-                    onRemoveSet = onRemoveSet,
-                    onUpdateSet = onUpdateSet,
-                    onCompleteSet = onCompleteSet
-                )
             }
         }
     }
@@ -299,9 +285,9 @@ fun SetRow(
 
         Box(modifier = Modifier.width(60.dp)) {
             SetInputField(
-                value = set.weight,
+                committed = set.weight,
                 placeholder = set.prevWeight,
-                onValueChange = onWeightChange,
+                onCommit = onWeightChange,
                 isCompleted = set.isCompleted
             )
         }
@@ -310,9 +296,9 @@ fun SetRow(
 
         Box(modifier = Modifier.width(60.dp)) {
             SetInputField(
-                value = set.reps,
+                committed = set.reps,
                 placeholder = set.prevReps,
-                onValueChange = onRepsChange,
+                onCommit = onRepsChange,
                 isCompleted = set.isCompleted
             )
         }
@@ -329,14 +315,27 @@ fun SetRow(
 
 @Composable
 fun SetInputField(
-    value: String,
+    committed: String,
     placeholder: String,
-    onValueChange: (String) -> Unit,
+    onCommit: (String) -> Unit,
     isCompleted: Boolean
 ) {
+    // Local draft – keeps keystrokes off the ViewModel state until focus leaves the field,
+    // which prevents per-keystroke list recompositions.
+    var draft by remember { mutableStateOf(committed) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    // Sync external changes (e.g. "complete set" back-fills prevWeight) only while
+    // the field is not focused, so we never clobber text the user is actively typing.
+    LaunchedEffect(committed) {
+        if (!isFocused) {
+            draft = committed
+        }
+    }
+
     TextField(
-        value = value,
-        onValueChange = onValueChange,
+        value = draft,
+        onValueChange = { draft = it },
         placeholder = { Text(placeholder, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontSize = 12.sp) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -351,6 +350,13 @@ fun SetInputField(
             focusedIndicatorColor = MaterialTheme.colorScheme.primary,
             unfocusedIndicatorColor = Color.Gray.copy(alpha = 0.2f)
         ),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focusState ->
+                if (isFocused && !focusState.isFocused && draft != committed) {
+                    onCommit(draft)
+                }
+                isFocused = focusState.isFocused
+            }
     )
 }
