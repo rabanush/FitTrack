@@ -6,7 +6,6 @@ import com.fittrack.app.data.repository.FitTrackRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class SetData(
