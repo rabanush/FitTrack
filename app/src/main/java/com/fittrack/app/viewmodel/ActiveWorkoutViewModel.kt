@@ -6,6 +6,7 @@ import com.fittrack.app.data.repository.FitTrackRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class SetData(
@@ -52,31 +53,30 @@ class ActiveWorkoutViewModel(
     init {
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
-            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                val sessions = exercises.map { weWithEx ->
-                    val previousLogs = repository.getPreviousLogEntriesForExercise(
-                        weWithEx.exercise.id,
-                        _workoutStartTime
-                    ).sortedBy { it.setNumber }
+            val exercises = repository.getWorkoutExercisesWithExercise(workoutId).first()
+            val sessions = exercises.map { weWithEx ->
+                val previousLogs = repository.getPreviousLogEntriesForExercise(
+                    weWithEx.exercise.id,
+                    _workoutStartTime
+                ).sortedBy { it.setNumber }
 
-                    val targetSetCount = weWithEx.workoutExercise.setCount
-                    val initialSets = (1..targetSetCount).map { setNum ->
-                        val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
-                        SetData(
-                            setNumber = setNum,
-                            prevWeight = prev?.weight?.toString() ?: "",
-                            prevReps = prev?.reps?.toString() ?: "",
-                            prevRir = prev?.rir?.toString() ?: ""
-                        )
-                    }
-                    
-                    ExerciseSessionData(
-                        workoutExercise = weWithEx,
-                        sets = initialSets
+                val targetSetCount = weWithEx.workoutExercise.setCount
+                val initialSets = (1..targetSetCount).map { setNum ->
+                    val prev = previousLogs.find { it.setNumber == setNum } ?: previousLogs.lastOrNull()
+                    SetData(
+                        setNumber = setNum,
+                        prevWeight = prev?.weight?.toString() ?: "",
+                        prevReps = prev?.reps?.toString() ?: "",
+                        prevRir = prev?.rir?.toString() ?: ""
                     )
                 }
-                _exerciseSessions.value = sessions
+
+                ExerciseSessionData(
+                    workoutExercise = weWithEx,
+                    sets = initialSets
+                )
             }
+            _exerciseSessions.value = sessions
         }
     }
 

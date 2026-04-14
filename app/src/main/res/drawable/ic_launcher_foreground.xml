@@ -5,29 +5,38 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Left outer weight plate -->
-    <path
-        android:fillColor="#FFFF1A51"
-        android:pathData="M18,36 L18,72 L26,72 L26,36 Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="45"
+        android:scaleX="0.78"
+        android:scaleY="0.78">
 
-    <!-- Left inner collar -->
-    <path
-        android:fillColor="#FFFF1A51"
-        android:pathData="M26,44 L26,64 L32,64 L32,44 Z" />
+        <!-- Left outer weight plate -->
+        <path
+            android:fillColor="#FFFF1A51"
+            android:pathData="M18,36 L18,72 L26,72 L26,36 Z" />
 
-    <!-- Center bar -->
-    <path
-        android:fillColor="#FFFF1A51"
-        android:pathData="M32,50 L76,50 L76,58 L32,58 Z" />
+        <!-- Left inner collar -->
+        <path
+            android:fillColor="#FFFF1A51"
+            android:pathData="M26,44 L26,64 L32,64 L32,44 Z" />
 
-    <!-- Right inner collar -->
-    <path
-        android:fillColor="#FFFF1A51"
-        android:pathData="M76,44 L76,64 L82,64 L82,44 Z" />
+        <!-- Center bar -->
+        <path
+            android:fillColor="#FFFF1A51"
+            android:pathData="M32,50 L76,50 L76,58 L32,58 Z" />
 
-    <!-- Right outer weight plate -->
-    <path
-        android:fillColor="#FFFF1A51"
-        android:pathData="M82,36 L82,72 L90,72 L90,36 Z" />
+        <!-- Right inner collar -->
+        <path
+            android:fillColor="#FFFF1A51"
+            android:pathData="M76,44 L76,64 L82,64 L82,44 Z" />
+
+        <!-- Right outer weight plate -->
+        <path
+            android:fillColor="#FFFF1A51"
+            android:pathData="M82,36 L82,72 L90,72 L90,36 Z" />
+
+    </group>
 
 </vector>
