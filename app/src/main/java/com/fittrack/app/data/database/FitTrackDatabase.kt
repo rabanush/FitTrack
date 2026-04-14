@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {
@@ -101,12 +101,66 @@ abstract class FitTrackDatabase : RoomDatabase() {
                 Exercise(name = "Bulgarian Split Squat", muscleGroup = "Quads", germanName = "Bulgarische Split Kniebeuge"),
                 Exercise(name = "Calf Raises", muscleGroup = "Calves", germanName = "Wadenheben"),
                 Exercise(name = "Standing Calf Raises", muscleGroup = "Calves", germanName = "Stehendes Wadenheben"),
+                // Chest (additional)
+                Exercise(name = "Incline Dumbbell Press", muscleGroup = "Chest", germanName = "Schrägbank Kurzhanteldrücken"),
+                Exercise(name = "Chest Press Machine", muscleGroup = "Chest", germanName = "Brustpresse Maschine"),
+                Exercise(name = "Pec Deck", muscleGroup = "Chest", germanName = "Pec Deck"),
+                Exercise(name = "Chest Dips", muscleGroup = "Chest", germanName = "Brust Dips"),
+                // Back (additional)
+                Exercise(name = "Single Arm Dumbbell Row", muscleGroup = "Back", germanName = "Einarmiges Kurzhantelrudern"),
+                Exercise(name = "Chest Supported Row", muscleGroup = "Back", germanName = "Stützrudern"),
+                Exercise(name = "Straight Arm Pulldown", muscleGroup = "Back", germanName = "Gerader Arm Latziehen"),
+                Exercise(name = "Hyperextensions", muscleGroup = "Back", germanName = "Rückenstrecker"),
+                Exercise(name = "Chin-ups", muscleGroup = "Back", germanName = "Untergriff Klimmzüge"),
+                // Shoulders (additional)
+                Exercise(name = "Cable Lateral Raises", muscleGroup = "Shoulders", germanName = "Kabel Seitheben"),
+                Exercise(name = "Upright Row", muscleGroup = "Shoulders", germanName = "Aufrechtes Rudern"),
+                Exercise(name = "Machine Shoulder Press", muscleGroup = "Shoulders", germanName = "Schulterdrücken Maschine"),
+                Exercise(name = "Shrugs", muscleGroup = "Shoulders", germanName = "Schulterheben"),
+                // Biceps (additional)
+                Exercise(name = "Concentration Curl", muscleGroup = "Biceps", germanName = "Konzentrationscurl"),
+                Exercise(name = "Cable Curl", muscleGroup = "Biceps", germanName = "Kabel Bizepscurl"),
+                Exercise(name = "Incline Dumbbell Curl", muscleGroup = "Biceps", germanName = "Schrägbank Kurzhantelcurl"),
+                Exercise(name = "EZ Bar Curl", muscleGroup = "Biceps", germanName = "EZ Stangen Curl"),
+                // Triceps (additional)
+                Exercise(name = "Tricep Dips", muscleGroup = "Triceps", germanName = "Trizeps Dips"),
+                Exercise(name = "Diamond Push-ups", muscleGroup = "Triceps", germanName = "Diamant Liegestütze"),
+                Exercise(name = "Cable Overhead Tricep Extension", muscleGroup = "Triceps", germanName = "Kabel Trizeps Überkopfdrücken"),
+                Exercise(name = "Tricep Kickback", muscleGroup = "Triceps", germanName = "Trizeps Kickback"),
+                // Quads (additional)
+                Exercise(name = "Hack Squat", muscleGroup = "Quads", germanName = "Hackenschmidt Kniebeuge"),
+                Exercise(name = "Front Squat", muscleGroup = "Quads", germanName = "Frontkniebeuge"),
+                Exercise(name = "Lunges", muscleGroup = "Quads", germanName = "Ausfallschritte"),
+                Exercise(name = "Step-ups", muscleGroup = "Quads", germanName = "Aufsteigen"),
+                // Hamstrings (additional)
+                Exercise(name = "Seated Leg Curl", muscleGroup = "Hamstrings", germanName = "Sitzender Beincurl"),
+                Exercise(name = "Good Mornings", muscleGroup = "Hamstrings", germanName = "Good Mornings"),
+                Exercise(name = "Stiff Leg Deadlift", muscleGroup = "Hamstrings", germanName = "Stiffleg Kreuzheben"),
+                // Glutes (additional)
+                Exercise(name = "Cable Kickbacks", muscleGroup = "Glutes", germanName = "Kabel Kickback"),
+                Exercise(name = "Sumo Squat", muscleGroup = "Glutes", germanName = "Sumo Kniebeuge"),
+                Exercise(name = "Glute Bridge", muscleGroup = "Glutes", germanName = "Gesäßbrücke"),
+                // Calves (additional)
+                Exercise(name = "Seated Calf Raises", muscleGroup = "Calves", germanName = "Sitzendes Wadenheben"),
+                Exercise(name = "Donkey Calf Raises", muscleGroup = "Calves", germanName = "Esels Wadenheben"),
                 // Core
                 Exercise(name = "Plank", muscleGroup = "Core", germanName = "Unterarmstütz"),
                 Exercise(name = "Crunches", muscleGroup = "Core", germanName = "Bauchpressen"),
                 Exercise(name = "Leg Raises", muscleGroup = "Core", germanName = "Beinheben"),
                 Exercise(name = "Cable Crunches", muscleGroup = "Core", germanName = "Kabel Bauchpressen"),
-                Exercise(name = "Ab Wheel Rollout", muscleGroup = "Core", germanName = "Bauchradübung")
+                Exercise(name = "Ab Wheel Rollout", muscleGroup = "Core", germanName = "Bauchradübung"),
+                Exercise(name = "Russian Twists", muscleGroup = "Core", germanName = "Russische Drehungen"),
+                Exercise(name = "Bicycle Crunches", muscleGroup = "Core", germanName = "Fahrradcrunches"),
+                Exercise(name = "Hanging Leg Raises", muscleGroup = "Core", germanName = "Hängendes Beinheben"),
+                Exercise(name = "Side Plank", muscleGroup = "Core", germanName = "Seitstütz"),
+                Exercise(name = "Mountain Climbers", muscleGroup = "Core", germanName = "Bergsteiger"),
+                // Full Body / Cardio
+                Exercise(name = "Burpees", muscleGroup = "Full Body", germanName = "Burpees"),
+                Exercise(name = "Kettlebell Swing", muscleGroup = "Full Body", germanName = "Kettlebell Schwung"),
+                Exercise(name = "Box Jumps", muscleGroup = "Full Body", germanName = "Kastensprünge"),
+                Exercise(name = "Clean and Press", muscleGroup = "Full Body", germanName = "Reißen und Drücken"),
+                Exercise(name = "Farmers Walk", muscleGroup = "Full Body", germanName = "Bauerngang"),
+                Exercise(name = "Battle Ropes", muscleGroup = "Full Body", germanName = "Battle Ropes")
             )
             exercises.forEach { exerciseDao.insertExercise(it) }
         }

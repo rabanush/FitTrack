@@ -71,7 +71,10 @@ fun WorkoutDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddExerciseDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddExerciseDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Exercise")
             }
         }
