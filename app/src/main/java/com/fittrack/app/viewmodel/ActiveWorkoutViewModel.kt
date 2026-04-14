@@ -45,7 +45,8 @@ data class TimerState(
 
 class ActiveWorkoutViewModel(
     private val repository: FitTrackRepository,
-    private val workoutId: Long
+    private val workoutId: Long,
+    private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
 ) : ViewModel() {
 
     private val _workout = MutableStateFlow<Workout?>(null)
@@ -253,8 +254,36 @@ class ActiveWorkoutViewModel(
             }
             if (entries.isNotEmpty()) repository.insertLogEntries(entries)
             timerJob?.cancel()
+
+            // Record calories burned if FoodRepository is available
+            foodRepository?.let { repo ->
+                val durationMinutes = ((System.currentTimeMillis() - _workoutStartTime) / 60_000L).toInt().coerceAtLeast(1)
+                val userProfile = repo.userPreferences.userProfile.first()
+                // MET ~5 for moderate weight training; calories = MET × weight_kg × duration_hours
+                val caloriesBurned = 5f * userProfile.weightKg * (durationMinutes / 60f)
+                val today = todayMillis()
+                repo.insertWorkoutCalories(
+                    com.fittrack.app.data.model.WorkoutCalories(
+                        dateMillis = today,
+                        workoutId = workoutId,
+                        caloriesBurned = caloriesBurned,
+                        durationMinutes = durationMinutes
+                    )
+                )
+            }
+
             onFinished()
         }
+    }
+
+    private fun todayMillis(): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
     }
 
     override fun onCleared() {
@@ -272,9 +301,10 @@ class ActiveWorkoutViewModel(
 
 class ActiveWorkoutViewModelFactory(
     private val repository: FitTrackRepository,
-    private val workoutId: Long
+    private val workoutId: Long,
+    private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        ActiveWorkoutViewModel(repository, workoutId) as T
+        ActiveWorkoutViewModel(repository, workoutId, foodRepository) as T
 }

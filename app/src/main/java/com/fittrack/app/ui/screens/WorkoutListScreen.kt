@@ -3,6 +3,8 @@ package com.fittrack.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -13,87 +15,111 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.Workout
+import com.fittrack.app.ui.screens.food.FoodTrackerScreen
+import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.WorkoutListViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutListScreen(
     viewModel: WorkoutListViewModel,
+    foodTrackerViewModel: FoodTrackerViewModel,
     onWorkoutClick: (Long) -> Unit,
     onStartWorkout: (Long) -> Unit,
     onExercisesClick: () -> Unit,
-    onHistoryClick: () -> Unit
+    onHistoryClick: () -> Unit,
+    onAddFood: (mealId: Long, mealName: String) -> Unit,
+    onSettingsClick: () -> Unit
 ) {
-    val workouts by viewModel.workouts.observeAsState(emptyList())
-    var showCreateDialog by remember { mutableStateOf(false) }
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val currentPage = pagerState.currentPage
+    val coroutineScope = rememberCoroutineScope()
+
+    // Dialog state for "Add Meal" (food page FAB)
+    var showAddMealDialog by remember { mutableStateOf(false) }
+    var newMealName by remember { mutableStateOf("") }
+
+    // Dialog state for "Create Workout" (workout page FAB)
+    var showCreateWorkoutDialog by remember { mutableStateOf(false) }
     var newWorkoutName by remember { mutableStateOf("") }
+
+    val workouts by viewModel.workouts.observeAsState(emptyList())
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("FitTrack", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = onExercisesClick) {
-                        Icon(Icons.Default.FitnessCenter, contentDescription = "Exercises")
-                    }
-                    IconButton(onClick = onHistoryClick) {
-                        Icon(Icons.Default.History, contentDescription = "History")
+                    if (currentPage == 0) {
+                        IconButton(onClick = onExercisesClick) {
+                            Icon(Icons.Default.FitnessCenter, contentDescription = "Übungen")
+                        }
+                        IconButton(onClick = onHistoryClick) {
+                            Icon(Icons.Default.History, contentDescription = "Verlauf")
+                        }
+                    } else {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
+                        }
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showCreateDialog = true },
+                onClick = {
+                    if (currentPage == 0) showCreateWorkoutDialog = true
+                    else showAddMealDialog = true
+                },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Workout")
+                Icon(Icons.Default.Add, contentDescription = "Hinzufügen")
             }
         }
     ) { padding ->
-        if (workouts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FitnessCenter,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No workouts yet", style = MaterialTheme.typography.titleMedium)
-                    Text("Tap + to create your first workout", style = MaterialTheme.typography.bodyMedium)
-                }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            TabRow(selectedTabIndex = currentPage) {
+                listOf("Workout" to Icons.Default.FitnessCenter, "Ernährung" to Icons.Default.Restaurant)
+                    .forEachIndexed { index, (title, icon) ->
+                        Tab(
+                            selected = currentPage == index,
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                            text = { Text(title) },
+                            icon = { Icon(icon, contentDescription = null) }
+                        )
+                    }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(workouts) { workout ->
-                    WorkoutCard(
-                        workout = workout,
-                        onClick = { onWorkoutClick(workout.id) },
-                        onStart = { onStartWorkout(workout.id) },
-                        onDelete = { viewModel.deleteWorkout(workout) }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> WorkoutListContent(
+                        workouts = workouts,
+                        onWorkoutClick = onWorkoutClick,
+                        onStartWorkout = onStartWorkout,
+                        onDelete = { viewModel.deleteWorkout(it) }
+                    )
+                    1 -> FoodTrackerScreen(
+                        viewModel = foodTrackerViewModel,
+                        onAddFood = onAddFood
                     )
                 }
             }
         }
     }
 
-    if (showCreateDialog) {
+    // "Create Workout" dialog
+    if (showCreateWorkoutDialog) {
         AlertDialog(
-            onDismissRequest = { showCreateDialog = false; newWorkoutName = "" },
-            title = { Text("Create Workout") },
+            onDismissRequest = { showCreateWorkoutDialog = false; newWorkoutName = "" },
+            title = { Text("Workout erstellen") },
             text = {
                 OutlinedTextField(
                     value = newWorkoutName,
@@ -109,17 +135,92 @@ fun WorkoutListScreen(
                         if (newWorkoutName.isNotBlank()) {
                             viewModel.createWorkout(newWorkoutName) {}
                             newWorkoutName = ""
-                            showCreateDialog = false
+                            showCreateWorkoutDialog = false
                         }
                     }
-                ) { Text("Create") }
+                ) { Text("Erstellen") }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false; newWorkoutName = "" }) {
-                    Text("Cancel")
+                TextButton(onClick = { showCreateWorkoutDialog = false; newWorkoutName = "" }) {
+                    Text("Abbrechen")
                 }
             }
         )
+    }
+
+    // "Add Meal" dialog
+    if (showAddMealDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddMealDialog = false; newMealName = "" },
+            title = { Text("Mahlzeit hinzufügen") },
+            text = {
+                OutlinedTextField(
+                    value = newMealName,
+                    onValueChange = { newMealName = it },
+                    label = { Text("Name (z.B. Frühstück)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newMealName.isNotBlank()) {
+                            foodTrackerViewModel.addMeal(newMealName)
+                            newMealName = ""
+                            showAddMealDialog = false
+                        }
+                    }
+                ) { Text("Erstellen") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddMealDialog = false; newMealName = "" }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun WorkoutListContent(
+    workouts: List<Workout>,
+    onWorkoutClick: (Long) -> Unit,
+    onStartWorkout: (Long) -> Unit,
+    onDelete: (Workout) -> Unit
+) {
+    if (workouts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.FitnessCenter,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Noch keine Workouts", style = MaterialTheme.typography.titleMedium)
+                Text("Tippe + um ein Workout zu erstellen", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(workouts) { workout ->
+                WorkoutCard(
+                    workout = workout,
+                    onClick = { onWorkoutClick(workout.id) },
+                    onStart = { onStartWorkout(workout.id) },
+                    onDelete = { onDelete(workout) }
+                )
+            }
+        }
     }
 }
 
@@ -146,10 +247,10 @@ fun WorkoutCard(
                 Text(workout.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = onStart) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Start", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.PlayArrow, contentDescription = "Starten", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = { showDeleteConfirm = true }) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -157,13 +258,13 @@ fun WorkoutCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Workout") },
-            text = { Text("Delete \"${workout.name}\"?") },
+            title = { Text("Workout löschen") },
+            text = { Text("\"${workout.name}\" löschen?") },
             confirmButton = {
-                TextButton(onClick = { onDelete(); showDeleteConfirm = false }) { Text("Delete") }
+                TextButton(onClick = { onDelete(); showDeleteConfirm = false }) { Text("Löschen") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
             }
         )
     }
