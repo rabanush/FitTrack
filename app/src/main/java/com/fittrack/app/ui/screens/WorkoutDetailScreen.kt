@@ -71,7 +71,10 @@ fun WorkoutDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddExerciseDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddExerciseDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Exercise")
             }
         }
@@ -206,7 +209,8 @@ fun AddExerciseDialog(
 ) {
     val filtered = allExercises.filter {
         it.name.contains(searchQuery, ignoreCase = true) ||
-                it.muscleGroup.contains(searchQuery, ignoreCase = true)
+                it.muscleGroup.contains(searchQuery, ignoreCase = true) ||
+                it.germanName.contains(searchQuery, ignoreCase = true)
     }
 
     AlertDialog(
