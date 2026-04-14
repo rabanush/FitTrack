@@ -54,7 +54,7 @@ fun ActiveWorkoutScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(workout?.name?.uppercase() ?: "ACTIVE WORKOUT", color = Color.White) },
+                title = { Text(workout?.name ?: "Active Workout", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = { showFinishConfirm = true }) {
                         Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)

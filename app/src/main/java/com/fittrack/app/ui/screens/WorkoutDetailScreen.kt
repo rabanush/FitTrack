@@ -43,7 +43,7 @@ fun WorkoutDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Text(workout?.name?.uppercase() ?: "WORKOUT")
+                        Text(workout?.name ?: "Workout")
                     }
                 },
                 navigationIcon = {
