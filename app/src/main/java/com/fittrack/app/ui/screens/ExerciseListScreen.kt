@@ -31,7 +31,8 @@ fun ExerciseListScreen(
 
     val filtered = exercises.filter {
         it.name.contains(searchQuery, ignoreCase = true) ||
-                it.muscleGroup.contains(searchQuery, ignoreCase = true)
+                it.muscleGroup.contains(searchQuery, ignoreCase = true) ||
+                it.germanName.contains(searchQuery, ignoreCase = true)
     }
 
     Scaffold(
@@ -189,7 +190,7 @@ fun ExerciseItem(
                     Icon(
                         Icons.Default.FitnessCenter,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(28.dp),
                         tint = Color.Black
                     )
                 }
@@ -203,6 +204,13 @@ fun ExerciseItem(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
+                if (exercise.germanName.isNotEmpty()) {
+                    Text(
+                        exercise.germanName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                    )
+                }
                 Text(
                     exercise.muscleGroup,
                     style = MaterialTheme.typography.bodySmall,
