@@ -23,11 +23,7 @@ class WorkoutListViewModel(private val repository: FitTrackRepository) : ViewMod
 }
 
 class WorkoutListViewModelFactory(private val repository: FitTrackRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(WorkoutListViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return WorkoutListViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        WorkoutListViewModel(repository) as T
 }
