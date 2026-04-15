@@ -42,7 +42,7 @@ class FoodTrackerViewModel(
         defaultMealsMutex.withLock {
             val existing = foodRepository.getMealsForDay(dateMillis).first()
             if (existing.isEmpty()) {
-                listOf("Frühstück", "Mittagessen", "Snack", "Abendessen").forEach { name ->
+                listOf("Breakfast", "Mittagessen", "Snack", "Dinner").forEach { name ->
                     foodRepository.insertMeal(Meal(name = name, dateMillis = dateMillis))
                 }
             }

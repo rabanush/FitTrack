@@ -5,6 +5,10 @@ import com.fittrack.app.data.dao.LogEntryDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 class FitTrackRepository(
     private val exerciseDao: ExerciseDao,
@@ -15,6 +19,7 @@ class FitTrackRepository(
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
 
     suspend fun getExerciseById(id: Long) = exerciseDao.getExerciseById(id)
+    suspend fun getExerciseByName(name: String) = exerciseDao.getExerciseByName(name)
     suspend fun insertExercise(exercise: Exercise) = exerciseDao.insertExercise(exercise)
     suspend fun updateExercise(exercise: Exercise) = exerciseDao.updateExercise(exercise)
     suspend fun deleteExercise(exercise: Exercise) = exerciseDao.deleteExercise(exercise)
@@ -58,4 +63,23 @@ class FitTrackRepository(
     suspend fun insertLogEntry(logEntry: LogEntry) = logEntryDao.insertLogEntry(logEntry)
     suspend fun insertLogEntries(logEntries: List<LogEntry>) = logEntryDao.insertLogEntries(logEntries)
     suspend fun deleteLogEntry(logEntry: LogEntry) = logEntryDao.deleteLogEntry(logEntry)
+
+    // Workout backup support
+    suspend fun getWorkoutCount(): Int = workoutDao.getWorkoutCount()
+
+    /** Emits the full snapshot of all workouts with their exercises whenever anything changes. */
+    fun observeAllWorkoutsWithExercises(): Flow<List<Pair<Workout, List<WorkoutExerciseWithExercise>>>> =
+        allWorkouts.flatMapLatest { workouts ->
+            if (workouts.isEmpty()) {
+                flowOf(emptyList())
+            } else {
+                combine(
+                    workouts.map { workout ->
+                        getWorkoutExercisesWithExercise(workout.id).map { exercises ->
+                            workout to exercises
+                        }
+                    }
+                ) { it.toList() }
+            }
+        }
 }
