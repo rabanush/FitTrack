@@ -21,9 +21,6 @@ class MainActivity : ComponentActivity() {
 
         val app = application as FitTrackApplication
 
-        // On first launch (no backup folder selected yet) open the system folder picker
-        // pre-pointed at the Documents directory so the user can confirm or navigate to
-        // Documents/FitTrackerBackup. The resulting URI permission survives reinstalls.
         val backupFolderLauncher = registerForActivityResult(
             ActivityResultContracts.OpenDocumentTree()
         ) { uri: Uri? ->
@@ -33,9 +30,30 @@ class MainActivity : ComponentActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
                 app.backupPreferences.saveTreeUri(it)
+                // The database may already be open (onOpen fired with a null URI before
+                // the user picked the folder), so trigger an explicit import now.
+                app.importBackupNow()
             }
         }
 
+        // If SharedPreferences was cleared by a reinstall, try to recover the backup
+        // folder URI from the system-level persistable permission grants, which can
+        // survive reinstalls on many devices.
+        // Only consider tree URIs from the external-storage document provider, since
+        // that is the only authority the app ever grants SAF access to.
+        if (app.backupPreferences.getTreeUri() == null) {
+            val restoredUri = contentResolver.persistedUriPermissions
+                .firstOrNull {
+                    it.isReadPermission && it.isWritePermission &&
+                        it.uri.authority == "com.android.externalstorage.documents"
+                }
+                ?.uri
+            if (restoredUri != null) {
+                app.backupPreferences.saveTreeUri(restoredUri)
+            }
+        }
+
+        // Only prompt the user to pick a backup folder if none is configured yet.
         if (app.backupPreferences.getTreeUri() == null && savedInstanceState == null) {
             val initialUri = runCatching {
                 DocumentsContract.buildDocumentUri(

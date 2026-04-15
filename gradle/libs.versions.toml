@@ -15,7 +15,7 @@ retrofit = "2.11.0"
 okhttp = "4.12.0"
 gson = "2.10.1"
 datastore = "1.1.4"
-documentfile = "1.0.1"
+documentfile = "1.0.0"
 cameraX = "1.4.2"
 mlkitBarcode = "17.3.0"
 
