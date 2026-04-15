@@ -221,6 +221,11 @@ fun FoodSearchScreen(
                 createWithBarcode = null
                 viewModel.resetState()
             },
+            onScanBarcode = {
+                createWithBarcode = null
+                viewModel.resetState()
+                onScanBarcode()
+            },
             onConfirm = { name, barcode, kcal, protein, carbs, fat, amount ->
                 viewModel.createCustomFoodAndAddToMeal(
                     name, barcode, kcal, protein, carbs, fat, mealId, amount
@@ -298,38 +303,24 @@ private fun AddCustomFoodDialog(
     val amount = amountText.toFloatOrNull() ?: 0f
     val ratio = if (amount > 0f) amount / 100f else 0f
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(food.name) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Menge (g)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (amount > 0f) {
-                    Text("Nährwerte für ${amount.toInt()} g:", style = MaterialTheme.typography.labelMedium)
-                    Text("Kalorien: ${(food.caloriesPer100 * ratio).toInt()} kcal")
-                    Text("Protein: ${"%.1f".format(food.proteinPer100 * ratio)} g")
-                    Text("Kohlenhydrate: ${"%.1f".format(food.carbsPer100 * ratio)} g")
-                    Text("Fett: ${"%.1f".format(food.fatPer100 * ratio)} g")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (amount > 0f) onConfirm(amount) },
-                enabled = amount > 0f
-            ) { Text("Hinzufügen") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+    AmountInputDialog(
+        title = food.name,
+        amountText = amountText,
+        onAmountChange = { amountText = it },
+        onDismiss = onDismiss,
+        onConfirm = { onConfirm(amount) },
+        isValid = amount > 0f
+    ) {
+        if (amount > 0f) {
+            NutritionPreview(
+                amountG = amount,
+                kcal = food.caloriesPer100 * ratio,
+                protein = food.proteinPer100 * ratio,
+                carbs = food.carbsPer100 * ratio,
+                fat = food.fatPer100 * ratio
+            )
         }
-    )
+    }
 }
 
 @Composable
@@ -342,39 +333,71 @@ private fun AddProductDialog(
     val amount = amountText.toFloatOrNull() ?: 0f
     val n = product.nutriments
 
+    AmountInputDialog(
+        title = product.displayName,
+        amountText = amountText,
+        onAmountChange = { amountText = it },
+        onDismiss = onDismiss,
+        onConfirm = { onConfirm(amount) },
+        isValid = amount > 0f
+    ) {
+        if (n != null && amount > 0f) {
+            val ratio = amount / 100f
+            NutritionPreview(
+                amountG = amount,
+                kcal = n.kcalPer100g * ratio,
+                protein = n.proteins100g?.times(ratio) ?: 0f,
+                carbs = n.carbohydrates100g?.times(ratio) ?: 0f,
+                fat = n.fat100g?.times(ratio) ?: 0f
+            )
+        }
+    }
+}
+
+/** Shared dialog shell used by [AddCustomFoodDialog] and [AddProductDialog]. */
+@Composable
+private fun AmountInputDialog(
+    title: String,
+    amountText: String,
+    onAmountChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    isValid: Boolean,
+    extraContent: @Composable ColumnScope.() -> Unit = {}
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(product.displayName) },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = onAmountChange,
                     label = { Text("Menge (g)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (n != null && amount > 0f) {
-                    val ratio = amount / 100f
-                    Text("Nährwerte für ${amount.toInt()} g:", style = MaterialTheme.typography.labelMedium)
-                    Text("Kalorien: ${(n.kcalPer100g * ratio).toInt()} kcal")
-                    Text("Protein: ${"%.1f".format(n.proteins100g?.times(ratio) ?: 0f)} g")
-                    Text("Kohlenhydrate: ${"%.1f".format(n.carbohydrates100g?.times(ratio) ?: 0f)} g")
-                    Text("Fett: ${"%.1f".format(n.fat100g?.times(ratio) ?: 0f)} g")
-                }
+                extraContent()
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { if (amount > 0f) onConfirm(amount) },
-                enabled = amount > 0f
-            ) { Text("Hinzufügen") }
+            TextButton(onClick = onConfirm, enabled = isValid) { Text("Hinzufügen") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Abbrechen") }
         }
     )
+}
+
+/** Displays pre-calculated nutrition values for a given gram amount. */
+@Composable
+private fun NutritionPreview(amountG: Float, kcal: Float, protein: Float, carbs: Float, fat: Float) {
+    Text("Nährwerte für ${amountG.toInt()} g:", style = MaterialTheme.typography.labelMedium)
+    Text("Kalorien: ${kcal.toInt()} kcal")
+    Text("Protein: ${"%.1f".format(protein)} g")
+    Text("Kohlenhydrate: ${"%.1f".format(carbs)} g")
+    Text("Fett: ${"%.1f".format(fat)} g")
 }
 
 /**
@@ -385,6 +408,7 @@ private fun AddProductDialog(
 internal fun CreateCustomFoodDialog(
     prefillBarcode: String,
     onDismiss: () -> Unit,
+    onScanBarcode: () -> Unit = {},
     onConfirm: (name: String, barcode: String?, kcal: Float, protein: Float, carbs: Float, fat: Float, amount: Float) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
@@ -422,7 +446,11 @@ internal fun CreateCustomFoodDialog(
                     onValueChange = { barcode = it },
                     label = { Text("Barcode (optional)") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    trailingIcon = {
+                        IconButton(onClick = onScanBarcode) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = "Barcode scannen")
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("Nährwerte pro 100 g", style = MaterialTheme.typography.labelMedium)

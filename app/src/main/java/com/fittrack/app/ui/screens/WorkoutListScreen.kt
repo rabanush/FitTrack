@@ -33,14 +33,16 @@ fun WorkoutListScreen(
     onHistoryClick: () -> Unit,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
     onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit,
+    onRecipesClick: () -> Unit,
+    onCreateRecipe: (name: String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     val currentPage = pagerState.currentPage
     val coroutineScope = rememberCoroutineScope()
 
-    // Dialog state for "Add Meal" (food page FAB)
-    var showAddMealDialog by remember { mutableStateOf(false) }
+    // Dialog state for "Create Recipe" (food page FAB)
+    var showCreateRecipeDialog by remember { mutableStateOf(false) }
 
     // Dialog state for "Create Workout" (workout page FAB)
     var showCreateWorkoutDialog by remember { mutableStateOf(false) }
@@ -60,6 +62,9 @@ fun WorkoutListScreen(
                             Icon(Icons.Default.History, contentDescription = "Verlauf")
                         }
                     } else {
+                        IconButton(onClick = onRecipesClick) {
+                            Icon(Icons.Default.MenuBook, contentDescription = "Rezepte verwalten")
+                        }
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
                         }
@@ -71,7 +76,7 @@ fun WorkoutListScreen(
             FloatingActionButton(
                 onClick = {
                     if (currentPage == 0) showCreateWorkoutDialog = true
-                    else showAddMealDialog = true
+                    else showCreateRecipeDialog = true
                 },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -130,15 +135,15 @@ fun WorkoutListScreen(
         )
     }
 
-    // "Add Meal" dialog
-    if (showAddMealDialog) {
+    // "Create Recipe" dialog
+    if (showCreateRecipeDialog) {
         NameInputDialog(
-            title = "Mahlzeit hinzufügen",
-            label = "Name (z.B. Frühstück)",
-            onDismiss = { showAddMealDialog = false },
+            title = "Rezept erstellen",
+            label = "Rezeptname",
+            onDismiss = { showCreateRecipeDialog = false },
             onConfirm = { name ->
-                foodTrackerViewModel.addMeal(name)
-                showAddMealDialog = false
+                onCreateRecipe(name)
+                showCreateRecipeDialog = false
             }
         )
     }

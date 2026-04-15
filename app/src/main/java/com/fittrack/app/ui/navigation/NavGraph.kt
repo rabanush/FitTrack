@@ -63,6 +63,9 @@ fun FitTrackNavGraph(navController: NavHostController) {
             val foodVm: FoodTrackerViewModel = viewModel(
                 factory = FoodTrackerViewModelFactory(foodRepository)
             )
+            val recipeVm: RecipeViewModel = viewModel(
+                factory = RecipeViewModelFactory(foodRepository)
+            )
             WorkoutListScreen(
                 viewModel = vm,
                 foodTrackerViewModel = foodVm,
@@ -79,6 +82,11 @@ fun FitTrackNavGraph(navController: NavHostController) {
                 },
                 onAddRecipeToMeal = { mealId, mealName ->
                     navController.navigate(Screen.RecipeSelect.createRoute(mealId, mealName))
+                },
+                onRecipesClick = { navController.navigate(Screen.RecipeList.route) },
+                onCreateRecipe = { name ->
+                    recipeVm.createRecipe(name)
+                    navController.navigate(Screen.RecipeList.route)
                 },
                 onSettingsClick = { navController.navigate(Screen.Settings.route) }
             )

@@ -55,11 +55,7 @@ fun ExerciseListScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = Color.White
                 ),
-                actions = {
-                    IconButton(onClick = { /* Info action */ }) {
-                        Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
+
             )
         },
         floatingActionButton = {
