@@ -4,8 +4,14 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
+import com.fittrack.app.data.dao.RecipeDao
 import com.fittrack.app.data.dao.WorkoutDao
+import com.fittrack.app.data.model.CustomFood
+import com.fittrack.app.data.model.Recipe
+import com.fittrack.app.data.model.RecipeItem
+import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
@@ -40,9 +46,34 @@ private data class BackupUserProfile(
     @SerializedName("activityLevel") val activityLevel: String
 )
 
+private data class BackupCustomFood(
+    @SerializedName("name") val name: String,
+    @SerializedName("barcode") val barcode: String?,
+    @SerializedName("caloriesPer100") val caloriesPer100: Float,
+    @SerializedName("proteinPer100") val proteinPer100: Float,
+    @SerializedName("carbsPer100") val carbsPer100: Float,
+    @SerializedName("fatPer100") val fatPer100: Float
+)
+
+private data class BackupRecipeItem(
+    @SerializedName("name") val name: String,
+    @SerializedName("caloriesPer100") val caloriesPer100: Float,
+    @SerializedName("proteinPer100") val proteinPer100: Float,
+    @SerializedName("carbsPer100") val carbsPer100: Float,
+    @SerializedName("fatPer100") val fatPer100: Float,
+    @SerializedName("amount") val amount: Float
+)
+
+private data class BackupRecipe(
+    @SerializedName("name") val name: String,
+    @SerializedName("items") val items: List<BackupRecipeItem>
+)
+
 private data class BackupData(
     @SerializedName("workouts") val workouts: List<BackupWorkout>,
-    @SerializedName("userProfile") val userProfile: BackupUserProfile? = null
+    @SerializedName("userProfile") val userProfile: BackupUserProfile? = null,
+    @SerializedName("customFoods") val customFoods: List<BackupCustomFood> = emptyList(),
+    @SerializedName("recipes") val recipes: List<BackupRecipe> = emptyList()
 )
 
 object WorkoutBackupHelper {
@@ -59,7 +90,9 @@ object WorkoutBackupHelper {
         context: Context,
         treeUri: Uri?,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
-        userProfile: UserProfile
+        userProfile: UserProfile,
+        customFoods: List<CustomFood>,
+        recipes: List<RecipeWithItems>
     ) {
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
@@ -81,7 +114,32 @@ object WorkoutBackupHelper {
                 ageYears = userProfile.ageYears,
                 gender = userProfile.gender.name,
                 activityLevel = userProfile.activityLevel.name
-            )
+            ),
+            customFoods = customFoods.map { food ->
+                BackupCustomFood(
+                    name = food.name,
+                    barcode = food.barcode,
+                    caloriesPer100 = food.caloriesPer100,
+                    proteinPer100 = food.proteinPer100,
+                    carbsPer100 = food.carbsPer100,
+                    fatPer100 = food.fatPer100
+                )
+            },
+            recipes = recipes.map { rw ->
+                BackupRecipe(
+                    name = rw.recipe.name,
+                    items = rw.items.map { item ->
+                        BackupRecipeItem(
+                            name = item.name,
+                            caloriesPer100 = item.caloriesPer100,
+                            proteinPer100 = item.proteinPer100,
+                            carbsPer100 = item.carbsPer100,
+                            fatPer100 = item.fatPer100,
+                            amount = item.amount
+                        )
+                    }
+                )
+            }
         )
         writeJson(context, treeUri, gson.toJson(data))
     }
@@ -89,8 +147,8 @@ object WorkoutBackupHelper {
     /**
      * Reads the backup file from the user-chosen backup folder and inserts all data
      * into the DB and DataStore.
-     * Workout plans are only restored when the table is empty
-     * (i.e., on a fresh install or after clearing app data).
+     * Workout plans, custom foods, and recipes are only restored when the respective
+     * tables are empty (i.e., on a fresh install or after clearing app data).
      * The user profile is always restored from backup when a valid backup file is found
      * and workouts are empty, so that body data is not silently overwritten.
      */
@@ -99,7 +157,9 @@ object WorkoutBackupHelper {
         treeUri: Uri?,
         exerciseDao: ExerciseDao,
         workoutDao: WorkoutDao,
-        userPreferences: UserPreferences
+        userPreferences: UserPreferences,
+        customFoodDao: CustomFoodDao,
+        recipeDao: RecipeDao
     ) {
         val json = readJson(context, treeUri) ?: return
         val data = try { gson.fromJson(json, BackupData::class.java) } catch (e: Exception) {
@@ -146,6 +206,42 @@ object WorkoutBackupHelper {
                         activityLevel = activityLevel
                     )
                 )
+            }
+        }
+
+        // Restore custom foods (only when table is empty)
+        if (customFoodDao.getCount() == 0) {
+            data.customFoods.forEach { backupFood ->
+                customFoodDao.insert(
+                    CustomFood(
+                        name = backupFood.name,
+                        barcode = backupFood.barcode,
+                        caloriesPer100 = backupFood.caloriesPer100,
+                        proteinPer100 = backupFood.proteinPer100,
+                        carbsPer100 = backupFood.carbsPer100,
+                        fatPer100 = backupFood.fatPer100
+                    )
+                )
+            }
+        }
+
+        // Restore recipes (only when table is empty)
+        if (recipeDao.getCount() == 0) {
+            data.recipes.forEach { backupRecipe ->
+                val recipeId = recipeDao.insertRecipe(Recipe(name = backupRecipe.name))
+                backupRecipe.items.forEach { backupItem ->
+                    recipeDao.insertRecipeItem(
+                        RecipeItem(
+                            recipeId = recipeId,
+                            name = backupItem.name,
+                            caloriesPer100 = backupItem.caloriesPer100,
+                            proteinPer100 = backupItem.proteinPer100,
+                            carbsPer100 = backupItem.carbsPer100,
+                            fatPer100 = backupItem.fatPer100,
+                            amount = backupItem.amount
+                        )
+                    )
+                }
             }
         }
     }

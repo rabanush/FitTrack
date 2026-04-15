@@ -13,6 +13,7 @@ import com.fittrack.app.FitTrackApplication
 import com.fittrack.app.ui.screens.*
 import com.fittrack.app.ui.screens.food.BarcodeScannerScreen
 import com.fittrack.app.ui.screens.food.FoodSearchScreen
+import com.fittrack.app.ui.screens.food.RecipeListScreen
 import com.fittrack.app.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +38,11 @@ sealed class Screen(val route: String) {
             "barcode_scanner/$mealId/${java.net.URLEncoder.encode(mealName, "UTF-8")}"
     }
     object Settings : Screen("settings")
+    object RecipeList : Screen("recipe_list")
+    object RecipeSelect : Screen("recipe_select/{mealId}/{mealName}") {
+        fun createRoute(mealId: Long, mealName: String) =
+            "recipe_select/$mealId/${java.net.URLEncoder.encode(mealName, "UTF-8")}"
+    }
 }
 
 @Composable
@@ -70,6 +76,9 @@ fun FitTrackNavGraph(navController: NavHostController) {
                 onHistoryClick = { navController.navigate(Screen.History.route) },
                 onAddFood = { mealId, mealName ->
                     navController.navigate(Screen.FoodSearch.createRoute(mealId, mealName))
+                },
+                onAddRecipeToMeal = { mealId, mealName ->
+                    navController.navigate(Screen.RecipeSelect.createRoute(mealId, mealName))
                 },
                 onSettingsClick = { navController.navigate(Screen.Settings.route) }
             )
@@ -186,6 +195,41 @@ fun FitTrackNavGraph(navController: NavHostController) {
             SettingsScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.RecipeList.route) {
+            val vm: RecipeViewModel = viewModel(
+                factory = RecipeViewModelFactory(foodRepository)
+            )
+            RecipeListScreen(
+                viewModel = vm,
+                selectMealId = null,
+                selectMealName = "",
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.RecipeSelect.route,
+            arguments = listOf(
+                navArgument("mealId") { type = NavType.LongType },
+                navArgument("mealName") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val mealId = backStackEntry.arguments?.getLong("mealId") ?: return@composable
+            val mealName = backStackEntry.arguments?.getString("mealName")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: ""
+            val vm: RecipeViewModel = viewModel(
+                factory = RecipeViewModelFactory(foodRepository)
+            )
+            RecipeListScreen(
+                viewModel = vm,
+                selectMealId = mealId,
+                selectMealName = mealName,
+                onBack = { navController.popBackStack() },
+                onRecipeAdded = { navController.popBackStack() }
             )
         }
     }

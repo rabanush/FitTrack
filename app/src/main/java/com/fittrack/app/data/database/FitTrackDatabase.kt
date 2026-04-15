@@ -6,15 +6,20 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fittrack.app.data.backup.WorkoutBackupHelper
+import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.LogEntryDao
+import com.fittrack.app.data.dao.RecipeDao
 import com.fittrack.app.data.dao.WorkoutCaloriesDao
 import com.fittrack.app.data.dao.WorkoutDao
+import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.LogEntry
 import com.fittrack.app.data.model.Meal
+import com.fittrack.app.data.model.Recipe
+import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
@@ -26,7 +31,8 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class,
-                Meal::class, FoodEntry::class, WorkoutCalories::class],
+                Meal::class, FoodEntry::class, WorkoutCalories::class,
+                CustomFood::class, Recipe::class, RecipeItem::class],
     version = 6,
     exportSchema = false
 )
@@ -36,6 +42,8 @@ abstract class FitTrackDatabase : RoomDatabase() {
     abstract fun logEntryDao(): LogEntryDao
     abstract fun foodDao(): FoodDao
     abstract fun workoutCaloriesDao(): WorkoutCaloriesDao
+    abstract fun customFoodDao(): CustomFoodDao
+    abstract fun recipeDao(): RecipeDao
 
     companion object {
         @Volatile
@@ -59,14 +67,16 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     if (exerciseDao.getCount() == 0) {
                                         populateInitialData(exerciseDao)
                                     }
-                                    // Restore all data (workout plans, log entries, user profile)
-                                    // from the Downloads backup if this looks like a fresh install.
+                                    // Restore all data (workout plans, custom foods, recipes, user profile)
+                                    // from the SAF backup if this looks like a fresh install.
                                     WorkoutBackupHelper.importData(
                                         appContext,
                                         backupPreferences.getTreeUri(),
                                         exerciseDao,
                                         database.workoutDao(),
-                                        userPreferences
+                                        userPreferences,
+                                        database.customFoodDao(),
+                                        database.recipeDao()
                                     )
                                 }
                             }

@@ -1,9 +1,15 @@
 package com.fittrack.app.data.repository
 
+import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.FoodDao
+import com.fittrack.app.data.dao.RecipeDao
 import com.fittrack.app.data.dao.WorkoutCaloriesDao
+import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Meal
+import com.fittrack.app.data.model.Recipe
+import com.fittrack.app.data.model.RecipeItem
+import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.data.network.OpenFoodFactsApi
@@ -14,7 +20,9 @@ class FoodRepository(
     private val foodDao: FoodDao,
     private val workoutCaloriesDao: WorkoutCaloriesDao,
     private val api: OpenFoodFactsApi,
-    val userPreferences: UserPreferences
+    val userPreferences: UserPreferences,
+    private val customFoodDao: CustomFoodDao,
+    private val recipeDao: RecipeDao
 ) {
 
     // ---- Meals ----
@@ -60,4 +68,37 @@ class FoodRepository(
 
     suspend fun getProductByBarcode(barcode: String): OFFProduct? =
         runCatching { api.getProductByBarcode(barcode).product }.getOrNull()
+
+    // ---- Custom Foods ----
+
+    fun observeAllCustomFoods(): Flow<List<CustomFood>> = customFoodDao.getAll()
+
+    suspend fun insertCustomFood(food: CustomFood): Long = customFoodDao.insert(food)
+
+    suspend fun deleteCustomFood(food: CustomFood) = customFoodDao.delete(food)
+
+    suspend fun searchCustomFoods(query: String): List<CustomFood> = customFoodDao.search(query)
+
+    suspend fun getCustomFoodByBarcode(barcode: String): CustomFood? =
+        customFoodDao.findByBarcode(barcode)
+
+    suspend fun getCustomFoodCount(): Int = customFoodDao.getCount()
+
+    // ---- Recipes ----
+
+    fun observeAllRecipesWithItems(): Flow<List<RecipeWithItems>> =
+        recipeDao.getAllRecipesWithItems()
+
+    suspend fun getAllRecipesWithItemsOnce(): List<RecipeWithItems> =
+        recipeDao.getAllRecipesWithItemsOnce()
+
+    suspend fun insertRecipe(recipe: Recipe): Long = recipeDao.insertRecipe(recipe)
+
+    suspend fun deleteRecipe(recipe: Recipe) = recipeDao.deleteRecipe(recipe)
+
+    suspend fun insertRecipeItem(item: RecipeItem): Long = recipeDao.insertRecipeItem(item)
+
+    suspend fun deleteRecipeItem(item: RecipeItem) = recipeDao.deleteRecipeItem(item)
+
+    suspend fun getRecipeCount(): Int = recipeDao.getCount()
 }

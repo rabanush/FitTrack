@@ -30,6 +30,7 @@ fun WorkoutListScreen(
     onExercisesClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
+    onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
@@ -108,7 +109,8 @@ fun WorkoutListScreen(
                     )
                     1 -> FoodTrackerScreen(
                         viewModel = foodTrackerViewModel,
-                        onAddFood = onAddFood
+                        onAddFood = onAddFood,
+                        onAddRecipeToMeal = onAddRecipeToMeal
                     )
                 }
             }
