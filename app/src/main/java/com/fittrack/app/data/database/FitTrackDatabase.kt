@@ -18,6 +18,7 @@ import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
+import com.fittrack.app.data.preferences.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,7 +40,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FitTrackDatabase? = null
 
-        fun getDatabase(context: Context): FitTrackDatabase {
+        fun getDatabase(context: Context, userPreferences: UserPreferences): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
                 val appContext = context.applicationContext
                 val instance = Room.databaseBuilder(
@@ -57,12 +58,15 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     if (exerciseDao.getCount() == 0) {
                                         populateInitialData(exerciseDao)
                                     }
-                                    // Restore workout plans from the Downloads backup if the workouts
-                                    // table is empty — this covers fresh installs after a reinstall.
-                                    val workoutDao = database.workoutDao()
-                                    if (workoutDao.getWorkoutCount() == 0) {
-                                        WorkoutBackupHelper.importWorkoutsToDao(appContext, exerciseDao, workoutDao)
-                                    }
+                                    // Restore all data (workout plans, log entries, user profile)
+                                    // from the Downloads backup if this looks like a fresh install.
+                                    WorkoutBackupHelper.importData(
+                                        appContext,
+                                        exerciseDao,
+                                        database.workoutDao(),
+                                        database.logEntryDao(),
+                                        userPreferences
+                                    )
                                 }
                             }
                         }

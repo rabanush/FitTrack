@@ -10,13 +10,15 @@ import com.fittrack.app.data.repository.FoodRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class FitTrackApplication : Application() {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val database by lazy { FitTrackDatabase.getDatabase(this) }
+    val userPreferences by lazy { UserPreferences(this) }
+    val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences) }
     val repository by lazy {
         FitTrackRepository(
             database.exerciseDao(),
@@ -24,7 +26,6 @@ class FitTrackApplication : Application() {
             database.logEntryDao()
         )
     }
-    val userPreferences by lazy { UserPreferences(this) }
     val foodRepository by lazy {
         FoodRepository(
             database.foodDao(),
@@ -36,12 +37,27 @@ class FitTrackApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export workout plans to Downloads whenever the data changes.
-        // This keeps the JSON backup in sync without any user interaction.
+        // Auto-export all app data to Downloads whenever workouts, log entries, or
+        // the user profile change. This keeps the JSON backup in sync without any
+        // user interaction, and covers fresh-install restore automatically.
         applicationScope.launch {
-            repository.observeAllWorkoutsWithExercises().collect { workoutsWithExercises ->
-                WorkoutBackupHelper.exportWorkouts(this@FitTrackApplication, workoutsWithExercises)
-            }
+            combine(
+                repository.observeAllWorkoutsWithExercises(),
+                repository.allLogEntries,
+                repository.allExercises,
+                userPreferences.userProfile
+            ) { workouts, logEntries, exercises, profile ->
+                val exerciseNameById = exercises.associate { it.id to it.name }
+                val workoutNameById = workouts.associate { (workout, _) -> workout.id to workout.name }
+                WorkoutBackupHelper.exportData(
+                    this@FitTrackApplication,
+                    workouts,
+                    logEntries,
+                    exerciseNameById,
+                    workoutNameById,
+                    profile
+                )
+            }.collect {}
         }
     }
 }
