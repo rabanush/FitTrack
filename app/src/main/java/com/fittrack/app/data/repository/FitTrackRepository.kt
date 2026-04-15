@@ -60,6 +60,9 @@ class FitTrackRepository(
     suspend fun getPreviousLogEntriesForExercise(exerciseId: Long, beforeDate: Long) =
         logEntryDao.getPreviousLogEntriesForExercise(exerciseId, beforeDate)
 
+    suspend fun getPreviousLogEntriesForExercises(exerciseIds: List<Long>, beforeDate: Long) =
+        logEntryDao.getPreviousLogEntriesForExercises(exerciseIds, beforeDate)
+
     suspend fun insertLogEntry(logEntry: LogEntry) = logEntryDao.insertLogEntry(logEntry)
     suspend fun insertLogEntries(logEntries: List<LogEntry>) = logEntryDao.insertLogEntries(logEntries)
     suspend fun deleteLogEntry(logEntry: LogEntry) = logEntryDao.deleteLogEntry(logEntry)

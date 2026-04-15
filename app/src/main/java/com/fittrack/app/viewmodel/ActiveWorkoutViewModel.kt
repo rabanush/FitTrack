@@ -9,9 +9,6 @@ import android.media.ToneGenerator
 import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -77,9 +74,11 @@ class ActiveWorkoutViewModel(
             _workout.value = repository.getWorkoutById(workoutId)
             repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
                 _exerciseSessions.value = withContext(Dispatchers.IO) {
-                    coroutineScope {
-                        exercises.map { async { buildSessionForExercise(it) } }.awaitAll()
-                    }
+                    val exerciseIds = exercises.map { it.exercise.id }
+                    val previousLogsMap = if (exerciseIds.isEmpty()) emptyMap()
+                    else repository.getPreviousLogEntriesForExercises(exerciseIds, _workoutStartTime)
+                        .groupBy { it.exerciseId }
+                    exercises.map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
                 }
             }
         }
@@ -112,11 +111,9 @@ class ActiveWorkoutViewModel(
         )
     }
 
-    private suspend fun buildSessionForExercise(weWithEx: WorkoutExerciseWithExercise): ExerciseSessionData {
-        val previousLogs = repository.getPreviousLogEntriesForExercise(
-            weWithEx.exercise.id, _workoutStartTime
-        ).sortedBy { it.setNumber }
-        val initialSets = (1..weWithEx.workoutExercise.setCount).map { buildInitialSet(it, previousLogs) }
+    private fun buildSessionForExercise(weWithEx: WorkoutExerciseWithExercise, previousLogs: List<LogEntry>): ExerciseSessionData {
+        val sortedLogs = previousLogs.sortedBy { it.setNumber }
+        val initialSets = (1..weWithEx.workoutExercise.setCount).map { buildInitialSet(it, sortedLogs) }
         return ExerciseSessionData(workoutExercise = weWithEx, sets = initialSets)
     }
 

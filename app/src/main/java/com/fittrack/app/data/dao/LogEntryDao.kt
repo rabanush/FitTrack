@@ -38,6 +38,19 @@ interface LogEntryDao {
     """)
     suspend fun getPreviousLogEntriesForExercise(exerciseId: Long, beforeDate: Long): List<LogEntry>
 
+    @Query("""
+        WITH latest AS (
+            SELECT exercise_id, MAX(date) AS max_date
+            FROM log_entries
+            WHERE exercise_id IN (:exerciseIds) AND date < :beforeDate
+            GROUP BY exercise_id
+        )
+        SELECT l.* FROM log_entries l
+        INNER JOIN latest ON l.exercise_id = latest.exercise_id AND l.date = latest.max_date
+        ORDER BY l.exercise_id, l.set_number ASC
+    """)
+    suspend fun getPreviousLogEntriesForExercises(exerciseIds: List<Long>, beforeDate: Long): List<LogEntry>
+
     @Query("SELECT DISTINCT date FROM log_entries ORDER BY date DESC")
     fun getAllWorkoutDates(): Flow<List<Long>>
 
