@@ -14,9 +14,9 @@ class ExerciseViewModel(private val repository: FitTrackRepository) : ViewModel(
         initialValue = emptyList<Exercise>()
     )
 
-    fun insertExercise(name: String, muscleGroup: String, isCustom: Boolean = true) {
+    fun insertExercise(name: String, muscleGroup: String, germanName: String = "", description: String = "", isCustom: Boolean = true) {
         viewModelScope.launch {
-            repository.insertExercise(Exercise(name = name, muscleGroup = muscleGroup, isCustom = isCustom))
+            repository.insertExercise(Exercise(name = name, muscleGroup = muscleGroup, germanName = germanName, description = description, isCustom = isCustom))
         }
     }
 

@@ -10,5 +10,6 @@ data class Exercise(
     val name: String,
     @ColumnInfo(name = "muscle_group") val muscleGroup: String,
     @ColumnInfo(name = "is_custom") val isCustom: Boolean = false,
-    @ColumnInfo(name = "german_name") val germanName: String = ""
+    @ColumnInfo(name = "german_name") val germanName: String = "",
+    val description: String = ""
 )
