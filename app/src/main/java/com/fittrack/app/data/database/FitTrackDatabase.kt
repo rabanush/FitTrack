@@ -6,25 +6,33 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fittrack.app.data.dao.ExerciseDao
+import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.LogEntryDao
+import com.fittrack.app.data.dao.WorkoutCaloriesDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.Exercise
+import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.LogEntry
+import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.Workout
+import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class],
-    version = 4,
+    entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class,
+                Meal::class, FoodEntry::class, WorkoutCalories::class],
+    version = 5,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutDao(): WorkoutDao
     abstract fun logEntryDao(): LogEntryDao
+    abstract fun foodDao(): FoodDao
+    abstract fun workoutCaloriesDao(): WorkoutCaloriesDao
 
     companion object {
         @Volatile
