@@ -5,11 +5,11 @@ import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.repository.FoodRepository
+import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.Calendar
 
 data class DailyMacros(
     val calories: Float = 0f,
@@ -108,15 +108,6 @@ class FoodTrackerViewModel(
     fun deleteFoodEntry(entry: FoodEntry) {
         viewModelScope.launch { foodRepository.deleteFoodEntry(entry) }
     }
-}
-
-private fun todayMillis(): Long {
-    return Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
 }
 
 class FoodTrackerViewModelFactory(

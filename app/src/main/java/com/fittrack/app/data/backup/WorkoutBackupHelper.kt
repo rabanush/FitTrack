@@ -111,10 +111,10 @@ object WorkoutBackupHelper {
 
         // Restore workout plans
         if (workoutsEmpty) {
-            for (backupWorkout in data.workouts) {
+            data.workouts.forEach { backupWorkout ->
                 val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
-                for (ex in backupWorkout.exercises) {
-                    val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: continue
+                backupWorkout.exercises.forEach { ex ->
+                    val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: return@forEach
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = workoutId,

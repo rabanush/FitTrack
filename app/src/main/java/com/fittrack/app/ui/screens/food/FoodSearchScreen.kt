@@ -102,12 +102,12 @@ fun FoodSearchScreen(
         }
     }
 
-    if (selectedProduct != null) {
+    selectedProduct?.let { product ->
         AddProductDialog(
-            product = selectedProduct!!,
+            product = product,
             onDismiss = { selectedProduct = null },
             onConfirm = { amount ->
-                viewModel.addProductToMeal(selectedProduct!!, mealId, amount)
+                viewModel.addProductToMeal(product, mealId, amount)
                 selectedProduct = null
                 onBack()
             }
@@ -177,11 +177,12 @@ private fun AddProductDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (n != null && amount > 0f) {
+                    val ratio = amount / 100f
                     Text("Nährwerte für ${amount.toInt()} g:", style = MaterialTheme.typography.labelMedium)
-                    Text("Kalorien: ${(n.kcalPer100g * amount / 100f).toInt()} kcal")
-                    Text("Protein: ${"%.1f".format(n.proteins100g?.times(amount / 100f) ?: 0f)} g")
-                    Text("Kohlenhydrate: ${"%.1f".format(n.carbohydrates100g?.times(amount / 100f) ?: 0f)} g")
-                    Text("Fett: ${"%.1f".format(n.fat100g?.times(amount / 100f) ?: 0f)} g")
+                    Text("Kalorien: ${(n.kcalPer100g * ratio).toInt()} kcal")
+                    Text("Protein: ${"%.1f".format(n.proteins100g?.times(ratio) ?: 0f)} g")
+                    Text("Kohlenhydrate: ${"%.1f".format(n.carbohydrates100g?.times(ratio) ?: 0f)} g")
+                    Text("Fett: ${"%.1f".format(n.fat100g?.times(ratio) ?: 0f)} g")
                 }
             }
         },
