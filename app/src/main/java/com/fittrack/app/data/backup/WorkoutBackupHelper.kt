@@ -180,9 +180,14 @@ object WorkoutBackupHelper {
         // Restore user profile when this looks like a fresh install
         if (logEntriesEmpty) {
             data.userProfile?.let { profile ->
-                val gender = runCatching { Gender.valueOf(profile.gender) }.getOrNull() ?: Gender.MALE
-                val activityLevel = runCatching { ActivityLevel.valueOf(profile.activityLevel) }.getOrNull()
-                    ?: ActivityLevel.MODERATE
+                val gender = runCatching { Gender.valueOf(profile.gender) }.getOrElse {
+                    Log.w(TAG, "Unknown gender value '${profile.gender}' in backup — falling back to MALE")
+                    Gender.MALE
+                }
+                val activityLevel = runCatching { ActivityLevel.valueOf(profile.activityLevel) }.getOrElse {
+                    Log.w(TAG, "Unknown activityLevel value '${profile.activityLevel}' in backup — falling back to MODERATE")
+                    ActivityLevel.MODERATE
+                }
                 userPreferences.save(
                     UserProfile(
                         weightKg = profile.weightKg,
