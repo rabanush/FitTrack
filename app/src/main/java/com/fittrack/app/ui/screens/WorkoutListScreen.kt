@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.Workout
+import com.fittrack.app.ui.components.DeleteConfirmDialog
+import com.fittrack.app.ui.components.NameInputDialog
 import com.fittrack.app.ui.screens.food.FoodTrackerScreen
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.WorkoutListViewModel
@@ -39,11 +41,9 @@ fun WorkoutListScreen(
 
     // Dialog state for "Add Meal" (food page FAB)
     var showAddMealDialog by remember { mutableStateOf(false) }
-    var newMealName by remember { mutableStateOf("") }
 
     // Dialog state for "Create Workout" (workout page FAB)
     var showCreateWorkoutDialog by remember { mutableStateOf(false) }
-    var newWorkoutName by remember { mutableStateOf("") }
 
     val workouts by viewModel.workouts.observeAsState(emptyList())
 
@@ -119,66 +119,26 @@ fun WorkoutListScreen(
 
     // "Create Workout" dialog
     if (showCreateWorkoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateWorkoutDialog = false; newWorkoutName = "" },
-            title = { Text("Workout erstellen") },
-            text = {
-                OutlinedTextField(
-                    value = newWorkoutName,
-                    onValueChange = { newWorkoutName = it },
-                    label = { Text("Workout Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newWorkoutName.isNotBlank()) {
-                            viewModel.createWorkout(newWorkoutName) {}
-                            newWorkoutName = ""
-                            showCreateWorkoutDialog = false
-                        }
-                    }
-                ) { Text("Erstellen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateWorkoutDialog = false; newWorkoutName = "" }) {
-                    Text("Abbrechen")
-                }
+        NameInputDialog(
+            title = "Workout erstellen",
+            label = "Workout Name",
+            onDismiss = { showCreateWorkoutDialog = false },
+            onConfirm = { name ->
+                viewModel.createWorkout(name) {}
+                showCreateWorkoutDialog = false
             }
         )
     }
 
     // "Add Meal" dialog
     if (showAddMealDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddMealDialog = false; newMealName = "" },
-            title = { Text("Mahlzeit hinzufügen") },
-            text = {
-                OutlinedTextField(
-                    value = newMealName,
-                    onValueChange = { newMealName = it },
-                    label = { Text("Name (z.B. Frühstück)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newMealName.isNotBlank()) {
-                            foodTrackerViewModel.addMeal(newMealName)
-                            newMealName = ""
-                            showAddMealDialog = false
-                        }
-                    }
-                ) { Text("Erstellen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddMealDialog = false; newMealName = "" }) {
-                    Text("Abbrechen")
-                }
+        NameInputDialog(
+            title = "Mahlzeit hinzufügen",
+            label = "Name (z.B. Frühstück)",
+            onDismiss = { showAddMealDialog = false },
+            onConfirm = { name ->
+                foodTrackerViewModel.addMeal(name)
+                showAddMealDialog = false
             }
         )
     }
@@ -258,16 +218,11 @@ fun WorkoutCard(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Workout löschen") },
-            text = { Text("\"${workout.name}\" löschen?") },
-            confirmButton = {
-                TextButton(onClick = { onDelete(); showDeleteConfirm = false }) { Text("Löschen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
-            }
+        DeleteConfirmDialog(
+            title = "Workout löschen",
+            message = "\"${workout.name}\" löschen?",
+            onConfirm = { onDelete(); showDeleteConfirm = false },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }
