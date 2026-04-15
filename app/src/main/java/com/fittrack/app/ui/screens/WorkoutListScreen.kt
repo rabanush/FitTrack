@@ -33,6 +33,7 @@ fun WorkoutListScreen(
     onHistoryClick: () -> Unit,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
     onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit,
+    onRecipesClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
@@ -60,6 +61,9 @@ fun WorkoutListScreen(
                             Icon(Icons.Default.History, contentDescription = "Verlauf")
                         }
                     } else {
+                        IconButton(onClick = onRecipesClick) {
+                            Icon(Icons.Default.MenuBook, contentDescription = "Rezepte verwalten")
+                        }
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
                         }

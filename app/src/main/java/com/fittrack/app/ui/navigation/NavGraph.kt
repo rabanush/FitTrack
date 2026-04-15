@@ -80,6 +80,7 @@ fun FitTrackNavGraph(navController: NavHostController) {
                 onAddRecipeToMeal = { mealId, mealName ->
                     navController.navigate(Screen.RecipeSelect.createRoute(mealId, mealName))
                 },
+                onRecipesClick = { navController.navigate(Screen.RecipeList.route) },
                 onSettingsClick = { navController.navigate(Screen.Settings.route) }
             )
         }
