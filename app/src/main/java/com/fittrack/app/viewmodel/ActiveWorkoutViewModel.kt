@@ -259,8 +259,14 @@ class ActiveWorkoutViewModel(
             foodRepository?.let { repo ->
                 val durationMinutes = ((System.currentTimeMillis() - _workoutStartTime) / 60_000L).toInt().coerceAtLeast(1)
                 val userProfile = repo.userPreferences.userProfile.first()
-                // MET ~5 for moderate weight training; calories = MET × weight_kg × duration_hours
-                val caloriesBurned = 5f * userProfile.weightKg * (durationMinutes / 60f)
+                // Compute a weighted-average MET based on the muscle groups trained.
+                // Leg-dominant exercises (large muscle mass) have a higher MET than isolation work.
+                val sessions = _exerciseSessions.value
+                val avgMet = if (sessions.isEmpty()) DEFAULT_MET
+                else sessions.map { muscleGroupToMet(it.workoutExercise.exercise.muscleGroup) }
+                    .average().toFloat()
+                // calories = MET × weight_kg × duration_hours
+                val caloriesBurned = avgMet * userProfile.weightKg * (durationMinutes / 60f)
                 val today = todayMillis()
                 repo.insertWorkoutCalories(
                     com.fittrack.app.data.model.WorkoutCalories(
@@ -274,6 +280,20 @@ class ActiveWorkoutViewModel(
 
             onFinished()
         }
+    }
+
+    /** Returns a MET (Metabolic Equivalent of Task) value for the given muscle group.
+     *  Leg exercises involve the body's largest muscle groups and therefore have a
+     *  higher energy cost than upper-body isolation work. */
+    private fun muscleGroupToMet(muscleGroup: String): Float = when (muscleGroup.lowercase()) {
+        "quads", "hamstrings", "glutes", "calves" -> 6.0f
+        "back" -> 5.5f
+        "chest", "shoulders" -> 4.5f
+        else -> DEFAULT_MET // biceps, triceps, core, etc.
+    }
+
+    companion object {
+        private const val DEFAULT_MET = 3.5f
     }
 
     private fun todayMillis(): Long {

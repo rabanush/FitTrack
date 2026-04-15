@@ -46,18 +46,20 @@ fun ActiveWorkoutScreen(
         topBar = {
             TopAppBar(
                 title = { Text(workout?.name ?: "Active Workout", color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = { showFinishConfirm = true }) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { showFinishConfirm = true }) {
-                        Text("FINISH", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
+        },
+        bottomBar = {
+            Button(
+                onClick = { showFinishConfirm = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("FINISH", fontWeight = FontWeight.Bold)
+            }
         }
     ) { padding ->
         // Column + verticalScroll is preferred over LazyColumn here: a workout has at most ~15

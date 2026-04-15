@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.LogEntryDao
@@ -40,6 +41,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
+                val appContext = context.applicationContext
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     FitTrackDatabase::class.java,
@@ -51,9 +53,15 @@ abstract class FitTrackDatabase : RoomDatabase() {
                             super.onOpen(db)
                             INSTANCE?.let { database ->
                                 CoroutineScope(Dispatchers.IO).launch {
-                                    val dao = database.exerciseDao()
-                                    if (dao.getCount() == 0) {
-                                        populateInitialData(dao)
+                                    val exerciseDao = database.exerciseDao()
+                                    if (exerciseDao.getCount() == 0) {
+                                        populateInitialData(exerciseDao)
+                                    }
+                                    // Restore workout plans from the Downloads backup if the workouts
+                                    // table is empty — this covers fresh installs after a reinstall.
+                                    val workoutDao = database.workoutDao()
+                                    if (workoutDao.getWorkoutCount() == 0) {
+                                        WorkoutBackupHelper.importWorkoutsToDao(appContext, exerciseDao, workoutDao)
                                     }
                                 }
                             }
