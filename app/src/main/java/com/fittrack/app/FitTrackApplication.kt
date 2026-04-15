@@ -4,6 +4,7 @@ import android.app.Application
 import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.database.FitTrackDatabase
 import com.fittrack.app.data.network.RetrofitInstance
+import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.data.repository.FoodRepository
@@ -18,7 +19,8 @@ class FitTrackApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val userPreferences by lazy { UserPreferences(this) }
-    val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences) }
+    val backupPreferences by lazy { BackupPreferences(this) }
+    val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences, backupPreferences) }
     val repository by lazy {
         FitTrackRepository(
             database.exerciseDao(),
@@ -37,8 +39,8 @@ class FitTrackApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export workout plans and user profile to Downloads whenever they change.
-        // Workout history (log entries) is intentionally excluded from the backup.
+        // Auto-export workout plans and user profile to the user-chosen backup folder
+        // whenever they change. Workout history (log entries) is intentionally excluded.
         applicationScope.launch {
             combine(
                 repository.observeAllWorkoutsWithExercises(),
@@ -46,6 +48,7 @@ class FitTrackApplication : Application() {
             ) { workouts, profile ->
                 WorkoutBackupHelper.exportData(
                     this@FitTrackApplication,
+                    backupPreferences.getTreeUri(),
                     workouts,
                     profile
                 )

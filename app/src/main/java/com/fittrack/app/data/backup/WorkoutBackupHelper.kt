@@ -1,12 +1,9 @@
 package com.fittrack.app.data.backup
 
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
+import android.net.Uri
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.Workout
@@ -18,8 +15,8 @@ import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import java.io.File
 
+private const val BACKUP_SUBFOLDER = "FitTrackerBackup"
 private const val BACKUP_FILENAME = "fittrack_workouts.json"
 private const val TAG = "WorkoutBackup"
 
@@ -45,11 +42,14 @@ object WorkoutBackupHelper {
     private val gson = Gson()
 
     /**
-     * Serialises all app data to JSON and writes it to the Downloads folder.
-     * Called automatically whenever workouts or the user profile change.
+     * Serialises all app data to JSON and writes it to the user-chosen backup folder.
+     * The folder is represented as a SAF tree URI stored in [BackupPreferences].
+     * A "FitTrackerBackup" subdirectory is created automatically inside the chosen folder.
+     * If no folder has been selected yet the call is silently skipped.
      */
     fun exportData(
         context: Context,
+        treeUri: Uri?,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         userProfile: UserProfile
     ) {
@@ -75,23 +75,25 @@ object WorkoutBackupHelper {
                 activityLevel = userProfile.activityLevel.name
             )
         )
-        writeJson(context, gson.toJson(data))
+        writeJson(context, treeUri, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from Downloads and inserts all data into the DB and DataStore.
+     * Reads the backup file from the user-chosen backup folder and inserts all data
+     * into the DB and DataStore.
      * Workout plans are only restored when the table is empty
      * (i.e., on a fresh install or after clearing app data).
-     * The user profile is always restored from backup when a valid backup file is found and
-     * workouts are empty, so that body data is not silently overwritten on subsequent opens.
+     * The user profile is always restored from backup when a valid backup file is found
+     * and workouts are empty, so that body data is not silently overwritten.
      */
     suspend fun importData(
         context: Context,
+        treeUri: Uri?,
         exerciseDao: ExerciseDao,
         workoutDao: WorkoutDao,
         userPreferences: UserPreferences
     ) {
-        val json = readJson(context) ?: return
+        val json = readJson(context, treeUri) ?: return
         val data = try { gson.fromJson(json, BackupData::class.java) } catch (e: Exception) {
             Log.w(TAG, "Failed to parse backup JSON — restore skipped", e)
             return
@@ -140,69 +142,42 @@ object WorkoutBackupHelper {
         }
     }
 
-    private fun writeJson(context: Context, json: String) {
+    private fun writeJson(context: Context, treeUri: Uri?, json: String) {
+        if (treeUri == null) {
+            Log.w(TAG, "No backup folder selected — skipping backup write")
+            return
+        }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val resolver = context.contentResolver
-                // Remove any existing backup entry so we don't accumulate duplicates.
-                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-                resolver.query(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.MediaColumns._ID),
-                    selection,
-                    arrayOf(BACKUP_FILENAME),
-                    null
-                )?.use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(0)
-                        resolver.delete(
-                            ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id),
-                            null, null
-                        )
-                    }
-                }
-                val cv = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, BACKUP_FILENAME)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: return
-                resolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-            } else {
-                @Suppress("DEPRECATION")
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                File(dir, BACKUP_FILENAME).writeText(json)
+            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: run {
+                Log.w(TAG, "Cannot open backup tree URI — skipping write")
+                return
             }
+            val folder = tree.findFile(BACKUP_SUBFOLDER)
+                ?: tree.createDirectory(BACKUP_SUBFOLDER)
+                ?: run {
+                    Log.w(TAG, "Cannot create $BACKUP_SUBFOLDER subdirectory — skipping write")
+                    return
+                }
+            // Overwrite any existing backup file.
+            folder.findFile(BACKUP_FILENAME)?.delete()
+            val file = folder.createFile("application/json", BACKUP_FILENAME) ?: run {
+                Log.w(TAG, "Cannot create backup file — skipping write")
+                return
+            }
+            context.contentResolver.openOutputStream(file.uri)?.use { it.write(json.toByteArray()) }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to write workout backup to Downloads", e)
+            Log.w(TAG, "Failed to write workout backup", e)
         }
     }
 
-    private fun readJson(context: Context): String? {
+    private fun readJson(context: Context, treeUri: Uri?): String? {
+        if (treeUri == null) return null
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val resolver = context.contentResolver
-                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-                resolver.query(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.MediaColumns._ID),
-                    selection,
-                    arrayOf(BACKUP_FILENAME),
-                    null
-                )?.use { cursor ->
-                    if (!cursor.moveToFirst()) return null
-                    val id = cursor.getLong(0)
-                    val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
-                    resolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val file = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    BACKUP_FILENAME
-                )
-                if (file.exists()) file.readText() else null
-            }
+            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return null
+            val folder = tree.findFile(BACKUP_SUBFOLDER) ?: return null
+            val file = folder.findFile(BACKUP_FILENAME) ?: return null
+            context.contentResolver.openInputStream(file.uri)?.use { it.bufferedReader().readText() }
         } catch (_: Exception) { null }
     }
 }
+

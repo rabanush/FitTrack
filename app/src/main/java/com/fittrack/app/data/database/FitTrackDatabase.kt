@@ -18,6 +18,7 @@ import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
+import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FitTrackDatabase? = null
 
-        fun getDatabase(context: Context, userPreferences: UserPreferences): FitTrackDatabase {
+        fun getDatabase(context: Context, userPreferences: UserPreferences, backupPreferences: BackupPreferences): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
                 val appContext = context.applicationContext
                 val instance = Room.databaseBuilder(
@@ -62,6 +63,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     // from the Downloads backup if this looks like a fresh install.
                                     WorkoutBackupHelper.importData(
                                         appContext,
+                                        backupPreferences.getTreeUri(),
                                         exerciseDao,
                                         database.workoutDao(),
                                         userPreferences
