@@ -43,6 +43,9 @@ sealed class Screen(val route: String) {
         fun createRoute(mealId: Long, mealName: String) =
             "recipe_select/$mealId/${java.net.URLEncoder.encode(mealName, "UTF-8")}"
     }
+    object RecipeBarcodeScanner : Screen("recipe_barcode_scanner/{recipeId}") {
+        fun createRoute(recipeId: Long) = "recipe_barcode_scanner/$recipeId"
+    }
 }
 
 @Composable
@@ -206,15 +209,36 @@ fun FitTrackNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.RecipeList.route) {
+        composable(Screen.RecipeList.route) { backStackEntry ->
             val vm: RecipeViewModel = viewModel(
                 factory = RecipeViewModelFactory(foodRepository)
             )
+
+            val scannedBarcode by backStackEntry.savedStateHandle
+                .getStateFlow<String?>("scanned_recipe_barcode", null)
+                .collectAsState()
+            val barcodeRecipeId by backStackEntry.savedStateHandle
+                .getStateFlow<Long?>("barcode_recipe_id", null)
+                .collectAsState()
+
+            LaunchedEffect(scannedBarcode, barcodeRecipeId) {
+                val barcode = scannedBarcode
+                val recipeId = barcodeRecipeId
+                if (barcode != null && recipeId != null) {
+                    vm.lookupBarcodeForRecipe(barcode, recipeId)
+                    backStackEntry.savedStateHandle.remove<String>("scanned_recipe_barcode")
+                    backStackEntry.savedStateHandle.remove<Long>("barcode_recipe_id")
+                }
+            }
+
             RecipeListScreen(
                 viewModel = vm,
                 selectMealId = null,
                 selectMealName = "",
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onScanBarcode = { recipeId ->
+                    navController.navigate(Screen.RecipeBarcodeScanner.createRoute(recipeId))
+                }
             )
         }
 
@@ -238,6 +262,21 @@ fun FitTrackNavGraph(navController: NavHostController) {
                 selectMealName = mealName,
                 onBack = { navController.popBackStack() },
                 onRecipeAdded = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.RecipeBarcodeScanner.route,
+            arguments = listOf(navArgument("recipeId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: return@composable
+            BarcodeScannerScreen(
+                onBarcodeDetected = { barcode ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("scanned_recipe_barcode", barcode)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("barcode_recipe_id", recipeId)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() }
             )
         }
     }

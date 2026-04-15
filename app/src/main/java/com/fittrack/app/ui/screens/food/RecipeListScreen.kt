@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.ui.components.DeleteConfirmDialog
 import com.fittrack.app.ui.components.NameInputDialog
+import com.fittrack.app.viewmodel.RecipeBarcodeLookupState
 import com.fittrack.app.viewmodel.RecipeViewModel
 
 /**
@@ -38,10 +40,30 @@ fun RecipeListScreen(
     selectMealId: Long?,
     selectMealName: String,
     onBack: () -> Unit,
-    onRecipeAdded: () -> Unit = {}
+    onRecipeAdded: () -> Unit = {},
+    onScanBarcode: ((Long) -> Unit)? = null
 ) {
     val recipes by viewModel.recipes.collectAsState()
+    val barcodeLookupState by viewModel.barcodeLookupState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var barcodeAddForRecipeId by remember { mutableStateOf<Long?>(null) }
+    var barcodePrefilledData by remember { mutableStateOf<RecipeBarcodeLookupState.Found?>(null) }
+
+    LaunchedEffect(barcodeLookupState) {
+        when (val state = barcodeLookupState) {
+            is RecipeBarcodeLookupState.Found -> {
+                barcodeAddForRecipeId = state.recipeId
+                barcodePrefilledData = state
+                viewModel.clearBarcodeLookupState()
+            }
+            is RecipeBarcodeLookupState.NotFound -> {
+                barcodeAddForRecipeId = state.recipeId
+                barcodePrefilledData = null
+                viewModel.clearBarcodeLookupState()
+            }
+            is RecipeBarcodeLookupState.Idle -> {}
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -60,13 +82,6 @@ fun RecipeListScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (selectMealId == null) {
-                FloatingActionButton(onClick = { showCreateDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Rezept erstellen")
-                }
-            }
         }
     ) { padding ->
         if (recipes.isEmpty()) {
@@ -111,11 +126,30 @@ fun RecipeListScreen(
                                 name, kcal, protein, carbs, fat, amount
                             )
                         },
-                        onDeleteItem = { viewModel.deleteRecipeItem(it) }
+                        onDeleteItem = { viewModel.deleteRecipeItem(it) },
+                        onScanBarcode = onScanBarcode?.let { callback ->
+                            { callback(recipeWithItems.recipe.id) }
+                        }
                     )
                 }
             }
         }
+    }
+
+    if (barcodeAddForRecipeId != null) {
+        AddRecipeItemDialog(
+            initialName = barcodePrefilledData?.name ?: "",
+            initialKcal = barcodePrefilledData?.kcalPer100 ?: 0f,
+            initialProtein = barcodePrefilledData?.proteinPer100 ?: 0f,
+            initialCarbs = barcodePrefilledData?.carbsPer100 ?: 0f,
+            initialFat = barcodePrefilledData?.fatPer100 ?: 0f,
+            onDismiss = { barcodeAddForRecipeId = null; barcodePrefilledData = null },
+            onConfirm = { name, kcal, protein, carbs, fat, amount ->
+                viewModel.addRecipeItem(barcodeAddForRecipeId!!, name, kcal, protein, carbs, fat, amount)
+                barcodeAddForRecipeId = null
+                barcodePrefilledData = null
+            }
+        )
     }
 
     if (showCreateDialog) {
@@ -138,7 +172,8 @@ private fun RecipeCard(
     onAddToMeal: () -> Unit,
     onDelete: () -> Unit,
     onAddItem: (String, Float, Float, Float, Float, Float) -> Unit,
-    onDeleteItem: (RecipeItem) -> Unit
+    onDeleteItem: (RecipeItem) -> Unit,
+    onScanBarcode: (() -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(!selectMode) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -169,6 +204,11 @@ private fun RecipeCard(
                         enabled = recipeWithItems.items.isNotEmpty()
                     ) { Text("Hinzufügen") }
                 } else {
+                    if (onScanBarcode != null) {
+                        IconButton(onClick = onScanBarcode) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = "Barcode scannen", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     IconButton(onClick = { showAddItemDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Zutat hinzufügen", tint = MaterialTheme.colorScheme.primary)
                     }
@@ -255,14 +295,19 @@ private fun RecipeItemRow(item: RecipeItem, showDelete: Boolean, onDelete: () ->
 
 @Composable
 private fun AddRecipeItemDialog(
+    initialName: String = "",
+    initialKcal: Float = 0f,
+    initialProtein: Float = 0f,
+    initialCarbs: Float = 0f,
+    initialFat: Float = 0f,
     onDismiss: () -> Unit,
     onConfirm: (String, Float, Float, Float, Float, Float) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var kcalText by remember { mutableStateOf("") }
-    var proteinText by remember { mutableStateOf("") }
-    var carbsText by remember { mutableStateOf("") }
-    var fatText by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
+    var kcalText by remember { mutableStateOf(if (initialKcal > 0f) "%.1f".format(initialKcal) else "") }
+    var proteinText by remember { mutableStateOf(if (initialProtein > 0f) "%.1f".format(initialProtein) else "") }
+    var carbsText by remember { mutableStateOf(if (initialCarbs > 0f) "%.1f".format(initialCarbs) else "") }
+    var fatText by remember { mutableStateOf(if (initialFat > 0f) "%.1f".format(initialFat) else "") }
     var amountText by remember { mutableStateOf("100") }
 
     val kcal = kcalText.toFloatOrNull() ?: 0f
