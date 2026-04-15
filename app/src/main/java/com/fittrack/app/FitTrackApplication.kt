@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class FitTrackApplication : Application() {
 
@@ -53,6 +54,31 @@ class FitTrackApplication : Application() {
                     profile
                 )
             }.collect {}
+        }
+    }
+
+    /**
+     * Explicitly triggers a backup import. Call this when the backup folder URI becomes
+     * available after the database has already been opened (e.g. after the user picks the
+     * folder via the system picker on first launch or after a reinstall).
+     * An [AtomicBoolean] guard prevents concurrent import runs.
+     */
+    private val importInProgress = AtomicBoolean(false)
+
+    fun importBackupNow() {
+        if (!importInProgress.compareAndSet(false, true)) return
+        applicationScope.launch {
+            try {
+                WorkoutBackupHelper.importData(
+                    this@FitTrackApplication,
+                    backupPreferences.getTreeUri(),
+                    database.exerciseDao(),
+                    database.workoutDao(),
+                    userPreferences
+                )
+            } finally {
+                importInProgress.set(false)
+            }
         }
     }
 }

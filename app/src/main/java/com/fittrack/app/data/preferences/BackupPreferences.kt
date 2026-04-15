@@ -9,10 +9,11 @@ private const val KEY_TREE_URI = "backup_tree_uri"
 
 /**
  * Stores the SAF tree URI chosen by the user for the backup folder.
- * SharedPreferences survive app data clears that do NOT come with a full uninstall,
- * but the URI permission grant itself survives reinstalls as long as the file system
- * path is the same. The combination of persistable URI permission + this preference
- * ensures the backup folder is remembered across reinstalls.
+ * SharedPreferences are cleared on a full uninstall, but the system-level persistable
+ * URI permission grant can survive reinstalls on many devices (Android 11+). MainActivity
+ * checks ContentResolver.persistedUriPermissions on startup and restores the URI here
+ * if the SharedPreferences entry is missing, so the user does not need to re-select the
+ * folder after reinstalling the app.
  */
 class BackupPreferences(context: Context) {
 
