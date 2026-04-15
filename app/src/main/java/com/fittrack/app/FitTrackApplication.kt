@@ -37,24 +37,16 @@ class FitTrackApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export all app data to Downloads whenever workouts, log entries, or
-        // the user profile change. This keeps the JSON backup in sync without any
-        // user interaction, and covers fresh-install restore automatically.
+        // Auto-export workout plans and user profile to Downloads whenever they change.
+        // Workout history (log entries) is intentionally excluded from the backup.
         applicationScope.launch {
             combine(
                 repository.observeAllWorkoutsWithExercises(),
-                repository.allLogEntries,
-                repository.allExercises,
                 userPreferences.userProfile
-            ) { workouts, logEntries, exercises, profile ->
-                val exerciseNameById = exercises.associate { it.id to it.name }
-                val workoutNameById = workouts.associate { (workout, _) -> workout.id to workout.name }
+            ) { workouts, profile ->
                 WorkoutBackupHelper.exportData(
                     this@FitTrackApplication,
                     workouts,
-                    logEntries,
-                    exerciseNameById,
-                    workoutNameById,
                     profile
                 )
             }.collect {}

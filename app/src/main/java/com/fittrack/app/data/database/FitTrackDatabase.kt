@@ -64,7 +64,6 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                         appContext,
                                         exerciseDao,
                                         database.workoutDao(),
-                                        database.logEntryDao(),
                                         userPreferences
                                     )
                                 }
