@@ -141,13 +141,13 @@ fun ExerciseListScreen(
     if (showAddDialog || editingExercise != null) {
         ExerciseDialog(
             exercise = editingExercise,
-            onSave = { name, muscleGroup ->
+            onSave = { name, muscleGroup, germanName, description ->
                 val editing = editingExercise
                 if (editing != null) {
-                    viewModel.updateExercise(editing.copy(name = name, muscleGroup = muscleGroup))
+                    viewModel.updateExercise(editing.copy(name = name, muscleGroup = muscleGroup, germanName = germanName, description = description))
                     editingExercise = null
                 } else {
-                    viewModel.insertExercise(name, muscleGroup, isCustom = true)
+                    viewModel.insertExercise(name, muscleGroup, germanName = germanName, description = description, isCustom = true)
                     showAddDialog = false
                 }
             },
@@ -258,11 +258,13 @@ fun ExerciseItem(
 @Composable
 fun ExerciseDialog(
     exercise: Exercise?,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember(exercise) { mutableStateOf(exercise?.name ?: "") }
     var muscleGroup by remember(exercise) { mutableStateOf(exercise?.muscleGroup ?: "") }
+    var germanName by remember(exercise) { mutableStateOf(exercise?.germanName ?: "") }
+    var description by remember(exercise) { mutableStateOf(exercise?.description ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -291,6 +293,20 @@ fun ExerciseDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
+                    value = germanName,
+                    onValueChange = { germanName = it },
+                    label = { Text("German Name (optional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
                     value = muscleGroup,
                     onValueChange = { muscleGroup = it },
                     label = { Text("Muscle Group") },
@@ -304,11 +320,26 @@ fun ExerciseDialog(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (optional)") },
+                    minLines = 2,
+                    maxLines = 4,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (name.isNotBlank() && muscleGroup.isNotBlank()) onSave(name, muscleGroup) },
+                onClick = { if (name.isNotBlank() && muscleGroup.isNotBlank()) onSave(name, muscleGroup, germanName, description) },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(12.dp),
                 enabled = name.isNotBlank() && muscleGroup.isNotBlank()
