@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.fittrack.app.data.model.Exercise
+import com.fittrack.app.util.matchesQuery
 import com.fittrack.app.viewmodel.ExerciseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,11 +30,7 @@ fun ExerciseListScreen(
     var editingExercise by remember { mutableStateOf<Exercise?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val filtered = exercises.filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-                it.muscleGroup.contains(searchQuery, ignoreCase = true) ||
-                it.germanName.contains(searchQuery, ignoreCase = true)
-    }
+    val filtered = exercises.filter { it.matchesQuery(searchQuery) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -145,8 +142,9 @@ fun ExerciseListScreen(
         ExerciseDialog(
             exercise = editingExercise,
             onSave = { name, muscleGroup ->
-                if (editingExercise != null) {
-                    viewModel.updateExercise(editingExercise!!.copy(name = name, muscleGroup = muscleGroup))
+                val editing = editingExercise
+                if (editing != null) {
+                    viewModel.updateExercise(editing.copy(name = name, muscleGroup = muscleGroup))
                     editingExercise = null
                 } else {
                     viewModel.insertExercise(name, muscleGroup, isCustom = true)

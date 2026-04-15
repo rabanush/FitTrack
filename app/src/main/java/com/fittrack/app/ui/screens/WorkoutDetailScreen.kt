@@ -2,6 +2,7 @@ package com.fittrack.app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
+import com.fittrack.app.util.matchesQuery
 import com.fittrack.app.viewmodel.WorkoutDetailViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -207,11 +209,7 @@ fun AddExerciseDialog(
     onAdd: (Exercise) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val filtered = allExercises.filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-                it.muscleGroup.contains(searchQuery, ignoreCase = true) ||
-                it.germanName.contains(searchQuery, ignoreCase = true)
-    }
+    val filtered = allExercises.filter { it.matchesQuery(searchQuery) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -231,8 +229,7 @@ fun AddExerciseDialog(
                     modifier = Modifier.height(300.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(filtered.size) { idx ->
-                        val exercise = filtered[idx]
+                    items(filtered) { exercise ->
                         ListItem(
                             headlineContent = { Text(exercise.name) },
                             supportingContent = { Text(exercise.muscleGroup) },

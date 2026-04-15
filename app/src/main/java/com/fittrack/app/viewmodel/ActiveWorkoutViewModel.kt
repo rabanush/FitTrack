@@ -6,6 +6,7 @@ import com.fittrack.app.data.model.*
 import com.fittrack.app.data.repository.FitTrackRepository
 import android.media.AudioManager
 import android.media.ToneGenerator
+import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -294,16 +295,6 @@ class ActiveWorkoutViewModel(
 
     companion object {
         private const val DEFAULT_MET = 3.5f
-    }
-
-    private fun todayMillis(): Long {
-        val cal = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }
-        return cal.timeInMillis
     }
 
     override fun onCleared() {

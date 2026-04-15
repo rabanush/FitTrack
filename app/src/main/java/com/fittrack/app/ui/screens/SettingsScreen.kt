@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
+import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -176,12 +177,13 @@ fun SettingsScreen(
             }
 
             val tdee = remember(weightText, heightText, ageText, gender, activityLevel) {
-                val w = weightText.toFloatOrNull() ?: profile.weightKg
-                val h = heightText.toFloatOrNull() ?: profile.heightCm
-                val a = ageText.toIntOrNull() ?: profile.ageYears
-                val base = 10f * w + 6.25f * h - 5f * a
-                val bmr = if (gender == Gender.MALE) base + 5f else base - 161f
-                bmr * activityLevel.multiplier
+                UserProfile(
+                    weightKg = weightText.toFloatOrNull() ?: profile.weightKg,
+                    heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
+                    ageYears = ageText.toIntOrNull() ?: profile.ageYears,
+                    gender = gender,
+                    activityLevel = activityLevel
+                ).tdee
             }
 
             Card(modifier = Modifier.fillMaxWidth()) {

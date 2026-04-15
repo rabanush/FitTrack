@@ -183,7 +183,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
                 Exercise(name = "Farmers Walk", muscleGroup = "Full Body", germanName = "Bauerngang"),
                 Exercise(name = "Battle Ropes", muscleGroup = "Full Body", germanName = "Battle Ropes")
             )
-            exercises.forEach { exerciseDao.insertExercise(it) }
+            exerciseDao.insertAll(exercises)
         }
     }
 }
