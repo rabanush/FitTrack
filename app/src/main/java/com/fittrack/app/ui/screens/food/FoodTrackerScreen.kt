@@ -22,7 +22,8 @@ import com.fittrack.app.viewmodel.MealWithEntries
 @Composable
 fun FoodTrackerScreen(
     viewModel: FoodTrackerViewModel,
-    onAddFood: (mealId: Long, mealName: String) -> Unit
+    onAddFood: (mealId: Long, mealName: String) -> Unit,
+    onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit
 ) {
     val mealsWithEntries by viewModel.mealsWithEntries.collectAsState()
     val dailyConsumed by viewModel.dailyConsumed.collectAsState()
@@ -74,6 +75,7 @@ fun FoodTrackerScreen(
                     MealCard(
                         mealWithEntries = mealWithEntries,
                         onAddFood = { onAddFood(mealWithEntries.meal.id, mealWithEntries.meal.name) },
+                        onAddRecipe = { onAddRecipeToMeal(mealWithEntries.meal.id, mealWithEntries.meal.name) },
                         onDeleteMeal = { viewModel.deleteMeal(mealWithEntries.meal) },
                         onDeleteEntry = { viewModel.deleteFoodEntry(it) }
                     )
@@ -158,6 +160,7 @@ private fun MacroItem(label: String, grams: Float) {
 private fun MealCard(
     mealWithEntries: MealWithEntries,
     onAddFood: () -> Unit,
+    onAddRecipe: () -> Unit,
     onDeleteMeal: () -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit
 ) {
@@ -177,6 +180,9 @@ private fun MealCard(
                 }
                 IconButton(onClick = onAddFood) {
                     Icon(Icons.Default.Add, contentDescription = "Lebensmittel hinzufügen", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onAddRecipe) {
+                    Icon(Icons.Default.MenuBook, contentDescription = "Rezept hinzufügen", tint = MaterialTheme.colorScheme.secondary)
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(

@@ -34,24 +34,31 @@ class FitTrackApplication : Application() {
             database.foodDao(),
             database.workoutCaloriesDao(),
             RetrofitInstance.api,
-            userPreferences
+            userPreferences,
+            database.customFoodDao(),
+            database.recipeDao()
         )
     }
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export workout plans and user profile to the user-chosen backup folder
-        // whenever they change. Workout history (log entries) is intentionally excluded.
+        // Auto-export workout plans, user profile, custom foods, and recipes to the
+        // user-chosen backup folder whenever any of them change.
+        // Workout history (log entries) and daily food logs are intentionally excluded.
         applicationScope.launch {
             combine(
                 repository.observeAllWorkoutsWithExercises(),
-                userPreferences.userProfile
-            ) { workouts, profile ->
+                userPreferences.userProfile,
+                foodRepository.observeAllCustomFoods(),
+                foodRepository.observeAllRecipesWithItems()
+            ) { workouts, profile, customFoods, recipes ->
                 WorkoutBackupHelper.exportData(
                     this@FitTrackApplication,
                     backupPreferences.getTreeUri(),
                     workouts,
-                    profile
+                    profile,
+                    customFoods,
+                    recipes
                 )
             }.collect {}
         }
@@ -74,7 +81,9 @@ class FitTrackApplication : Application() {
                     backupPreferences.getTreeUri(),
                     database.exerciseDao(),
                     database.workoutDao(),
-                    userPreferences
+                    userPreferences,
+                    database.customFoodDao(),
+                    database.recipeDao()
                 )
             } finally {
                 importInProgress.set(false)
