@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 @Database(
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class,
                 Meal::class, FoodEntry::class, WorkoutCalories::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {
@@ -181,7 +181,12 @@ abstract class FitTrackDatabase : RoomDatabase() {
                 Exercise(name = "Box Jumps", muscleGroup = "Full Body", germanName = "Kastensprünge"),
                 Exercise(name = "Clean and Press", muscleGroup = "Full Body", germanName = "Reißen und Drücken"),
                 Exercise(name = "Farmers Walk", muscleGroup = "Full Body", germanName = "Bauerngang"),
-                Exercise(name = "Battle Ropes", muscleGroup = "Full Body", germanName = "Battle Ropes")
+                Exercise(name = "Battle Ropes", muscleGroup = "Full Body", germanName = "Battle Ropes"),
+                // Inner / Outer Thigh
+                Exercise(name = "Hip Adductor", muscleGroup = "Inner Thigh", germanName = "adduktor",
+                    description = "Trains the inner thigh muscles (adductors) by pressing the legs together against resistance, e.g. at the adductor machine."),
+                Exercise(name = "Hip Abductor", muscleGroup = "Outer Thigh", germanName = "abduktor",
+                    description = "Trains the outer thigh muscles (abductors) by pressing the legs apart against resistance, e.g. at the abductor machine.")
             )
             exerciseDao.insertAll(exercises)
         }

@@ -196,6 +196,40 @@ fun ExerciseSessionCard(
     onUpdateSet: (Int, String?, String?) -> Unit,
     onCompleteSet: (Int) -> Unit
 ) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val exercise = session.workoutExercise.exercise
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = {
+                Column {
+                    Text(exercise.name, color = Color.White, fontWeight = FontWeight.Bold)
+                    if (exercise.germanName.isNotEmpty()) {
+                        Text(
+                            exercise.germanName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            },
+            text = {
+                Text(
+                    if (exercise.description.isNotEmpty()) exercise.description
+                    else "No description available.",
+                    color = Color.White
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("OK", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -204,18 +238,36 @@ fun ExerciseSessionCard(
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = session.workoutExercise.exercise.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = session.workoutExercise.exercise.muscleGroup,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = exercise.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = exercise.muscleGroup,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+                IconButton(
+                    onClick = { showInfoDialog = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Exercise Info",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
