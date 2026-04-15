@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (app.backupPreferences.getTreeUri() == null) {
+        if (app.backupPreferences.getTreeUri() == null && savedInstanceState == null) {
             val initialUri = runCatching {
                 DocumentsContract.buildDocumentUri(
                     "com.android.externalstorage.documents",
