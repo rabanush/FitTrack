@@ -1,6 +1,6 @@
 # FitTrack
 
-A dark-mode fitness exercise library inspired by [Gymky](https://gymky.app).
+A dark-mode fitness exercise library.
 
 > **Platform note:** This is the web version of FitTrack. The project was originally described as an Android fitness tracker; this web app serves as a feature-complete UI reference and can be used directly in any modern browser without a build step.
 
@@ -19,14 +19,14 @@ Open `index.html` in any modern browser — no build step required.
 ```
 FitTrack/
 ├── index.html      # App shell & layout
-├── styles.css      # Dark mode stylesheet (Gymky-inspired)
+├── styles.css      # Dark mode stylesheet
 ├── exercises.js    # Exercise data (name, muscles, description, YouTube video ID)
 └── app.js          # Filtering, search, and modal logic
 ```
 
 ## Screenshots
 
-The app uses a gymky-style dark palette:
+The app uses a dark palette:
 
 | Token | Value | Purpose |
 |-------|-------|---------|
