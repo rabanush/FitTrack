@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.FoodEntry
+import com.fittrack.app.ui.components.DeleteConfirmDialog
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.MealWithEntries
 
@@ -205,16 +206,11 @@ private fun MealCard(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Mahlzeit löschen") },
-            text = { Text("\"${mealWithEntries.meal.name}\" und alle Einträge löschen?") },
-            confirmButton = {
-                TextButton(onClick = { onDeleteMeal(); showDeleteConfirm = false }) { Text("Löschen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
-            }
+        DeleteConfirmDialog(
+            title = "Mahlzeit löschen",
+            message = "\"${mealWithEntries.meal.name}\" und alle Einträge löschen?",
+            onConfirm = { onDeleteMeal(); showDeleteConfirm = false },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }

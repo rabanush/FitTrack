@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
+import com.fittrack.app.ui.components.DeleteConfirmDialog
+import com.fittrack.app.ui.components.NameInputDialog
 import com.fittrack.app.viewmodel.RecipeViewModel
 
 /**
@@ -117,7 +119,9 @@ fun RecipeListScreen(
     }
 
     if (showCreateDialog) {
-        CreateRecipeDialog(
+        NameInputDialog(
+            title = "Rezept erstellen",
+            label = "Rezeptname",
             onDismiss = { showCreateDialog = false },
             onConfirm = { name ->
                 viewModel.createRecipe(name)
@@ -205,16 +209,11 @@ private fun RecipeCard(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Rezept löschen") },
-            text = { Text("\"${recipeWithItems.recipe.name}\" und alle Zutaten löschen?") },
-            confirmButton = {
-                TextButton(onClick = { onDelete(); showDeleteConfirm = false }) { Text("Löschen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
-            }
+        DeleteConfirmDialog(
+            title = "Rezept löschen",
+            message = "\"${recipeWithItems.recipe.name}\" und alle Zutaten löschen?",
+            onConfirm = { onDelete(); showDeleteConfirm = false },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 
@@ -252,33 +251,6 @@ private fun RecipeItemRow(item: RecipeItem, showDelete: Boolean, onDelete: () ->
             }
         }
     }
-}
-
-@Composable
-private fun CreateRecipeDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rezept erstellen") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Rezeptname") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
-                enabled = name.isNotBlank()
-            ) { Text("Erstellen") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
-        }
-    )
 }
 
 @Composable

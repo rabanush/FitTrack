@@ -256,31 +256,31 @@ class ActiveWorkoutViewModel(
             if (entries.isNotEmpty()) repository.insertLogEntries(entries)
             timerJob?.cancel()
 
-            // Record calories burned if FoodRepository is available
-            foodRepository?.let { repo ->
-                val durationMinutes = ((System.currentTimeMillis() - _workoutStartTime) / 60_000L).toInt().coerceAtLeast(1)
-                val userProfile = repo.userPreferences.userProfile.first()
-                // Compute a weighted-average MET based on the muscle groups trained.
-                // Leg-dominant exercises (large muscle mass) have a higher MET than isolation work.
-                val sessions = _exerciseSessions.value
-                val avgMet = if (sessions.isEmpty()) DEFAULT_MET
-                else sessions.map { muscleGroupToMet(it.workoutExercise.exercise.muscleGroup) }
-                    .average().toFloat()
-                // calories = MET × weight_kg × duration_hours
-                val caloriesBurned = avgMet * userProfile.weightKg * (durationMinutes / 60f)
-                val today = todayMillis()
-                repo.insertWorkoutCalories(
-                    com.fittrack.app.data.model.WorkoutCalories(
-                        dateMillis = today,
-                        workoutId = workoutId,
-                        caloriesBurned = caloriesBurned,
-                        durationMinutes = durationMinutes
-                    )
-                )
-            }
+            val durationMinutes = ((System.currentTimeMillis() - _workoutStartTime) / 60_000L)
+                .toInt().coerceAtLeast(1)
+            recordWorkoutCalories(durationMinutes)
 
             onFinished()
         }
+    }
+
+    private suspend fun recordWorkoutCalories(durationMinutes: Int) {
+        val repo = foodRepository ?: return
+        val userProfile = repo.userPreferences.userProfile.first()
+        val sessions = _exerciseSessions.value
+        val avgMet = if (sessions.isEmpty()) DEFAULT_MET
+        else sessions.map { muscleGroupToMet(it.workoutExercise.exercise.muscleGroup) }
+            .average().toFloat()
+        // calories = MET × weight_kg × duration_hours
+        val caloriesBurned = avgMet * userProfile.weightKg * (durationMinutes / 60f)
+        repo.insertWorkoutCalories(
+            WorkoutCalories(
+                dateMillis = todayMillis(),
+                workoutId = workoutId,
+                caloriesBurned = caloriesBurned,
+                durationMinutes = durationMinutes
+            )
+        )
     }
 
     /** Returns a MET (Metabolic Equivalent of Task) value for the given muscle group.
