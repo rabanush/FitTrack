@@ -35,6 +35,14 @@ private data class BackupWorkout(
     @SerializedName("exercises") val exercises: List<BackupExercise>
 )
 
+private data class BackupUserProfile(
+    @SerializedName("weightKg") val weightKg: Float,
+    @SerializedName("heightCm") val heightCm: Float,
+    @SerializedName("ageYears") val ageYears: Int,
+    @SerializedName("gender") val gender: String,
+    @SerializedName("activityLevel") val activityLevel: String
+)
+
 private data class BackupData(
     @SerializedName("workouts") val workouts: List<BackupWorkout>,
     @SerializedName("userProfile") val userProfile: BackupUserProfile? = null
