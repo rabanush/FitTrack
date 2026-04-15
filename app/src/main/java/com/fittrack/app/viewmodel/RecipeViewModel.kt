@@ -9,12 +9,52 @@ import com.fittrack.app.data.repository.FoodRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+sealed class RecipeBarcodeLookupState {
+    object Idle : RecipeBarcodeLookupState()
+    data class Found(
+        val recipeId: Long,
+        val name: String,
+        val kcalPer100: Float,
+        val proteinPer100: Float,
+        val carbsPer100: Float,
+        val fatPer100: Float
+    ) : RecipeBarcodeLookupState()
+    data class NotFound(val recipeId: Long) : RecipeBarcodeLookupState()
+}
+
 class RecipeViewModel(
     private val foodRepository: FoodRepository
 ) : ViewModel() {
 
     val recipes: StateFlow<List<RecipeWithItems>> = foodRepository.observeAllRecipesWithItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _barcodeLookupState =
+        MutableStateFlow<RecipeBarcodeLookupState>(RecipeBarcodeLookupState.Idle)
+    val barcodeLookupState: StateFlow<RecipeBarcodeLookupState> = _barcodeLookupState
+
+    fun lookupBarcodeForRecipe(barcode: String, recipeId: Long) {
+        viewModelScope.launch {
+            val product = foodRepository.getProductByBarcode(barcode)
+            _barcodeLookupState.value = if (product != null) {
+                val n = product.nutriments
+                RecipeBarcodeLookupState.Found(
+                    recipeId = recipeId,
+                    name = product.displayName,
+                    kcalPer100 = n?.kcalPer100g ?: 0f,
+                    proteinPer100 = n?.proteins100g ?: 0f,
+                    carbsPer100 = n?.carbohydrates100g ?: 0f,
+                    fatPer100 = n?.fat100g ?: 0f
+                )
+            } else {
+                RecipeBarcodeLookupState.NotFound(recipeId)
+            }
+        }
+    }
+
+    fun clearBarcodeLookupState() {
+        _barcodeLookupState.value = RecipeBarcodeLookupState.Idle
+    }
 
     fun createRecipe(name: String) {
         viewModelScope.launch { foodRepository.insertRecipe(Recipe(name = name)) }
