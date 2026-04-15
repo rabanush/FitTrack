@@ -4,6 +4,7 @@ import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.LogEntryDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -71,6 +72,7 @@ class FitTrackRepository(
     suspend fun getWorkoutCount(): Int = workoutDao.getWorkoutCount()
 
     /** Emits the full snapshot of all workouts with their exercises whenever anything changes. */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAllWorkoutsWithExercises(): Flow<List<Pair<Workout, List<WorkoutExerciseWithExercise>>>> =
         allWorkouts.flatMapLatest { workouts ->
             if (workouts.isEmpty()) {
