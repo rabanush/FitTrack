@@ -6,6 +6,7 @@ import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.repository.FoodRepository
 import com.fittrack.app.util.todayMillis
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -23,6 +24,7 @@ data class MealWithEntries(
     val entries: List<FoodEntry>
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FoodTrackerViewModel(
     private val foodRepository: FoodRepository
 ) : ViewModel() {
