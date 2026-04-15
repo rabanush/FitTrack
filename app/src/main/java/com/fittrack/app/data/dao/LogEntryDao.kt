@@ -55,4 +55,10 @@ interface LogEntryDao {
 
     @Query("DELETE FROM log_entries WHERE exercise_id = :exerciseId AND workout_id = :workoutId AND date = :date")
     suspend fun deleteLogEntriesForSession(exerciseId: Long, workoutId: Long, date: Long)
+
+    @Query("SELECT COUNT(*) FROM log_entries")
+    suspend fun getCount(): Int
+
+    @Query("SELECT * FROM log_entries ORDER BY date ASC")
+    suspend fun getAllLogEntriesSync(): List<LogEntry>
 }

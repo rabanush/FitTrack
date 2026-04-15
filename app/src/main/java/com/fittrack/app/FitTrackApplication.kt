@@ -10,13 +10,15 @@ import com.fittrack.app.data.repository.FoodRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class FitTrackApplication : Application() {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val database by lazy { FitTrackDatabase.getDatabase(this) }
+    val userPreferences by lazy { UserPreferences(this) }
+    val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences) }
     val repository by lazy {
         FitTrackRepository(
             database.exerciseDao(),
@@ -24,7 +26,6 @@ class FitTrackApplication : Application() {
             database.logEntryDao()
         )
     }
-    val userPreferences by lazy { UserPreferences(this) }
     val foodRepository by lazy {
         FoodRepository(
             database.foodDao(),
@@ -36,12 +37,19 @@ class FitTrackApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export workout plans to Downloads whenever the data changes.
-        // This keeps the JSON backup in sync without any user interaction.
+        // Auto-export workout plans and user profile to Downloads whenever they change.
+        // Workout history (log entries) is intentionally excluded from the backup.
         applicationScope.launch {
-            repository.observeAllWorkoutsWithExercises().collect { workoutsWithExercises ->
-                WorkoutBackupHelper.exportWorkouts(this@FitTrackApplication, workoutsWithExercises)
-            }
+            combine(
+                repository.observeAllWorkoutsWithExercises(),
+                userPreferences.userProfile
+            ) { workouts, profile ->
+                WorkoutBackupHelper.exportData(
+                    this@FitTrackApplication,
+                    workouts,
+                    profile
+                )
+            }.collect {}
         }
     }
 }

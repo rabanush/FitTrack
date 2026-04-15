@@ -12,6 +12,10 @@ import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
+import com.fittrack.app.data.preferences.ActivityLevel
+import com.fittrack.app.data.preferences.Gender
+import com.fittrack.app.data.preferences.UserPreferences
+import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
@@ -32,17 +36,22 @@ private data class BackupWorkout(
 )
 
 private data class BackupData(
-    @SerializedName("workouts") val workouts: List<BackupWorkout>
+    @SerializedName("workouts") val workouts: List<BackupWorkout>,
+    @SerializedName("userProfile") val userProfile: BackupUserProfile? = null
 )
 
 object WorkoutBackupHelper {
 
     private val gson = Gson()
 
-    /** Serialises [workoutsWithExercises] to JSON and writes it to the Downloads folder. */
-    fun exportWorkouts(
+    /**
+     * Serialises all app data to JSON and writes it to the Downloads folder.
+     * Called automatically whenever workouts or the user profile change.
+     */
+    fun exportData(
         context: Context,
-        workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>
+        workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
+        userProfile: UserProfile
     ) {
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
@@ -57,34 +66,74 @@ object WorkoutBackupHelper {
                         )
                     }
                 )
-            }
+            },
+            userProfile = BackupUserProfile(
+                weightKg = userProfile.weightKg,
+                heightCm = userProfile.heightCm,
+                ageYears = userProfile.ageYears,
+                gender = userProfile.gender.name,
+                activityLevel = userProfile.activityLevel.name
+            )
         )
         writeJson(context, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from Downloads and inserts the workout plans into the DB.
-     * Exercises are matched by name against the already-populated exercises table.
-     * Called only when the workouts table is empty (e.g., after a reinstall).
+     * Reads the backup file from Downloads and inserts all data into the DB and DataStore.
+     * Workout plans are only restored when the table is empty
+     * (i.e., on a fresh install or after clearing app data).
+     * The user profile is always restored from backup when a valid backup file is found and
+     * workouts are empty, so that body data is not silently overwritten on subsequent opens.
      */
-    suspend fun importWorkoutsToDao(context: Context, exerciseDao: ExerciseDao, workoutDao: WorkoutDao) {
+    suspend fun importData(
+        context: Context,
+        exerciseDao: ExerciseDao,
+        workoutDao: WorkoutDao,
+        userPreferences: UserPreferences
+    ) {
         val json = readJson(context) ?: return
         val data = try { gson.fromJson(json, BackupData::class.java) } catch (e: Exception) {
             Log.w(TAG, "Failed to parse backup JSON — restore skipped", e)
             return
         }
 
-        for (backupWorkout in data.workouts) {
-            val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
-            for (ex in backupWorkout.exercises) {
-                val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: continue
-                workoutDao.insertWorkoutExercise(
-                    WorkoutExercise(
-                        workoutId = workoutId,
-                        exerciseId = exercise.id,
-                        setCount = ex.setCount,
-                        orderIndex = ex.orderIndex,
-                        restTimerSeconds = ex.restTimerSeconds
+        val workoutsEmpty = workoutDao.getWorkoutCount() == 0
+
+        // Restore workout plans
+        if (workoutsEmpty) {
+            for (backupWorkout in data.workouts) {
+                val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
+                for (ex in backupWorkout.exercises) {
+                    val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: continue
+                    workoutDao.insertWorkoutExercise(
+                        WorkoutExercise(
+                            workoutId = workoutId,
+                            exerciseId = exercise.id,
+                            setCount = ex.setCount,
+                            orderIndex = ex.orderIndex,
+                            restTimerSeconds = ex.restTimerSeconds
+                        )
+                    )
+                }
+            }
+
+            // Restore user profile when this looks like a fresh install
+            data.userProfile?.let { profile ->
+                val gender = runCatching { Gender.valueOf(profile.gender) }.getOrElse {
+                    Log.w(TAG, "Unknown gender value '${profile.gender}' in backup — falling back to MALE")
+                    Gender.MALE
+                }
+                val activityLevel = runCatching { ActivityLevel.valueOf(profile.activityLevel) }.getOrElse {
+                    Log.w(TAG, "Unknown activityLevel value '${profile.activityLevel}' in backup — falling back to MODERATE")
+                    ActivityLevel.MODERATE
+                }
+                userPreferences.save(
+                    UserProfile(
+                        weightKg = profile.weightKg,
+                        heightCm = profile.heightCm,
+                        ageYears = profile.ageYears,
+                        gender = gender,
+                        activityLevel = activityLevel
                     )
                 )
             }
