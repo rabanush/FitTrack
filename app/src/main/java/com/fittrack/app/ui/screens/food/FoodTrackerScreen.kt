@@ -65,7 +65,7 @@ fun FoodTrackerScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Noch keine Mahlzeiten", style = MaterialTheme.typography.titleMedium)
-                            Text("Tippe + um eine Mahlzeit anzulegen", style = MaterialTheme.typography.bodyMedium)
+                            Text("Standardmahlzeiten werden erstellt …", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

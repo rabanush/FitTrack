@@ -7,6 +7,8 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.repository.FoodRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Calendar
 
 data class DailyMacros(
@@ -27,6 +29,25 @@ class FoodTrackerViewModel(
 
     private val _selectedDateMillis = MutableStateFlow(todayMillis())
     val selectedDateMillis: StateFlow<Long> = _selectedDateMillis
+
+    private val defaultMealsMutex = Mutex()
+
+    init {
+        viewModelScope.launch {
+            _selectedDateMillis.collect { date -> ensureDefaultMeals(date) }
+        }
+    }
+
+    private suspend fun ensureDefaultMeals(dateMillis: Long) {
+        defaultMealsMutex.withLock {
+            val existing = foodRepository.getMealsForDay(dateMillis).first()
+            if (existing.isEmpty()) {
+                listOf("Frühstück", "Mittagessen", "Snack", "Abendessen").forEach { name ->
+                    foodRepository.insertMeal(Meal(name = name, dateMillis = dateMillis))
+                }
+            }
+        }
+    }
 
     val userProfile: StateFlow<UserProfile> = foodRepository.userPreferences.userProfile
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserProfile())
