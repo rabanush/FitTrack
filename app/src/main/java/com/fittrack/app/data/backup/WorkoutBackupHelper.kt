@@ -25,6 +25,7 @@ import java.io.File
 private const val BACKUP_FILENAME = "fittrack_workouts.json"
 private const val BACKUP_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
+private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 
 private data class BackupExercise(
     @SerializedName("exerciseId") val exerciseId: Long? = null,
@@ -208,7 +209,7 @@ object WorkoutBackupHelper {
                         ageYears = profile.ageYears,
                         gender = gender,
                         activityLevel = activityLevel,
-                        timerVolumePercent = profile.timerVolumePercent ?: UserProfile().timerVolumePercent
+                        timerVolumePercent = profile.timerVolumePercent ?: DEFAULT_TIMER_VOLUME_PERCENT
                     )
                 )
             }
@@ -253,7 +254,10 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
-            val backupFile = getPrimaryBackupFile(context) ?: getLegacyBackupFile(context)
+            val backupFile = getPrimaryBackupFile(context) ?: run {
+                Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
+                getLegacyBackupFile(context)
+            }
             backupFile.parentFile?.mkdirs()
             backupFile.writeText(json)
         } catch (e: Exception) {
