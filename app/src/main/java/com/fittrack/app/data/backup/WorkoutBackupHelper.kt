@@ -416,8 +416,8 @@ object WorkoutBackupHelper {
         customFoods: List<CustomFood>,
         recipes: List<RecipeWithItems>
     ): Boolean {
-        val hasAnyData = workoutsWithExercises.isNotEmpty() || customFoods.isNotEmpty() || recipes.isNotEmpty()
-        if (hasAnyData) return false
+        val isEmptyExport = workoutsWithExercises.isEmpty() && customFoods.isEmpty() && recipes.isEmpty()
+        if (!isEmptyExport) return false
         return hasExistingBackup(context)
     }
 
@@ -438,7 +438,8 @@ object WorkoutBackupHelper {
                 ?: return false
             findDocumentUri(context, backupDirUri, BACKUP_FILENAME) != null ||
                 findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME) != null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to check selected-tree backup existence", e)
             false
         }
     }
