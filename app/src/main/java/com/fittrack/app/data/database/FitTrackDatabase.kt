@@ -23,7 +23,6 @@ import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
-import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.seed.ExerciseSeedLoader
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +49,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FitTrackDatabase? = null
 
-        fun getDatabase(context: Context, userPreferences: UserPreferences, backupPreferences: BackupPreferences): FitTrackDatabase {
+        fun getDatabase(context: Context, userPreferences: UserPreferences): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
                 val appContext = context.applicationContext
                 val instance = Room.databaseBuilder(
@@ -69,10 +68,9 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                         exerciseDao.insertAll(ExerciseSeedLoader.loadFromAssets(appContext))
                                     }
                                     // Restore all data (workout plans, custom foods, recipes, user profile)
-                                    // from the SAF backup if this looks like a fresh install.
+                                    // from the app-internal backup if this looks like a fresh install.
                                     WorkoutBackupHelper.importData(
                                         appContext,
-                                        backupPreferences.getTreeUri(),
                                         exerciseDao,
                                         database.workoutDao(),
                                         userPreferences,

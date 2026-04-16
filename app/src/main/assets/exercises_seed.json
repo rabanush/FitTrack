@@ -607,5 +607,12 @@
     "germanName": "adduktor",
     "description": "Trains the inner thigh muscles (adductors) by pressing the legs together against resistance, e.g. at the adductor machine.",
     "id": 87
+  },
+  {
+    "id": 88,
+    "name": "Hip Abductor",
+    "muscleGroup": "Outer Thigh",
+    "germanName": "Abduktor",
+    "description": "Trains the outer thigh muscles (abductors) by pressing the legs apart against resistance, e.g. at the abductor machine."
   }
 ]

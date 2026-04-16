@@ -220,7 +220,7 @@ fun FitTrackNavGraph(
 
         composable(Screen.Settings.route) {
             val vm: SettingsViewModel = viewModel(
-                factory = SettingsViewModelFactory(app.userPreferences, app.backupPreferences)
+                factory = SettingsViewModelFactory(app.userPreferences)
             )
             SettingsScreen(
                 viewModel = vm,

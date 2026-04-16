@@ -65,8 +65,6 @@ dependencies {
     implementation(libs.gson)
     // DataStore Preferences
     implementation(libs.datastore.preferences)
-    // DocumentFile (SAF)
-    implementation(libs.androidx.documentfile)
     // CameraX
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
