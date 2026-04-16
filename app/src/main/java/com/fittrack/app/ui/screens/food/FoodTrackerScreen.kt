@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.FoodEntry
-import com.fittrack.app.ui.components.DeleteConfirmDialog
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.MealWithEntries
 
@@ -78,7 +77,6 @@ fun FoodTrackerScreen(
                         mealWithEntries = mealWithEntries,
                         onAddFood = { onAddFood(mealWithEntries.meal.id, mealWithEntries.meal.name) },
                         onAddRecipe = { onAddRecipeToMeal(mealWithEntries.meal.id, mealWithEntries.meal.name) },
-                        onDeleteMeal = { viewModel.deleteMeal(mealWithEntries.meal) },
                         onDeleteEntry = { viewModel.deleteFoodEntry(it) }
                     )
                 }
@@ -163,11 +161,9 @@ private fun MealCard(
     mealWithEntries: MealWithEntries,
     onAddFood: () -> Unit,
     onAddRecipe: () -> Unit,
-    onDeleteMeal: () -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
     val totalKcal = mealWithEntries.entries.sumOf { it.calories.toDouble() }.toFloat()
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -192,9 +188,6 @@ private fun MealCard(
                         contentDescription = if (expanded) "Einklappen" else "Ausklappen"
                     )
                 }
-                IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error)
-                }
             }
 
             if (expanded && mealWithEntries.entries.isNotEmpty()) {
@@ -204,15 +197,6 @@ private fun MealCard(
                 }
             }
         }
-    }
-
-    if (showDeleteConfirm) {
-        DeleteConfirmDialog(
-            title = "Mahlzeit löschen",
-            message = "\"${mealWithEntries.meal.name}\" und alle Einträge löschen?",
-            onConfirm = { onDeleteMeal(); showDeleteConfirm = false },
-            onDismiss = { showDeleteConfirm = false }
-        )
     }
 }
 
