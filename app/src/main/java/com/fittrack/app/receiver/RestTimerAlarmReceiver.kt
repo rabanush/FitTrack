@@ -5,21 +5,24 @@ import android.content.Context
 import android.content.Intent
 import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.Executors
 
 class RestTimerAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         val volume = intent.getIntExtra(RestTimerNotificationHelper.EXTRA_TIMER_VOLUME_PERCENT, 100)
             .coerceIn(0, 100)
-        CoroutineScope(Dispatchers.Default).launch {
+        val executor = Executors.newSingleThreadExecutor()
+        executor.execute {
             try {
-                runCatching { TimerAudioPlayer(context).playEndSequence(volume) }
+                runBlocking {
+                    runCatching { TimerAudioPlayer(context).playEndSequence(volume) }
+                }
                 RestTimerNotificationHelper(context).showFinishedNotification()
             } finally {
                 pendingResult.finish()
+                executor.shutdown()
             }
         }
     }
