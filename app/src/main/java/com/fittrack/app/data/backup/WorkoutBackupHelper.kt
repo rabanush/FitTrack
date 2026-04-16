@@ -25,7 +25,8 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
 
-private const val BACKUP_FILENAME = "fittrack_workouts.json"
+private const val BACKUP_FILENAME = "backup.json"
+private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val BACKUP_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
@@ -260,6 +261,9 @@ object WorkoutBackupHelper {
         try {
             // Priority 1: user-selected SAF folder; falls back to app Documents path, then filesDir.
             if (writeJsonToSelectedTree(context, json)) return
+            if (shouldSkipEmptyExport(context, workoutsWithExercises, customFoods, recipes)) {
+                return
+            }
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
                 getLegacyBackupFile(context)
@@ -282,9 +286,15 @@ object WorkoutBackupHelper {
             val primaryFile = getPrimaryBackupFile(context)
             when {
                 primaryFile?.exists() == true -> primaryFile.readText()
+                getLegacyPrimaryBackupFile(context)?.exists() == true -> getLegacyPrimaryBackupFile(context)?.readText()
                 else -> {
                     val legacyFile = getLegacyBackupFile(context)
-                    if (legacyFile.exists()) legacyFile.readText() else null
+                    if (legacyFile.exists()) {
+                        legacyFile.readText()
+                    } else {
+                        val oldLegacyFile = getOldLegacyBackupFile(context)
+                        if (oldLegacyFile.exists()) oldLegacyFile.readText() else null
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -297,6 +307,12 @@ object WorkoutBackupHelper {
         val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
         val backupDir = File(documentsDir, BACKUP_DIRECTORY)
         return File(backupDir, BACKUP_FILENAME)
+    }
+
+    private fun getLegacyPrimaryBackupFile(context: Context): File? {
+        val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
+        val backupDir = File(documentsDir, BACKUP_DIRECTORY)
+        return File(backupDir, LEGACY_BACKUP_FILENAME)
     }
 
     private fun writeJsonToSelectedTree(context: Context, json: String): Boolean {
@@ -330,6 +346,7 @@ object WorkoutBackupHelper {
             val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
                 ?: return null
             val backupFileUri = findDocumentUri(context, backupDirUri, BACKUP_FILENAME)
+                ?: findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME)
                 ?: return null
             context.contentResolver.openInputStream(backupFileUri)?.use { input ->
                 input.bufferedReader(Charsets.UTF_8).readText()
@@ -389,4 +406,27 @@ object WorkoutBackupHelper {
         BackupPreferences(context).getBackupTreeUri()
 
     private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+
+    private fun getOldLegacyBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
+
+    private fun shouldSkipEmptyExport(
+        context: Context,
+        workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
+        customFoods: List<CustomFood>,
+        recipes: List<RecipeWithItems>
+    ): Boolean {
+        val hasAnyData = workoutsWithExercises.isNotEmpty() || customFoods.isNotEmpty() || recipes.isNotEmpty()
+        if (hasAnyData) return false
+        return hasExistingBackup(context)
+    }
+
+    private fun hasExistingBackup(context: Context): Boolean {
+        if (readJsonFromSelectedTree(context) != null) return true
+        return listOfNotNull(
+            getPrimaryBackupFile(context),
+            getLegacyPrimaryBackupFile(context),
+            getLegacyBackupFile(context),
+            getOldLegacyBackupFile(context)
+        ).any { it.exists() }
+    }
 }
