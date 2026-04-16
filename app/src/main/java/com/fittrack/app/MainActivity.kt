@@ -2,9 +2,13 @@ package com.fittrack.app
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.Manifest
+import android.os.Environment
+import android.os.storage.StorageManager
+import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +45,20 @@ class MainActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        val backupFolderLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocumentTree()
+        ) { uri ->
+            if (uri != null) {
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
+                app.backupPreferences.saveBackupTreeUri(uri)
+            }
+        }
+
+        if (app.backupPreferences.getBackupTreeUri() == null) {
+            backupFolderLauncher.launch(getDocumentsInitialUri())
+        }
+
         setContent {
             FitTrackTheme {
                 Surface(
@@ -70,5 +88,24 @@ class MainActivity : ComponentActivity() {
             ?.getLongExtra(RestTimerNotificationHelper.EXTRA_WORKOUT_ID, -1L)
             ?.takeIf { it > 0L }
         return fromNotification ?: app.activeWorkoutSessionPreferences.getSession()?.workoutId
+    }
+
+    private fun getDocumentsInitialUri(): Uri? {
+        val baseTreeUri = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val storageManager = getSystemService(StorageManager::class.java)
+                storageManager?.primaryStorageVolume
+                    ?.createOpenDocumentTreeIntent()
+                    ?.getParcelableExtra(DocumentsContract.EXTRA_INITIAL_URI)
+            } else null
+        }.getOrNull() ?: return null
+
+        val treeDocumentId = DocumentsContract.getTreeDocumentId(baseTreeUri)
+        val documentsDocumentId = when {
+            treeDocumentId.endsWith(":") -> "${treeDocumentId}${Environment.DIRECTORY_DOCUMENTS}"
+            treeDocumentId.contains(":") -> "${treeDocumentId.substringBefore(':')}:${Environment.DIRECTORY_DOCUMENTS}"
+            else -> "$treeDocumentId:${Environment.DIRECTORY_DOCUMENTS}"
+        }
+        return DocumentsContract.buildDocumentUriUsingTree(baseTreeUri, documentsDocumentId)
     }
 }
