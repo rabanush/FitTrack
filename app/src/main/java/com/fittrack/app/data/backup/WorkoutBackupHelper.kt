@@ -258,7 +258,11 @@ object WorkoutBackupHelper {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
                 getLegacyBackupFile(context)
             }
-            backupFile.parentFile?.mkdirs()
+            val parent = backupFile.parentFile
+            if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                Log.w(TAG, "Failed to create backup directory: ${parent.absolutePath}")
+                return
+            }
             backupFile.writeText(json)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write workout backup", e)
