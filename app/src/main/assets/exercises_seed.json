@@ -1,0 +1,618 @@
+[
+  {
+    "name": "Bench Press",
+    "muscleGroup": "Chest",
+    "germanName": "Bankdrücken",
+    "description": "",
+    "id": 1
+  },
+  {
+    "name": "Incline Bench Press",
+    "muscleGroup": "Chest",
+    "germanName": "Schrägbankdrücken",
+    "description": "",
+    "id": 2
+  },
+  {
+    "name": "Decline Bench Press",
+    "muscleGroup": "Chest",
+    "germanName": "Negativbankdrücken",
+    "description": "",
+    "id": 3
+  },
+  {
+    "name": "Dumbbell Flyes",
+    "muscleGroup": "Chest",
+    "germanName": "Kurzhantel Fliegende",
+    "description": "",
+    "id": 4
+  },
+  {
+    "name": "Cable Flyes",
+    "muscleGroup": "Chest",
+    "germanName": "Kabel Fliegende",
+    "description": "",
+    "id": 5
+  },
+  {
+    "name": "Push-ups",
+    "muscleGroup": "Chest",
+    "germanName": "Liegestütze",
+    "description": "",
+    "id": 6
+  },
+  {
+    "name": "Dips",
+    "muscleGroup": "Chest",
+    "germanName": "Dips",
+    "description": "",
+    "id": 7
+  },
+  {
+    "name": "Pull-ups",
+    "muscleGroup": "Back",
+    "germanName": "Klimmzüge",
+    "description": "",
+    "id": 8
+  },
+  {
+    "name": "Barbell Row",
+    "muscleGroup": "Back",
+    "germanName": "Langhantelrudern",
+    "description": "",
+    "id": 9
+  },
+  {
+    "name": "Seated Cable Row",
+    "muscleGroup": "Back",
+    "germanName": "Rudern am Kabel sitzend",
+    "description": "",
+    "id": 10
+  },
+  {
+    "name": "Lat Pulldown",
+    "muscleGroup": "Back",
+    "germanName": "Latziehen",
+    "description": "",
+    "id": 11
+  },
+  {
+    "name": "T-Bar Row",
+    "muscleGroup": "Back",
+    "germanName": "T-Stangen Rudern",
+    "description": "",
+    "id": 12
+  },
+  {
+    "name": "Deadlift",
+    "muscleGroup": "Back",
+    "germanName": "Kreuzheben",
+    "description": "",
+    "id": 13
+  },
+  {
+    "name": "Face Pulls",
+    "muscleGroup": "Back",
+    "germanName": "Face Pulls",
+    "description": "",
+    "id": 14
+  },
+  {
+    "name": "Overhead Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Schulterdrücken",
+    "description": "",
+    "id": 15
+  },
+  {
+    "name": "Dumbbell Shoulder Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Kurzhantel Schulterdrücken",
+    "description": "",
+    "id": 16
+  },
+  {
+    "name": "Lateral Raises",
+    "muscleGroup": "Shoulders",
+    "germanName": "Seitheben",
+    "description": "",
+    "id": 17
+  },
+  {
+    "name": "Front Raises",
+    "muscleGroup": "Shoulders",
+    "germanName": "Frontheben",
+    "description": "",
+    "id": 18
+  },
+  {
+    "name": "Rear Delt Flyes",
+    "muscleGroup": "Shoulders",
+    "germanName": "Hintere Schulter Fliegende",
+    "description": "",
+    "id": 19
+  },
+  {
+    "name": "Arnold Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Arnold Press",
+    "description": "",
+    "id": 20
+  },
+  {
+    "name": "Barbell Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Langhantel Bizepscurl",
+    "description": "",
+    "id": 21
+  },
+  {
+    "name": "Dumbbell Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Kurzhantel Bizepscurl",
+    "description": "",
+    "id": 22
+  },
+  {
+    "name": "Hammer Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Hammer Curl",
+    "description": "",
+    "id": 23
+  },
+  {
+    "name": "Preacher Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Scott Curl",
+    "description": "",
+    "id": 24
+  },
+  {
+    "name": "Tricep Pushdown",
+    "muscleGroup": "Triceps",
+    "germanName": "Trizepsdrücken",
+    "description": "",
+    "id": 25
+  },
+  {
+    "name": "Skull Crushers",
+    "muscleGroup": "Triceps",
+    "germanName": "Stirndrücken",
+    "description": "",
+    "id": 26
+  },
+  {
+    "name": "Overhead Tricep Extension",
+    "muscleGroup": "Triceps",
+    "germanName": "Trizeps Überkopfdrücken",
+    "description": "",
+    "id": 27
+  },
+  {
+    "name": "Close Grip Bench Press",
+    "muscleGroup": "Triceps",
+    "germanName": "Enges Bankdrücken",
+    "description": "",
+    "id": 28
+  },
+  {
+    "name": "Squat",
+    "muscleGroup": "Quads",
+    "germanName": "Kniebeuge",
+    "description": "",
+    "id": 29
+  },
+  {
+    "name": "Leg Press",
+    "muscleGroup": "Quads",
+    "germanName": "Beinpresse",
+    "description": "",
+    "id": 30
+  },
+  {
+    "name": "Leg Extension",
+    "muscleGroup": "Quads",
+    "germanName": "Beinstrecker",
+    "description": "",
+    "id": 31
+  },
+  {
+    "name": "Romanian Deadlift",
+    "muscleGroup": "Hamstrings",
+    "germanName": "Rumänisches Kreuzheben",
+    "description": "",
+    "id": 32
+  },
+  {
+    "name": "Leg Curl",
+    "muscleGroup": "Hamstrings",
+    "germanName": "Beincurl",
+    "description": "",
+    "id": 33
+  },
+  {
+    "name": "Hip Thrust",
+    "muscleGroup": "Glutes",
+    "germanName": "Hüftstrecker",
+    "description": "",
+    "id": 34
+  },
+  {
+    "name": "Bulgarian Split Squat",
+    "muscleGroup": "Quads",
+    "germanName": "Bulgarische Split Kniebeuge",
+    "description": "",
+    "id": 35
+  },
+  {
+    "name": "Calf Raises",
+    "muscleGroup": "Calves",
+    "germanName": "Wadenheben",
+    "description": "",
+    "id": 36
+  },
+  {
+    "name": "Standing Calf Raises",
+    "muscleGroup": "Calves",
+    "germanName": "Stehendes Wadenheben",
+    "description": "",
+    "id": 37
+  },
+  {
+    "name": "Incline Dumbbell Press",
+    "muscleGroup": "Chest",
+    "germanName": "Schrägbank Kurzhanteldrücken",
+    "description": "",
+    "id": 38
+  },
+  {
+    "name": "Chest Press Machine",
+    "muscleGroup": "Chest",
+    "germanName": "Brustpresse Maschine",
+    "description": "",
+    "id": 39
+  },
+  {
+    "name": "Pec Deck",
+    "muscleGroup": "Chest",
+    "germanName": "Pec Deck",
+    "description": "",
+    "id": 40
+  },
+  {
+    "name": "Chest Dips",
+    "muscleGroup": "Chest",
+    "germanName": "Brust Dips",
+    "description": "",
+    "id": 41
+  },
+  {
+    "name": "Single Arm Dumbbell Row",
+    "muscleGroup": "Back",
+    "germanName": "Einarmiges Kurzhantelrudern",
+    "description": "",
+    "id": 42
+  },
+  {
+    "name": "Chest Supported Row",
+    "muscleGroup": "Back",
+    "germanName": "Stützrudern",
+    "description": "",
+    "id": 43
+  },
+  {
+    "name": "Straight Arm Pulldown",
+    "muscleGroup": "Back",
+    "germanName": "Gerader Arm Latziehen",
+    "description": "",
+    "id": 44
+  },
+  {
+    "name": "Hyperextensions",
+    "muscleGroup": "Back",
+    "germanName": "Rückenstrecker",
+    "description": "",
+    "id": 45
+  },
+  {
+    "name": "Chin-ups",
+    "muscleGroup": "Back",
+    "germanName": "Untergriff Klimmzüge",
+    "description": "",
+    "id": 46
+  },
+  {
+    "name": "Cable Lateral Raises",
+    "muscleGroup": "Shoulders",
+    "germanName": "Kabel Seitheben",
+    "description": "",
+    "id": 47
+  },
+  {
+    "name": "Upright Row",
+    "muscleGroup": "Shoulders",
+    "germanName": "Aufrechtes Rudern",
+    "description": "",
+    "id": 48
+  },
+  {
+    "name": "Machine Shoulder Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Schulterdrücken Maschine",
+    "description": "",
+    "id": 49
+  },
+  {
+    "name": "Shrugs",
+    "muscleGroup": "Shoulders",
+    "germanName": "Schulterheben",
+    "description": "",
+    "id": 50
+  },
+  {
+    "name": "Concentration Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Konzentrationscurl",
+    "description": "",
+    "id": 51
+  },
+  {
+    "name": "Cable Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Kabel Bizepscurl",
+    "description": "",
+    "id": 52
+  },
+  {
+    "name": "Incline Dumbbell Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Schrägbank Kurzhantelcurl",
+    "description": "",
+    "id": 53
+  },
+  {
+    "name": "EZ Bar Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "EZ Stangen Curl",
+    "description": "",
+    "id": 54
+  },
+  {
+    "name": "Tricep Dips",
+    "muscleGroup": "Triceps",
+    "germanName": "Trizeps Dips",
+    "description": "",
+    "id": 55
+  },
+  {
+    "name": "Diamond Push-ups",
+    "muscleGroup": "Triceps",
+    "germanName": "Diamant Liegestütze",
+    "description": "",
+    "id": 56
+  },
+  {
+    "name": "Cable Overhead Tricep Extension",
+    "muscleGroup": "Triceps",
+    "germanName": "Kabel Trizeps Überkopfdrücken",
+    "description": "",
+    "id": 57
+  },
+  {
+    "name": "Tricep Kickback",
+    "muscleGroup": "Triceps",
+    "germanName": "Trizeps Kickback",
+    "description": "",
+    "id": 58
+  },
+  {
+    "name": "Hack Squat",
+    "muscleGroup": "Quads",
+    "germanName": "Hackenschmidt Kniebeuge",
+    "description": "",
+    "id": 59
+  },
+  {
+    "name": "Front Squat",
+    "muscleGroup": "Quads",
+    "germanName": "Frontkniebeuge",
+    "description": "",
+    "id": 60
+  },
+  {
+    "name": "Lunges",
+    "muscleGroup": "Quads",
+    "germanName": "Ausfallschritte",
+    "description": "",
+    "id": 61
+  },
+  {
+    "name": "Step-ups",
+    "muscleGroup": "Quads",
+    "germanName": "Aufsteigen",
+    "description": "",
+    "id": 62
+  },
+  {
+    "name": "Seated Leg Curl",
+    "muscleGroup": "Hamstrings",
+    "germanName": "Sitzender Beincurl",
+    "description": "",
+    "id": 63
+  },
+  {
+    "name": "Good Mornings",
+    "muscleGroup": "Hamstrings",
+    "germanName": "Good Mornings",
+    "description": "",
+    "id": 64
+  },
+  {
+    "name": "Stiff Leg Deadlift",
+    "muscleGroup": "Hamstrings",
+    "germanName": "Stiffleg Kreuzheben",
+    "description": "",
+    "id": 65
+  },
+  {
+    "name": "Cable Kickbacks",
+    "muscleGroup": "Glutes",
+    "germanName": "Kabel Kickback",
+    "description": "",
+    "id": 66
+  },
+  {
+    "name": "Sumo Squat",
+    "muscleGroup": "Glutes",
+    "germanName": "Sumo Kniebeuge",
+    "description": "",
+    "id": 67
+  },
+  {
+    "name": "Glute Bridge",
+    "muscleGroup": "Glutes",
+    "germanName": "Gesäßbrücke",
+    "description": "",
+    "id": 68
+  },
+  {
+    "name": "Seated Calf Raises",
+    "muscleGroup": "Calves",
+    "germanName": "Sitzendes Wadenheben",
+    "description": "",
+    "id": 69
+  },
+  {
+    "name": "Donkey Calf Raises",
+    "muscleGroup": "Calves",
+    "germanName": "Esels Wadenheben",
+    "description": "",
+    "id": 70
+  },
+  {
+    "name": "Plank",
+    "muscleGroup": "Core",
+    "germanName": "Unterarmstütz",
+    "description": "",
+    "id": 71
+  },
+  {
+    "name": "Crunches",
+    "muscleGroup": "Core",
+    "germanName": "Bauchpressen",
+    "description": "",
+    "id": 72
+  },
+  {
+    "name": "Leg Raises",
+    "muscleGroup": "Core",
+    "germanName": "Beinheben",
+    "description": "",
+    "id": 73
+  },
+  {
+    "name": "Cable Crunches",
+    "muscleGroup": "Core",
+    "germanName": "Kabel Bauchpressen",
+    "description": "",
+    "id": 74
+  },
+  {
+    "name": "Ab Wheel Rollout",
+    "muscleGroup": "Core",
+    "germanName": "Bauchradübung",
+    "description": "",
+    "id": 75
+  },
+  {
+    "name": "Russian Twists",
+    "muscleGroup": "Core",
+    "germanName": "Russische Drehungen",
+    "description": "",
+    "id": 76
+  },
+  {
+    "name": "Bicycle Crunches",
+    "muscleGroup": "Core",
+    "germanName": "Fahrradcrunches",
+    "description": "",
+    "id": 77
+  },
+  {
+    "name": "Hanging Leg Raises",
+    "muscleGroup": "Core",
+    "germanName": "Hängendes Beinheben",
+    "description": "",
+    "id": 78
+  },
+  {
+    "name": "Side Plank",
+    "muscleGroup": "Core",
+    "germanName": "Seitstütz",
+    "description": "",
+    "id": 79
+  },
+  {
+    "name": "Mountain Climbers",
+    "muscleGroup": "Core",
+    "germanName": "Bergsteiger",
+    "description": "",
+    "id": 80
+  },
+  {
+    "name": "Burpees",
+    "muscleGroup": "Full Body",
+    "germanName": "Burpees",
+    "description": "",
+    "id": 81
+  },
+  {
+    "name": "Kettlebell Swing",
+    "muscleGroup": "Full Body",
+    "germanName": "Kettlebell Schwung",
+    "description": "",
+    "id": 82
+  },
+  {
+    "name": "Box Jumps",
+    "muscleGroup": "Full Body",
+    "germanName": "Kastensprünge",
+    "description": "",
+    "id": 83
+  },
+  {
+    "name": "Clean and Press",
+    "muscleGroup": "Full Body",
+    "germanName": "Reißen und Drücken",
+    "description": "",
+    "id": 84
+  },
+  {
+    "name": "Farmers Walk",
+    "muscleGroup": "Full Body",
+    "germanName": "Bauerngang",
+    "description": "",
+    "id": 85
+  },
+  {
+    "name": "Battle Ropes",
+    "muscleGroup": "Full Body",
+    "germanName": "Battle Ropes",
+    "description": "",
+    "id": 86
+  },
+  {
+    "name": "Hip Adductor",
+    "muscleGroup": "Inner Thigh",
+    "germanName": "Adduktor",
+    "description": "Trains the inner thigh muscles (adductors) by pressing the legs together against resistance, e.g. at the adductor machine.",
+    "id": 87
+  },
+  {
+    "id": 88,
+    "name": "Hip Abductor",
+    "muscleGroup": "Outer Thigh",
+    "germanName": "Abduktor",
+    "description": "Trains the outer thigh muscles (abductors) by pressing the legs apart against resistance, e.g. at the abductor machine."
+  }
+]

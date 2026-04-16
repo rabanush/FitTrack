@@ -1,9 +1,7 @@
 package com.fittrack.app.data.backup
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.RecipeDao
@@ -21,12 +19,13 @@ import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import java.io.File
 
-private const val BACKUP_SUBFOLDER = "FitTrackerBackup"
 private const val BACKUP_FILENAME = "fittrack_workouts.json"
 private const val TAG = "WorkoutBackup"
 
 private data class BackupExercise(
+    @SerializedName("exerciseId") val exerciseId: Long? = null,
     @SerializedName("exerciseName") val exerciseName: String,
     @SerializedName("setCount") val setCount: Int,
     @SerializedName("orderIndex") val orderIndex: Int,
@@ -81,14 +80,11 @@ object WorkoutBackupHelper {
     private val gson = Gson()
 
     /**
-     * Serialises all app data to JSON and writes it to the user-chosen backup folder.
-     * The folder is represented as a SAF tree URI stored in [BackupPreferences].
-     * A "FitTrackerBackup" subdirectory is created automatically inside the chosen folder.
-     * If no folder has been selected yet the call is silently skipped.
+     * Serialises all app data to JSON and writes it to app-internal private storage
+     * ([Context.filesDir]). The file is not accessible by other apps.
      */
     fun exportData(
         context: Context,
-        treeUri: Uri?,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         userProfile: UserProfile,
         customFoods: List<CustomFood>,
@@ -100,6 +96,7 @@ object WorkoutBackupHelper {
                     name = workout.name,
                     exercises = exercises.map { ex ->
                         BackupExercise(
+                            exerciseId = ex.exercise.id,
                             exerciseName = ex.exercise.name,
                             setCount = ex.workoutExercise.setCount,
                             orderIndex = ex.workoutExercise.orderIndex,
@@ -141,11 +138,11 @@ object WorkoutBackupHelper {
                 )
             }
         )
-        writeJson(context, treeUri, gson.toJson(data))
+        writeJson(context, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from the user-chosen backup folder and inserts all data
+     * Reads the backup file from app-internal private storage and inserts all data
      * into the DB and DataStore.
      * Workout plans, custom foods, and recipes are only restored when the respective
      * tables are empty (i.e., on a fresh install or after clearing app data).
@@ -154,14 +151,13 @@ object WorkoutBackupHelper {
      */
     suspend fun importData(
         context: Context,
-        treeUri: Uri?,
         exerciseDao: ExerciseDao,
         workoutDao: WorkoutDao,
         userPreferences: UserPreferences,
         customFoodDao: CustomFoodDao,
         recipeDao: RecipeDao
     ) {
-        val json = readJson(context, treeUri) ?: return
+        val json = readJson(context) ?: return
         val data = try { gson.fromJson(json, BackupData::class.java) } catch (e: Exception) {
             Log.w(TAG, "Failed to parse backup JSON — restore skipped", e)
             return
@@ -174,7 +170,11 @@ object WorkoutBackupHelper {
             data.workouts.forEach { backupWorkout ->
                 val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
                 backupWorkout.exercises.forEach { ex ->
-                    val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: return@forEach
+                    val exercise = when {
+                        ex.exerciseId != null -> exerciseDao.getExerciseById(ex.exerciseId)
+                            ?: exerciseDao.getExerciseByName(ex.exerciseName)
+                        else -> exerciseDao.getExerciseByName(ex.exerciseName)
+                    } ?: return@forEach
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = workoutId,
@@ -246,42 +246,21 @@ object WorkoutBackupHelper {
         }
     }
 
-    private fun writeJson(context: Context, treeUri: Uri?, json: String) {
-        if (treeUri == null) {
-            Log.w(TAG, "No backup folder selected — skipping backup write")
-            return
-        }
+    private fun writeJson(context: Context, json: String) {
         try {
-            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: run {
-                Log.w(TAG, "Cannot open backup tree URI — skipping write")
-                return
-            }
-            val folder = tree.findFile(BACKUP_SUBFOLDER)
-                ?: tree.createDirectory(BACKUP_SUBFOLDER)
-                ?: run {
-                    Log.w(TAG, "Cannot create $BACKUP_SUBFOLDER subdirectory — skipping write")
-                    return
-                }
-            // Overwrite any existing backup file.
-            folder.findFile(BACKUP_FILENAME)?.delete()
-            val file = folder.createFile("application/json", BACKUP_FILENAME) ?: run {
-                Log.w(TAG, "Cannot create backup file — skipping write")
-                return
-            }
-            context.contentResolver.openOutputStream(file.uri)?.use { it.write(json.toByteArray()) }
+            File(context.filesDir, BACKUP_FILENAME).writeText(json)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write workout backup", e)
         }
     }
 
-    private fun readJson(context: Context, treeUri: Uri?): String? {
-        if (treeUri == null) return null
+    private fun readJson(context: Context): String? {
         return try {
-            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return null
-            val folder = tree.findFile(BACKUP_SUBFOLDER) ?: return null
-            val file = folder.findFile(BACKUP_FILENAME) ?: return null
-            context.contentResolver.openInputStream(file.uri)?.use { it.bufferedReader().readText() }
-        } catch (_: Exception) { null }
+            val file = File(context.filesDir, BACKUP_FILENAME)
+            if (file.exists()) file.readText() else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read workout backup", e)
+            null
+        }
     }
 }
-

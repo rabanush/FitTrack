@@ -2,11 +2,9 @@ package com.fittrack.app
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.Manifest
-import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,52 +30,9 @@ class MainActivity : ComponentActivity() {
         val app = application as FitTrackApplication
         resumeWorkoutId = resolveResumeWorkoutId(intent)
 
-        val backupFolderLauncher = registerForActivityResult(
-            ActivityResultContracts.OpenDocumentTree()
-        ) { uri: Uri? ->
-            uri?.let {
-                contentResolver.takePersistableUriPermission(
-                    it,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-                app.backupPreferences.saveTreeUri(it)
-                // The database may already be open (onOpen fired with a null URI before
-                // the user picked the folder), so trigger an explicit import now.
-                app.importBackupNow()
-            }
-        }
-
         val notificationPermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { /* no-op */ }
-
-        // If SharedPreferences was cleared by a reinstall, try to recover the backup
-        // folder URI from the system-level persistable permission grants, which can
-        // survive reinstalls on many devices.
-        // Only consider tree URIs from the external-storage document provider, since
-        // that is the only authority the app ever grants SAF access to.
-        if (app.backupPreferences.getTreeUri() == null) {
-            val restoredUri = contentResolver.persistedUriPermissions
-                .firstOrNull {
-                    it.isReadPermission && it.isWritePermission &&
-                        it.uri.authority == "com.android.externalstorage.documents"
-                }
-                ?.uri
-            if (restoredUri != null) {
-                app.backupPreferences.saveTreeUri(restoredUri)
-            }
-        }
-
-        // Only prompt the user to pick a backup folder if none is configured yet.
-        if (app.backupPreferences.getTreeUri() == null && savedInstanceState == null) {
-            val initialUri = runCatching {
-                DocumentsContract.buildDocumentUri(
-                    "com.android.externalstorage.documents",
-                    "primary:Documents"
-                )
-            }.getOrNull()
-            backupFolderLauncher.launch(initialUri)
-        }
 
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
