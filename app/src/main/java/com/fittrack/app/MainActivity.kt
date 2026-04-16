@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnPreDraw
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -55,10 +56,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (app.backupPreferences.getBackupTreeUri() == null) {
-            backupFolderLauncher.launch(getDocumentsInitialUri())
-        }
-
         setContent {
             FitTrackTheme {
                 Surface(
@@ -72,6 +69,12 @@ class MainActivity : ComponentActivity() {
                         onInitialWorkoutHandled = { resumeWorkoutId = null }
                     )
                 }
+            }
+        }
+
+        if (app.backupPreferences.getBackupTreeUri() == null) {
+            window.decorView.doOnPreDraw {
+                backupFolderLauncher.launch(getDocumentsInitialUri())
             }
         }
     }

@@ -371,8 +371,8 @@ object WorkoutBackupHelper {
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            if (nameColumn < 0 || idColumn < 0) return null
             while (cursor.moveToNext()) {
-                if (nameColumn < 0 || idColumn < 0) continue
                 if (cursor.getString(nameColumn) == name) {
                     return DocumentsContract.buildDocumentUriUsingTree(parentUri, cursor.getString(idColumn))
                 }
