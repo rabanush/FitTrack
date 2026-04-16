@@ -28,12 +28,14 @@ import com.fittrack.app.util.RestTimerNotificationHelper
 
 class MainActivity : ComponentActivity() {
     private var resumeWorkoutId: Long? by mutableStateOf(null)
+    private var backupFolderUri: Uri? by mutableStateOf(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val app = application as FitTrackApplication
         resumeWorkoutId = resolveResumeWorkoutId(intent)
+        backupFolderUri = app.backupPreferences.getBackupTreeUri()
 
         val notificationPermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestPermission()
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
                 app.backupPreferences.saveBackupTreeUri(uri)
+                backupFolderUri = uri
             }
         }
 
@@ -66,7 +69,9 @@ class MainActivity : ComponentActivity() {
                     FitTrackNavGraph(
                         navController = navController,
                         initialWorkoutId = resumeWorkoutId,
-                        onInitialWorkoutHandled = { resumeWorkoutId = null }
+                        onInitialWorkoutHandled = { resumeWorkoutId = null },
+                        backupFolderUri = backupFolderUri,
+                        onChangeBackupFolder = { backupFolderLauncher.launch(getDocumentsInitialUri()) }
                     )
                 }
             }

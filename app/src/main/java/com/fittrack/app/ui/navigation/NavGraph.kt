@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import android.net.Uri
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -52,7 +53,9 @@ sealed class Screen(val route: String) {
 fun FitTrackNavGraph(
     navController: NavHostController,
     initialWorkoutId: Long?,
-    onInitialWorkoutHandled: () -> Unit
+    onInitialWorkoutHandled: () -> Unit,
+    backupFolderUri: Uri? = null,
+    onChangeBackupFolder: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as FitTrackApplication
@@ -224,7 +227,9 @@ fun FitTrackNavGraph(
             )
             SettingsScreen(
                 viewModel = vm,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                backupFolderUri = backupFolderUri,
+                onChangeBackupFolder = onChangeBackupFolder
             )
         }
 

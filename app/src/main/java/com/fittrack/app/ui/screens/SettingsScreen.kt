@@ -1,11 +1,13 @@
 package com.fittrack.app.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -20,7 +22,9 @@ import com.fittrack.app.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    backupFolderUri: Uri? = null,
+    onChangeBackupFolder: () -> Unit = {}
 ) {
     val profile by viewModel.userProfile.collectAsState()
 
@@ -137,6 +141,38 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Backup folder ───────────────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Backup-Ordner", style = MaterialTheme.typography.titleSmall)
+                    if (backupFolderUri != null) {
+                        Text(
+                            text = backupFolderDisplayName(backupFolderUri),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Kein Ordner ausgewählt",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onChangeBackupFolder,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text("Ordner ändern")
+                    }
+                }
+            }
+
             Button(
                 onClick = {
                     viewModel.save(
@@ -155,4 +191,9 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private fun backupFolderDisplayName(uri: Uri): String {
+    val decoded = Uri.decode(uri.lastPathSegment ?: return uri.toString())
+    return decoded.substringAfter(':').ifBlank { decoded }
 }
