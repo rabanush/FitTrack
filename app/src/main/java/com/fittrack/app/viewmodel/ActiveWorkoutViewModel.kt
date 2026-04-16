@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -392,7 +393,7 @@ class ActiveWorkoutViewModel(
     private fun startWorkoutElapsedTicker() {
         workoutElapsedJob?.cancel()
         workoutElapsedJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 _workoutElapsedSeconds.value =
                     ((System.currentTimeMillis() - workoutStartTimeMillis) / 1000L).toInt().coerceAtLeast(0)
                 delay(1_000L)

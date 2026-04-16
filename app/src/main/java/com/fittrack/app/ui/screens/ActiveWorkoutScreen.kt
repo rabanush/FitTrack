@@ -52,7 +52,7 @@ fun ActiveWorkoutScreen(
                 title = { Text(workout?.name ?: "Active Workout", color = Color.White) },
                 actions = {
                     Text(
-                        text = formatElapsedWorkoutTime(workoutElapsedSeconds),
+                        text = "⏱ ${formatElapsedWorkoutTime(workoutElapsedSeconds)}",
                         color = Color.Red,
                         fontWeight = FontWeight.Bold
                     )

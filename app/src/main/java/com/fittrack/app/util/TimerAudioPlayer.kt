@@ -150,5 +150,6 @@ class TimerAudioPlayer(context: Context) {
     }
 
     private fun toEffectiveAudioPercent(displayPercent: Int): Int =
+        // Keep the same perceived loudness when the default slider position moves from 100% to 50%.
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 }
