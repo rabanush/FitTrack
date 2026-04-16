@@ -89,8 +89,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED, initialBackupPickerRequested)
         super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED, initialBackupPickerRequested)
     }
 
     override fun onNewIntent(intent: Intent) {

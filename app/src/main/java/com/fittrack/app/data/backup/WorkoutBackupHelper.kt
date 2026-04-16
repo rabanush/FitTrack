@@ -396,19 +396,21 @@ object WorkoutBackupHelper {
 
     private fun getOldInternalBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
 
-    private fun getFallbackBackupFiles(context: Context): List<File> =
+    private fun getFallbackBackupFiles(context: Context): List<File> {
         // Priority: new external name -> old external name -> new internal name -> old internal name.
-        listOfNotNull(
-            getPrimaryBackupFile(context),
-            getLegacyPrimaryBackupFile(context),
-            getInternalBackupFile(context),
-            getOldInternalBackupFile(context)
-        )
+        val files = mutableListOf<File>()
+        getPrimaryBackupFile(context)?.let(files::add)
+        getLegacyPrimaryBackupFile(context)?.let(files::add)
+        files += getInternalBackupFile(context)
+        files += getOldInternalBackupFile(context)
+        return files
+    }
 
     private fun readJsonFromFallbackFiles(context: Context): String? {
-        val existingFile = getFallbackBackupFiles(context).firstOrNull { it.exists() } ?: return null
-        return runCatching { existingFile.readText() }
-            .onFailure { Log.w(TAG, "Failed to read backup file: ${existingFile.absolutePath}", it) }
+        return runCatching {
+            val existingFile = getFallbackBackupFiles(context).firstOrNull { it.exists() } ?: return null
+            existingFile.readText()
+        }.onFailure { Log.w(TAG, "Failed to read backup from fallback files", it) }
             .getOrNull()
     }
 
