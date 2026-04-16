@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Notification.Title" />
+        android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
     <TextView
         android:id="@+id/timerSubtitle"
@@ -23,7 +23,7 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Notification" />
+        android:textAppearance="@android:style/TextAppearance.Material.Small" />
 
     <Chronometer
         android:id="@+id/timerChronometer"
@@ -31,6 +31,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:gravity="center_horizontal"
-        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Notification.Title"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:textSize="44sp" />
 </LinearLayout>
