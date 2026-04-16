@@ -80,7 +80,13 @@ class TimerAudioPlayer(context: Context) {
         }
     }
 
-    /** Returns null if ToneGenerator creation fails (audio subsystem unavailable). */
+    /**
+     * Creates a [ToneContext] for the current output stream at the requested volume.
+     * If [volumePercent] is higher than the current stream level, the stream is temporarily
+     * boosted so the alert is audible over background music; [ToneContext.release] restores
+     * the original level afterwards.
+     * Returns null if [ToneGenerator] creation fails (e.g. audio subsystem unavailable).
+     */
     private fun setupToneContext(volumePercent: Int): ToneContext? {
         val stream = preferredStream()
         val toneVolume = volumePercent.coerceIn(0, 100)
@@ -107,6 +113,11 @@ class TimerAudioPlayer(context: Context) {
         return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in bluetoothTypes }
     }
 
+    /**
+     * Builds an [AudioFocusRequest] with [AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK], so
+     * any currently playing music is ducked (reduced volume) while the timer tone plays, rather
+     * than being paused entirely.
+     */
     private fun buildAudioFocusRequest(): AudioFocusRequest =
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
