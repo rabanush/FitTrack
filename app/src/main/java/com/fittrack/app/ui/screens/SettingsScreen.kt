@@ -38,6 +38,7 @@ fun SettingsScreen(
     var ageText by remember(profile.ageYears) { mutableStateOf(profile.ageYears.toString()) }
     var gender by remember(profile.gender) { mutableStateOf(profile.gender) }
     var activityLevel by remember(profile.activityLevel) { mutableStateOf(profile.activityLevel) }
+    var timerVolumePercent by remember(profile.timerVolumePercent) { mutableIntStateOf(profile.timerVolumePercent) }
 
     // Launcher for the system folder picker (ACTION_OPEN_DOCUMENT_TREE).
     // The result URI carries a persistable permission that survives app reinstalls.
@@ -197,6 +198,18 @@ fun SettingsScreen(
                 }
             }
 
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Timer-Lautstärke", style = MaterialTheme.typography.titleSmall)
+                    Text("$timerVolumePercent%", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = timerVolumePercent.toFloat(),
+                        onValueChange = { timerVolumePercent = it.toInt() },
+                        valueRange = 0f..100f
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     viewModel.save(
@@ -204,7 +217,8 @@ fun SettingsScreen(
                         heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
                         ageYears = ageText.toIntOrNull() ?: profile.ageYears,
                         gender = gender,
-                        activityLevel = activityLevel
+                        activityLevel = activityLevel,
+                        timerVolumePercent = timerVolumePercent
                     )
                     onBack()
                 },

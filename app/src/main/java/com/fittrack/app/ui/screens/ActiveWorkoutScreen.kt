@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,7 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -273,6 +276,7 @@ fun SetRow(
     onComplete: () -> Unit
 ) {
     val tintColor = if (set.isCompleted) MaterialTheme.colorScheme.primary else Color.White
+    val focusManager = LocalFocusManager.current
     
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -314,7 +318,13 @@ fun SetRow(
             )
         }
 
-        IconButton(onClick = onComplete, modifier = Modifier.size(40.dp)) {
+        IconButton(
+            onClick = {
+                focusManager.clearFocus(force = true)
+                onComplete()
+            },
+            modifier = Modifier.size(40.dp)
+        ) {
             Icon(
                 imageVector = if (set.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 contentDescription = null,
@@ -335,6 +345,7 @@ fun SetInputField(
     // which prevents per-keystroke list recompositions.
     var draft by remember { mutableStateOf(committed) }
     var isFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     // Sync external changes (e.g. "complete set" back-fills prevWeight) only while
     // the field is not focused, so we never clobber text the user is actively typing.
@@ -349,7 +360,16 @@ fun SetInputField(
         onValueChange = { draft = it },
         placeholder = { Text(placeholder, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontSize = 12.sp) },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                if (draft != committed) onCommit(draft)
+                focusManager.clearFocus(force = true)
+            }
+        ),
         textStyle = LocalTextStyle.current.copy(
             textAlign = TextAlign.Center,
             fontSize = 14.sp,
