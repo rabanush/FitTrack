@@ -93,12 +93,15 @@ class ActiveWorkoutViewModel(
 
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
-            repository.getWorkoutExercisesWithExercise(workoutId).collectLatest { exercises ->
+            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
+                if (exercises.isEmpty()) {
+                    _exerciseSessions.value = emptyList()
+                    return@collect
+                }
                 // Render immediately without waiting for previous-log lookup to finish.
                 _exerciseSessions.value = exercises.map { buildSessionForExercise(it, emptyList()) }
 
                 val exerciseIds = exercises.map { it.exercise.id }
-                if (exerciseIds.isEmpty()) return@collectLatest
 
                 val previousLogsMap = withContext(Dispatchers.IO) {
                     repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
