@@ -98,6 +98,8 @@ class MainActivity : ComponentActivity() {
         return fromNotification ?: app.activeWorkoutSessionPreferences.getSession()?.workoutId
     }
 
+    /** Returns a URI pointing to the primary Documents folder as an initial hint for the
+     *  SAF OpenDocumentTree picker (Android Q+), or null if unavailable. */
     private fun getDocumentsInitialUri(): Uri? {
         val baseTreeUri = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

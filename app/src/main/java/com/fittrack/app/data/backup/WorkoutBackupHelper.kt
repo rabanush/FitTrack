@@ -258,6 +258,7 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
+            // Priority 1: user-selected SAF folder; falls back to app Documents path, then filesDir.
             if (writeJsonToSelectedTree(context, json)) return
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")

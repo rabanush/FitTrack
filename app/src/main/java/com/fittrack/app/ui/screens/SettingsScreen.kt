@@ -194,6 +194,7 @@ fun SettingsScreen(
 }
 
 private fun backupFolderDisplayName(uri: Uri): String {
-    val decoded = Uri.decode(uri.lastPathSegment ?: return uri.toString())
+    val lastSegment = uri.lastPathSegment ?: return uri.toString()
+    val decoded = Uri.decode(lastSegment)
     return decoded.substringAfter(':').ifBlank { decoded }
 }
