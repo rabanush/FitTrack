@@ -34,6 +34,7 @@ fun ActiveWorkoutScreen(
 ) {
     val workout by viewModel.workout.collectAsState()
     val sessions by viewModel.exerciseSessions.collectAsState()
+    val workoutElapsedSeconds by viewModel.workoutElapsedSeconds.collectAsState()
     
     // Collect only a boolean flag so that the 200 ms timer tick does NOT recompose the entire screen.
     // The actual countdown is handled inside RestTimerBanner, which is the only component that recomposes on each tick.
@@ -49,6 +50,13 @@ fun ActiveWorkoutScreen(
         topBar = {
             TopAppBar(
                 title = { Text(workout?.name ?: "Active Workout", color = Color.White) },
+                actions = {
+                    Text(
+                        text = formatElapsedWorkoutTime(workoutElapsedSeconds),
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
@@ -189,6 +197,14 @@ private fun formatTime(seconds: Int): String {
     val m = seconds / 60
     val s = seconds % 60
     return if (m > 0) "%d:%02d".format(m, s) else "%d".format(s)
+}
+
+private fun formatElapsedWorkoutTime(seconds: Int): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, secs)
+    else "%02d:%02d".format(minutes, secs)
 }
 
 @Composable

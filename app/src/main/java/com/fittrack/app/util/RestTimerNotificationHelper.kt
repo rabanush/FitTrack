@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.fittrack.app.MainActivity
 import com.fittrack.app.R
@@ -17,7 +19,7 @@ class RestTimerNotificationHelper(context: Context) {
     private val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun showRunningTimer(endTimeMillis: Long, exerciseName: String?, setNumber: Int) {
+    fun showRunningTimer(endTimeMillis: Long, exerciseName: String?, setNumber: Int, workoutId: Long) {
         ensureChannel()
         val content = buildString {
             append(appContext.getString(R.string.timer_set_label, setNumber))
@@ -26,30 +28,30 @@ class RestTimerNotificationHelper(context: Context) {
                 append(it)
             }
         }
+        val remoteViews = timerRemoteViews(endTimeMillis = endTimeMillis, content = content)
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(appContext.getString(R.string.timer_running_title))
             .setContentText(content)
-            .setContentIntent(mainActivityPendingIntent())
+            .setContentIntent(mainActivityPendingIntent(workoutId))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setWhen(endTimeMillis)
-            .setShowWhen(true)
-            .setUsesChronometer(true)
-            .setChronometerCountDown(true)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(remoteViews)
+            .setCustomBigContentView(remoteViews)
             .build()
         notificationManager.notify(RUNNING_TIMER_NOTIFICATION_ID, notification)
     }
 
-    fun showFinishedNotification() {
+    fun showFinishedNotification(workoutId: Long? = null) {
         ensureChannel()
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(appContext.getString(R.string.timer_finished_title))
             .setContentText(appContext.getString(R.string.timer_finished_message))
-            .setContentIntent(mainActivityPendingIntent())
+            .setContentIntent(mainActivityPendingIntent(workoutId))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
@@ -61,8 +63,8 @@ class RestTimerNotificationHelper(context: Context) {
         notificationManager.cancel(RUNNING_TIMER_NOTIFICATION_ID)
     }
 
-    fun scheduleCompletionAlarm(endTimeMillis: Long, timerVolumePercent: Int) {
-        val pendingIntent = alarmPendingIntent(timerVolumePercent = timerVolumePercent)
+    fun scheduleCompletionAlarm(endTimeMillis: Long, timerVolumePercent: Int, workoutId: Long) {
+        val pendingIntent = alarmPendingIntent(timerVolumePercent = timerVolumePercent, workoutId = workoutId)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
             return
@@ -74,10 +76,13 @@ class RestTimerNotificationHelper(context: Context) {
         alarmManager.cancel(alarmPendingIntent())
     }
 
-    private fun alarmPendingIntent(timerVolumePercent: Int? = null): PendingIntent {
+    private fun alarmPendingIntent(timerVolumePercent: Int? = null, workoutId: Long? = null): PendingIntent {
         val intent = Intent(appContext, RestTimerAlarmReceiver::class.java).apply {
             timerVolumePercent?.let {
                 putExtra(EXTRA_TIMER_VOLUME_PERCENT, it.coerceIn(0, 100))
+            }
+            workoutId?.let {
+                putExtra(EXTRA_WORKOUT_ID, it)
             }
         }
         return PendingIntent.getBroadcast(
@@ -88,9 +93,12 @@ class RestTimerNotificationHelper(context: Context) {
         )
     }
 
-    private fun mainActivityPendingIntent(): PendingIntent {
+    private fun mainActivityPendingIntent(workoutId: Long? = null): PendingIntent {
         val intent = Intent(appContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            workoutId?.let {
+                putExtra(EXTRA_WORKOUT_ID, it)
+            }
         }
         return PendingIntent.getActivity(
             appContext,
@@ -98,6 +106,19 @@ class RestTimerNotificationHelper(context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    private fun timerRemoteViews(endTimeMillis: Long, content: String): RemoteViews {
+        val baseElapsedRealtime = SystemClock.elapsedRealtime() +
+            (endTimeMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+        return RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
+            setTextViewText(R.id.timerTitle, appContext.getString(R.string.timer_running_title))
+            setTextViewText(R.id.timerSubtitle, content)
+            setChronometer(R.id.timerChronometer, baseElapsedRealtime, null, true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                setBoolean(R.id.timerChronometer, "setCountDown", true)
+            }
+        }
     }
 
     private fun ensureChannel() {
@@ -114,6 +135,7 @@ class RestTimerNotificationHelper(context: Context) {
 
     companion object {
         const val EXTRA_TIMER_VOLUME_PERCENT = "extra_timer_volume_percent"
+        const val EXTRA_WORKOUT_ID = "extra_workout_id"
         private const val CHANNEL_ID = "rest_timer_channel"
         private const val RUNNING_TIMER_NOTIFICATION_ID = 3001
         private const val FINISHED_TIMER_NOTIFICATION_ID = 3002

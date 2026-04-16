@@ -49,11 +49,23 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun FitTrackNavGraph(navController: NavHostController) {
+fun FitTrackNavGraph(
+    navController: NavHostController,
+    initialWorkoutId: Long?,
+    onInitialWorkoutHandled: () -> Unit
+) {
     val context = LocalContext.current
     val app = context.applicationContext as FitTrackApplication
     val repository = app.repository
     val foodRepository = app.foodRepository
+
+    LaunchedEffect(initialWorkoutId) {
+        val workoutId = initialWorkoutId ?: return@LaunchedEffect
+        navController.navigate(Screen.ActiveWorkout.createRoute(workoutId)) {
+            launchSingleTop = true
+        }
+        onInitialWorkoutHandled()
+    }
 
     NavHost(
         navController = navController,
@@ -122,6 +134,7 @@ fun FitTrackNavGraph(navController: NavHostController) {
                     repository = repository,
                     workoutId = workoutId,
                     appContext = context.applicationContext,
+                    activeWorkoutSessionPreferences = app.activeWorkoutSessionPreferences,
                     userPreferences = app.userPreferences,
                     foodRepository = foodRepository
                 )

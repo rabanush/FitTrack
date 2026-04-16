@@ -4,6 +4,7 @@ import android.app.Application
 import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.database.FitTrackDatabase
 import com.fittrack.app.data.network.RetrofitInstance
+import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
@@ -20,6 +21,7 @@ class FitTrackApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val userPreferences by lazy { UserPreferences(this) }
+    val activeWorkoutSessionPreferences by lazy { ActiveWorkoutSessionPreferences(this) }
     val backupPreferences by lazy { BackupPreferences(this) }
     val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences, backupPreferences) }
     val repository by lazy {

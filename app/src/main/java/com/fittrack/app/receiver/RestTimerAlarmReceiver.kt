@@ -12,11 +12,13 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         val volume = intent.getIntExtra(RestTimerNotificationHelper.EXTRA_TIMER_VOLUME_PERCENT, 100)
             .coerceIn(0, 100)
+        val workoutId = intent.getLongExtra(RestTimerNotificationHelper.EXTRA_WORKOUT_ID, -1L)
+            .takeIf { it > 0L }
         val executor = Executors.newSingleThreadExecutor()
         executor.execute {
             try {
                 runCatching { TimerAudioPlayer(context).playEndSequenceBlocking(volume) }
-                RestTimerNotificationHelper(context).showFinishedNotification()
+                RestTimerNotificationHelper(context).showFinishedNotification(workoutId)
             } finally {
                 pendingResult.finish()
                 executor.shutdown()
