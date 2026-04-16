@@ -1,6 +1,7 @@
 package com.fittrack.app.data.backup
 
 import android.content.Context
+import android.os.Environment
 import android.util.Log
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
@@ -22,6 +23,7 @@ import com.google.gson.annotations.SerializedName
 import java.io.File
 
 private const val BACKUP_FILENAME = "fittrack_workouts.json"
+private const val BACKUP_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 
 private data class BackupExercise(
@@ -42,7 +44,8 @@ private data class BackupUserProfile(
     @SerializedName("heightCm") val heightCm: Float,
     @SerializedName("ageYears") val ageYears: Int,
     @SerializedName("gender") val gender: String,
-    @SerializedName("activityLevel") val activityLevel: String
+    @SerializedName("activityLevel") val activityLevel: String,
+    @SerializedName("timerVolumePercent") val timerVolumePercent: Int? = null
 )
 
 private data class BackupCustomFood(
@@ -110,7 +113,8 @@ object WorkoutBackupHelper {
                 heightCm = userProfile.heightCm,
                 ageYears = userProfile.ageYears,
                 gender = userProfile.gender.name,
-                activityLevel = userProfile.activityLevel.name
+                activityLevel = userProfile.activityLevel.name,
+                timerVolumePercent = userProfile.timerVolumePercent
             ),
             customFoods = customFoods.map { food ->
                 BackupCustomFood(
@@ -203,7 +207,8 @@ object WorkoutBackupHelper {
                         heightCm = profile.heightCm,
                         ageYears = profile.ageYears,
                         gender = gender,
-                        activityLevel = activityLevel
+                        activityLevel = activityLevel,
+                        timerVolumePercent = profile.timerVolumePercent ?: UserProfile().timerVolumePercent
                     )
                 )
             }
@@ -248,7 +253,9 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
-            File(context.filesDir, BACKUP_FILENAME).writeText(json)
+            val backupFile = getPrimaryBackupFile(context) ?: getLegacyBackupFile(context)
+            backupFile.parentFile?.mkdirs()
+            backupFile.writeText(json)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write workout backup", e)
         }
@@ -256,11 +263,25 @@ object WorkoutBackupHelper {
 
     private fun readJson(context: Context): String? {
         return try {
-            val file = File(context.filesDir, BACKUP_FILENAME)
-            if (file.exists()) file.readText() else null
+            val primaryFile = getPrimaryBackupFile(context)
+            when {
+                primaryFile?.exists() == true -> primaryFile.readText()
+                else -> {
+                    val legacyFile = getLegacyBackupFile(context)
+                    if (legacyFile.exists()) legacyFile.readText() else null
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read workout backup", e)
             null
         }
     }
+
+    private fun getPrimaryBackupFile(context: Context): File? {
+        val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
+        val backupDir = File(documentsDir, BACKUP_DIRECTORY)
+        return File(backupDir, BACKUP_FILENAME)
+    }
+
+    private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 }
