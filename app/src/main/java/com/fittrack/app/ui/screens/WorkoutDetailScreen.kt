@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.Exercise
+import com.fittrack.app.util.displayName
+import com.fittrack.app.util.englishSecondaryName
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.util.matchesQuery
 import com.fittrack.app.viewmodel.WorkoutDetailViewModel
@@ -153,7 +155,14 @@ fun WorkoutExerciseItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.exercise.name, style = MaterialTheme.typography.titleSmall)
+                Text(item.exercise.displayName(), style = MaterialTheme.typography.titleSmall)
+                item.exercise.englishSecondaryName()?.let { englishName ->
+                    Text(
+                        englishName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Text(item.exercise.muscleGroup, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -232,8 +241,13 @@ fun AddExerciseDialog(
                 ) {
                     items(filtered) { exercise ->
                         ListItem(
-                            headlineContent = { Text(exercise.name) },
-                            supportingContent = { Text(exercise.muscleGroup) },
+                            headlineContent = { Text(exercise.displayName()) },
+                            supportingContent = {
+                                Text(
+                                    listOfNotNull(exercise.muscleGroup, exercise.englishSecondaryName())
+                                        .joinToString(" • ")
+                                )
+                            },
                             trailingContent = {
                                 IconButton(onClick = { onAdd(exercise) }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add")
