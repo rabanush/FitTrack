@@ -268,7 +268,7 @@ object WorkoutBackupHelper {
             if (writeJsonToSelectedTree(context, json)) return
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
-                getLegacyBackupFile(context)
+                getInternalBackupFile(context)
             }
             val parent = backupFile.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
@@ -392,17 +392,19 @@ object WorkoutBackupHelper {
     private fun getSelectedBackupTreeUri(context: Context): Uri? =
         BackupPreferences(context).getBackupTreeUri()
 
-    private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 
-    private fun getOldLegacyBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
+    private fun getOldInternalBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
+
+    private fun getFallbackBackupFiles(context: Context): List<File> = listOfNotNull(
+        getPrimaryBackupFile(context),
+        getLegacyPrimaryBackupFile(context),
+        getInternalBackupFile(context),
+        getOldInternalBackupFile(context)
+    )
 
     private fun readJsonFromFallbackFiles(context: Context): String? {
-        val existingFile = listOfNotNull(
-            getPrimaryBackupFile(context),
-            getLegacyPrimaryBackupFile(context),
-            getLegacyBackupFile(context),
-            getOldLegacyBackupFile(context)
-        ).firstOrNull { it.exists() } ?: return null
+        val existingFile = getFallbackBackupFiles(context).firstOrNull { it.exists() } ?: return null
         return existingFile.readText()
     }
 
@@ -419,12 +421,7 @@ object WorkoutBackupHelper {
 
     private fun hasExistingBackup(context: Context): Boolean {
         if (selectedTreeBackupExists(context)) return true
-        return listOfNotNull(
-            getPrimaryBackupFile(context),
-            getLegacyPrimaryBackupFile(context),
-            getLegacyBackupFile(context),
-            getOldLegacyBackupFile(context)
-        ).any { it.exists() }
+        return getFallbackBackupFiles(context).any { it.exists() }
     }
 
     private fun selectedTreeBackupExists(context: Context): Boolean {
