@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import com.fittrack.app.util.displayName
+import com.fittrack.app.util.englishSecondaryName
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.util.matchesQuery
 import com.fittrack.app.viewmodel.ExerciseViewModel
@@ -194,13 +196,13 @@ fun ExerciseItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    exercise.name,
+                    exercise.displayName(),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
-                if (exercise.germanName.isNotEmpty()) {
+                exercise.englishSecondaryName()?.let { englishName ->
                     Text(
-                        exercise.germanName,
+                        englishName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                     )

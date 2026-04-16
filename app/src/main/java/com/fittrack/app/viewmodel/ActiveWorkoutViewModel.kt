@@ -10,6 +10,7 @@ import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
+import com.fittrack.app.util.displayName
 import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,13 +93,19 @@ class ActiveWorkoutViewModel(
 
         viewModelScope.launch {
             _workout.value = repository.getWorkoutById(workoutId)
-            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                _exerciseSessions.value = withContext(Dispatchers.IO) {
-                    val exerciseIds = exercises.map { it.exercise.id }
-                    val previousLogsMap = if (exerciseIds.isEmpty()) emptyMap()
-                    else repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
+            repository.getWorkoutExercisesWithExercise(workoutId).collectLatest { exercises ->
+                // Render immediately without waiting for previous-log lookup to finish.
+                _exerciseSessions.value = exercises.map { buildSessionForExercise(it, emptyList()) }
+
+                val exerciseIds = exercises.map { it.exercise.id }
+                if (exerciseIds.isEmpty()) return@collectLatest
+
+                val previousLogsMap = withContext(Dispatchers.IO) {
+                    repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
                         .groupBy { it.exerciseId }
-                    exercises.map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
+                }
+                _exerciseSessions.value = exercises.map {
+                    buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList())
                 }
             }
         }
@@ -206,7 +213,11 @@ class ActiveWorkoutViewModel(
             endTimeMillis = endTimeMillis
         )
         saveTimerStateForRestore(_timerState.value)
-        val exerciseName = _exerciseSessions.value.getOrNull(exerciseIndex)?.workoutExercise?.exercise?.name
+        val exerciseName = _exerciseSessions.value
+            .getOrNull(exerciseIndex)
+            ?.workoutExercise
+            ?.exercise
+            ?.displayName()
         timerNotificationHelper.showRunningTimer(endTimeMillis, exerciseName, setNumber, workoutId)
         timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
         timerJob = viewModelScope.launch { tickTimer() }
@@ -285,7 +296,7 @@ class ActiveWorkoutViewModel(
                 .getOrNull(current.exerciseIndex)
                 ?.workoutExercise
                 ?.exercise
-                ?.name
+                ?.displayName()
             timerNotificationHelper.showRunningTimer(newEndTime, exerciseName, current.setNumber, workoutId)
             timerNotificationHelper.scheduleCompletionAlarm(newEndTime, _timerVolumePercent.value, workoutId)
         }
@@ -372,7 +383,7 @@ class ActiveWorkoutViewModel(
             .getOrNull(session.timerExerciseIndex)
             ?.workoutExercise
             ?.exercise
-            ?.name
+            ?.displayName()
         timerNotificationHelper.showRunningTimer(
             endTimeMillis = session.timerEndTimeMillis,
             exerciseName = exerciseName,

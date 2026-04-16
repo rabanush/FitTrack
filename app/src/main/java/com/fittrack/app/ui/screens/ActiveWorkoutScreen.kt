@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fittrack.app.util.displayName
 import com.fittrack.app.viewmodel.ActiveWorkoutViewModel
 import com.fittrack.app.viewmodel.ExerciseSessionData
 import com.fittrack.app.viewmodel.SetData
@@ -231,7 +232,7 @@ fun ExerciseSessionCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = exercise.name,
+                        text = exercise.displayName(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
