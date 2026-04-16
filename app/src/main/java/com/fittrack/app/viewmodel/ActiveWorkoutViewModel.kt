@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.*
 import androidx.compose.runtime.Immutable
 import com.fittrack.app.data.model.*
+import com.fittrack.app.data.preferences.ActiveWorkoutSession
+import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.util.RestTimerNotificationHelper
@@ -13,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -47,6 +50,7 @@ class ActiveWorkoutViewModel(
     private val repository: FitTrackRepository,
     private val workoutId: Long,
     private val appContext: Context,
+    private val activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences,
     private val userPreferences: UserPreferences,
     private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
 ) : ViewModel() {
@@ -65,13 +69,21 @@ class ActiveWorkoutViewModel(
         .map { it.isRunning || it.remainingSeconds > 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    private val _workoutStartTime = System.currentTimeMillis()
+    private var workoutStartTimeMillis = System.currentTimeMillis()
     private var timerJob: Job? = null
+    private var workoutElapsedJob: Job? = null
     private val timerAudioPlayer = TimerAudioPlayer(appContext)
     private val timerNotificationHelper = RestTimerNotificationHelper(appContext)
     private val _timerVolumePercent = MutableStateFlow(100)
+    private val _workoutElapsedSeconds = MutableStateFlow(0)
+    val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
 
     init {
+        val restoredSession = activeWorkoutSessionPreferences.getSession()
+            ?.takeIf { it.workoutId == workoutId }
+        workoutStartTimeMillis = restoredSession?.workoutStartTimeMillis ?: System.currentTimeMillis()
+        activeWorkoutSessionPreferences.startSession(workoutId, workoutStartTimeMillis)
+
         viewModelScope.launch {
             userPreferences.userProfile.collect { profile ->
                 _timerVolumePercent.value = profile.timerVolumePercent.coerceIn(0, 100)
@@ -84,12 +96,15 @@ class ActiveWorkoutViewModel(
                 _exerciseSessions.value = withContext(Dispatchers.IO) {
                     val exerciseIds = exercises.map { it.exercise.id }
                     val previousLogsMap = if (exerciseIds.isEmpty()) emptyMap()
-                    else repository.getPreviousLogEntriesForExercises(exerciseIds, _workoutStartTime)
+                    else repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
                         .groupBy { it.exerciseId }
                     exercises.map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
                 }
             }
         }
+
+        restoredSession?.let { restoreTimerFromSession(it) }
+        startWorkoutElapsedTicker()
     }
 
     // Applies a transformation to the session at the given index.
@@ -130,7 +145,7 @@ class ActiveWorkoutViewModel(
         return LogEntry(
             exerciseId = session.workoutExercise.exercise.id,
             workoutId = workoutId,
-            date = _workoutStartTime,
+            date = workoutStartTimeMillis,
             setNumber = set.setNumber,
             weight = set.weight.toFloatOrNull() ?: set.prevWeight.toFloatOrNull() ?: 0f,
             reps = set.reps.toIntOrNull() ?: set.prevReps.toIntOrNull() ?: 0,
@@ -190,9 +205,10 @@ class ActiveWorkoutViewModel(
             setNumber = setNumber,
             endTimeMillis = endTimeMillis
         )
+        saveTimerStateForRestore(_timerState.value)
         val exerciseName = _exerciseSessions.value.getOrNull(exerciseIndex)?.workoutExercise?.exercise?.name
-        timerNotificationHelper.showRunningTimer(endTimeMillis, exerciseName, setNumber)
-        timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value)
+        timerNotificationHelper.showRunningTimer(endTimeMillis, exerciseName, setNumber, workoutId)
+        timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
         timerJob = viewModelScope.launch { tickTimer() }
     }
 
@@ -211,11 +227,12 @@ class ActiveWorkoutViewModel(
             if (remaining <= 0) {
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
                 timerNotificationHelper.cancelRunningTimer()
+                activeWorkoutSessionPreferences.clearTimerState()
                 val timeSinceEndMs = now - state.endTimeMillis
                 if (timeSinceEndMs < LOCAL_END_TONE_WINDOW_MS) {
                     timerNotificationHelper.cancelCompletionAlarm()
                     playEndTone()
-                    timerNotificationHelper.showFinishedNotification()
+                    timerNotificationHelper.showFinishedNotification(workoutId)
                 }
                 break
             }
@@ -247,6 +264,7 @@ class ActiveWorkoutViewModel(
         timerJob?.cancel()
         timerNotificationHelper.cancelRunningTimer()
         timerNotificationHelper.cancelCompletionAlarm()
+        activeWorkoutSessionPreferences.clearTimerState()
         _timerState.value = _timerState.value.copy(isRunning = false, remainingSeconds = 0)
     }
 
@@ -262,13 +280,14 @@ class ActiveWorkoutViewModel(
             skipTimer()
         } else {
             _timerState.value = current.copy(endTimeMillis = newEndTime, remainingSeconds = newRemaining)
+            saveTimerStateForRestore(_timerState.value)
             val exerciseName = _exerciseSessions.value
                 .getOrNull(current.exerciseIndex)
                 ?.workoutExercise
                 ?.exercise
                 ?.name
-            timerNotificationHelper.showRunningTimer(newEndTime, exerciseName, current.setNumber)
-            timerNotificationHelper.scheduleCompletionAlarm(newEndTime, _timerVolumePercent.value)
+            timerNotificationHelper.showRunningTimer(newEndTime, exerciseName, current.setNumber, workoutId)
+            timerNotificationHelper.scheduleCompletionAlarm(newEndTime, _timerVolumePercent.value, workoutId)
         }
     }
 
@@ -281,8 +300,9 @@ class ActiveWorkoutViewModel(
             timerJob?.cancel()
             timerNotificationHelper.cancelRunningTimer()
             timerNotificationHelper.cancelCompletionAlarm()
+            activeWorkoutSessionPreferences.clearSession()
 
-            val durationMinutes = ((System.currentTimeMillis() - _workoutStartTime) / 60_000L)
+            val durationMinutes = ((System.currentTimeMillis() - workoutStartTimeMillis) / 60_000L)
                 .toInt().coerceAtLeast(1)
             recordWorkoutCalories(durationMinutes)
 
@@ -327,8 +347,58 @@ class ActiveWorkoutViewModel(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
-        timerNotificationHelper.cancelRunningTimer()
-        timerNotificationHelper.cancelCompletionAlarm()
+        workoutElapsedJob?.cancel()
+    }
+
+    private fun restoreTimerFromSession(session: ActiveWorkoutSession) {
+        if (session.timerEndTimeMillis <= 0L || session.timerTotalSeconds <= 0) return
+        val now = System.currentTimeMillis()
+        val remainingSeconds = ((session.timerEndTimeMillis - now) / 1000L).toInt().coerceAtLeast(0)
+        if (remainingSeconds <= 0) {
+            activeWorkoutSessionPreferences.clearTimerState()
+            return
+        }
+        _timerState.value = TimerState(
+            isRunning = true,
+            remainingSeconds = remainingSeconds,
+            totalSeconds = session.timerTotalSeconds,
+            exerciseIndex = session.timerExerciseIndex,
+            setNumber = session.timerSetNumber,
+            endTimeMillis = session.timerEndTimeMillis
+        )
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch { tickTimer() }
+        val exerciseName = _exerciseSessions.value
+            .getOrNull(session.timerExerciseIndex)
+            ?.workoutExercise
+            ?.exercise
+            ?.name
+        timerNotificationHelper.showRunningTimer(
+            endTimeMillis = session.timerEndTimeMillis,
+            exerciseName = exerciseName,
+            setNumber = session.timerSetNumber,
+            workoutId = workoutId
+        )
+    }
+
+    private fun saveTimerStateForRestore(state: TimerState) {
+        activeWorkoutSessionPreferences.saveTimerState(
+            endTimeMillis = state.endTimeMillis,
+            totalSeconds = state.totalSeconds,
+            exerciseIndex = state.exerciseIndex,
+            setNumber = state.setNumber
+        )
+    }
+
+    private fun startWorkoutElapsedTicker() {
+        workoutElapsedJob?.cancel()
+        workoutElapsedJob = viewModelScope.launch {
+            while (isActive) {
+                _workoutElapsedSeconds.value =
+                    ((System.currentTimeMillis() - workoutStartTimeMillis) / 1000L).toInt().coerceAtLeast(0)
+                delay(1_000L)
+            }
+        }
     }
 }
 
@@ -340,10 +410,18 @@ class ActiveWorkoutViewModelFactory(
     private val repository: FitTrackRepository,
     private val workoutId: Long,
     private val appContext: Context,
+    private val activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences,
     private val userPreferences: UserPreferences,
     private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        ActiveWorkoutViewModel(repository, workoutId, appContext, userPreferences, foodRepository) as T
+        ActiveWorkoutViewModel(
+            repository,
+            workoutId,
+            appContext,
+            activeWorkoutSessionPreferences,
+            userPreferences,
+            foodRepository
+        ) as T
 }

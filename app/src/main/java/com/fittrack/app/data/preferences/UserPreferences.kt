@@ -25,7 +25,7 @@ data class UserProfile(
     val ageYears: Int = 25,
     val gender: Gender = Gender.MALE,
     val activityLevel: ActivityLevel = ActivityLevel.MODERATE,
-    val timerVolumePercent: Int = 100
+    val timerVolumePercent: Int = 50
 ) {
     /**
      * Mifflin-St Jeor BMR:
@@ -60,7 +60,7 @@ class UserPreferences(private val context: Context) {
             ageYears = prefs[Keys.AGE] ?: 25,
             gender = prefs[Keys.GENDER]?.let { runCatching { Gender.valueOf(it) }.getOrNull() } ?: Gender.MALE,
             activityLevel = prefs[Keys.ACTIVITY]?.let { runCatching { ActivityLevel.valueOf(it) }.getOrNull() } ?: ActivityLevel.MODERATE,
-            timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 100).coerceIn(0, 100)
+            timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 50).coerceIn(0, 100)
         )
     }
 

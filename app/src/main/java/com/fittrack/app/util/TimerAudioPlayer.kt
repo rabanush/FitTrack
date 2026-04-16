@@ -89,7 +89,7 @@ class TimerAudioPlayer(context: Context) {
      */
     private fun setupToneContext(volumePercent: Int): ToneContext? {
         val stream = preferredStream()
-        val toneVolume = volumePercent.coerceIn(0, 100)
+        val toneVolume = toEffectiveAudioPercent(volumePercent)
         val originalVolume = audioManager.getStreamVolume(stream)
         val maxVolume = audioManager.getStreamMaxVolume(stream).coerceAtLeast(1)
         val targetVolume = ((maxVolume * (toneVolume / 100f)).roundToInt()).coerceIn(1, maxVolume)
@@ -148,4 +148,8 @@ class TimerAudioPlayer(context: Context) {
             if (focusGranted) audioManager.abandonAudioFocusRequest(focusRequest)
         }
     }
+
+    private fun toEffectiveAudioPercent(displayPercent: Int): Int =
+        // Keep the same perceived loudness when the default slider position moves from 100% to 50%.
+        (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 }
