@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
         if (app.backupPreferences.getBackupTreeUri() == null) {
             window.decorView.doOnPreDraw {
-                backupFolderLauncher.launch(getDocumentsInitialUri() ?: fallbackDocumentsUri())
+                backupFolderLauncher.launch(getDocumentsInitialUri())
             }
         }
     }
@@ -104,16 +104,8 @@ class MainActivity : ComponentActivity() {
         }.getOrNull() ?: return null
 
         val treeDocumentId = DocumentsContract.getTreeDocumentId(baseTreeUri)
-        val documentsDocumentId = toDocumentsDocumentId(treeDocumentId)
+        val volumeId = treeDocumentId.substringBefore(':', treeDocumentId).ifBlank { return null }
+        val documentsDocumentId = "$volumeId:${Environment.DIRECTORY_DOCUMENTS}"
         return DocumentsContract.buildDocumentUriUsingTree(baseTreeUri, documentsDocumentId)
     }
-
-    private fun toDocumentsDocumentId(treeDocumentId: String): String = when {
-        treeDocumentId.endsWith(":") -> "${treeDocumentId}${Environment.DIRECTORY_DOCUMENTS}"
-        treeDocumentId.contains(":") -> "${treeDocumentId.substringBefore(':')}:${Environment.DIRECTORY_DOCUMENTS}"
-        else -> "$treeDocumentId:${Environment.DIRECTORY_DOCUMENTS}"
-    }
-
-    private fun fallbackDocumentsUri(): Uri =
-        Uri.parse("content://com.android.externalstorage.documents/document/primary%3A${Environment.DIRECTORY_DOCUMENTS}")
 }
