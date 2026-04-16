@@ -1,6 +1,7 @@
 package com.fittrack.app.ui.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,12 +36,26 @@ fun SettingsScreen(
     var activityLevel by remember(profile.activityLevel) { mutableStateOf(profile.activityLevel) }
     var timerVolumePercent by remember(profile.timerVolumePercent) { mutableIntStateOf(profile.timerVolumePercent) }
 
+    fun saveAndBack() {
+        viewModel.save(
+            weightKg = weightText.toFloatOrNull() ?: profile.weightKg,
+            heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
+            ageYears = ageText.toIntOrNull() ?: profile.ageYears,
+            gender = gender,
+            activityLevel = activityLevel,
+            timerVolumePercent = timerVolumePercent
+        )
+        onBack()
+    }
+
+    BackHandler { saveAndBack() }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Einstellungen") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = ::saveAndBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                     }
                 }
@@ -171,23 +186,6 @@ fun SettingsScreen(
                         Text("Ordner ändern")
                     }
                 }
-            }
-
-            Button(
-                onClick = {
-                    viewModel.save(
-                        weightKg = weightText.toFloatOrNull() ?: profile.weightKg,
-                        heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
-                        ageYears = ageText.toIntOrNull() ?: profile.ageYears,
-                        gender = gender,
-                        activityLevel = activityLevel,
-                        timerVolumePercent = timerVolumePercent
-                    )
-                    onBack()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Speichern")
             }
         }
     }

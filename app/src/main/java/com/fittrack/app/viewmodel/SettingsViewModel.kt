@@ -5,8 +5,10 @@ import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsViewModel(
     private val userPreferences: UserPreferences
@@ -24,16 +26,18 @@ class SettingsViewModel(
         timerVolumePercent: Int
     ) {
         viewModelScope.launch {
-            userPreferences.save(
-                UserProfile(
-                    weightKg = weightKg,
-                    heightCm = heightCm,
-                    ageYears = ageYears,
-                    gender = gender,
-                    activityLevel = activityLevel,
-                    timerVolumePercent = timerVolumePercent
+            withContext(NonCancellable) {
+                userPreferences.save(
+                    UserProfile(
+                        weightKg = weightKg,
+                        heightCm = heightCm,
+                        ageYears = ageYears,
+                        gender = gender,
+                        activityLevel = activityLevel,
+                        timerVolumePercent = timerVolumePercent
+                    )
                 )
-            )
+            }
         }
     }
 }
