@@ -1,7 +1,9 @@
 package com.fittrack.app.data.backup
 
 import android.content.Context
+import android.net.Uri
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.util.Log
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
@@ -15,6 +17,7 @@ import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.preferences.ActivityLevel
+import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
@@ -255,6 +258,8 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
+            // Priority 1: user-selected SAF folder; falls back to app Documents path, then filesDir.
+            if (writeJsonToSelectedTree(context, json)) return
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
                 getLegacyBackupFile(context)
@@ -272,6 +277,8 @@ object WorkoutBackupHelper {
 
     private fun readJson(context: Context): String? {
         return try {
+            val selectedTreeJson = readJsonFromSelectedTree(context)
+            if (selectedTreeJson != null) return selectedTreeJson
             val primaryFile = getPrimaryBackupFile(context)
             when {
                 primaryFile?.exists() == true -> primaryFile.readText()
@@ -291,6 +298,95 @@ object WorkoutBackupHelper {
         val backupDir = File(documentsDir, BACKUP_DIRECTORY)
         return File(backupDir, BACKUP_FILENAME)
     }
+
+    private fun writeJsonToSelectedTree(context: Context, json: String): Boolean {
+        val treeUri = getSelectedBackupTreeUri(context) ?: return false
+        return try {
+            val backupDirUri = findOrCreateDocument(
+                context = context,
+                parentUri = rootDocumentUri(treeUri),
+                name = BACKUP_DIRECTORY,
+                mimeType = DocumentsContract.Document.MIME_TYPE_DIR
+            ) ?: return false
+            val backupFileUri = findOrCreateDocument(
+                context = context,
+                parentUri = backupDirUri,
+                name = BACKUP_FILENAME,
+                mimeType = "application/json"
+            ) ?: return false
+            context.contentResolver.openOutputStream(backupFileUri, "wt")?.use { out ->
+                out.write(json.toByteArray(Charsets.UTF_8))
+            } ?: return false
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write selected-tree backup", e)
+            false
+        }
+    }
+
+    private fun readJsonFromSelectedTree(context: Context): String? {
+        val treeUri = getSelectedBackupTreeUri(context) ?: return null
+        return try {
+            val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
+                ?: return null
+            val backupFileUri = findDocumentUri(context, backupDirUri, BACKUP_FILENAME)
+                ?: return null
+            context.contentResolver.openInputStream(backupFileUri)?.use { input ->
+                input.bufferedReader(Charsets.UTF_8).readText()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read selected-tree backup", e)
+            null
+        }
+    }
+
+    private fun rootDocumentUri(treeUri: Uri): Uri =
+        DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+
+    private fun findOrCreateDocument(
+        context: Context,
+        parentUri: Uri,
+        name: String,
+        mimeType: String
+    ): Uri? {
+        val existing = findDocumentUri(context, parentUri, name)
+        if (existing != null) return existing
+        return DocumentsContract.createDocument(context.contentResolver, parentUri, mimeType, name)
+    }
+
+    private fun findDocumentUri(context: Context, parentUri: Uri, name: String): Uri? {
+        val resolver = context.contentResolver
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            parentUri,
+            DocumentsContract.getDocumentId(parentUri)
+        )
+        resolver.query(
+            childrenUri,
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            ),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            if (nameColumn == -1 || idColumn == -1) {
+                Log.w(TAG, "Backup document query missing required columns")
+                return null
+            }
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameColumn) == name) {
+                    return DocumentsContract.buildDocumentUriUsingTree(parentUri, cursor.getString(idColumn))
+                }
+            }
+        }
+        return null
+    }
+
+    private fun getSelectedBackupTreeUri(context: Context): Uri? =
+        BackupPreferences(context).getBackupTreeUri()
 
     private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 }

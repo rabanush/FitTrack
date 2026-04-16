@@ -1,11 +1,14 @@
 package com.fittrack.app.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -20,7 +23,9 @@ import com.fittrack.app.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    backupFolderUri: Uri? = null,
+    onChangeBackupFolder: () -> Unit = {}
 ) {
     val profile by viewModel.userProfile.collectAsState()
 
@@ -31,12 +36,26 @@ fun SettingsScreen(
     var activityLevel by remember(profile.activityLevel) { mutableStateOf(profile.activityLevel) }
     var timerVolumePercent by remember(profile.timerVolumePercent) { mutableIntStateOf(profile.timerVolumePercent) }
 
+    fun saveAndBack() {
+        viewModel.save(
+            weightKg = weightText.toFloatOrNull() ?: profile.weightKg,
+            heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
+            ageYears = ageText.toIntOrNull() ?: profile.ageYears,
+            gender = gender,
+            activityLevel = activityLevel,
+            timerVolumePercent = timerVolumePercent
+        )
+        onBack()
+    }
+
+    BackHandler { saveAndBack() }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Einstellungen") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = ::saveAndBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                     }
                 }
@@ -137,22 +156,43 @@ fun SettingsScreen(
                 }
             }
 
-            Button(
-                onClick = {
-                    viewModel.save(
-                        weightKg = weightText.toFloatOrNull() ?: profile.weightKg,
-                        heightCm = heightText.toFloatOrNull() ?: profile.heightCm,
-                        ageYears = ageText.toIntOrNull() ?: profile.ageYears,
-                        gender = gender,
-                        activityLevel = activityLevel,
-                        timerVolumePercent = timerVolumePercent
-                    )
-                    onBack()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Speichern")
+            // ── Backup folder ───────────────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Backup-Ordner", style = MaterialTheme.typography.titleSmall)
+                    if (backupFolderUri != null) {
+                        Text(
+                            text = backupFolderDisplayName(backupFolderUri),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Kein Ordner ausgewählt",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onChangeBackupFolder,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text("Ordner ändern")
+                    }
+                }
             }
         }
     }
+}
+
+private fun backupFolderDisplayName(uri: Uri): String {
+    val lastSegment = uri.lastPathSegment ?: return uri.toString()
+    val decoded = Uri.decode(lastSegment)
+    return decoded.substringAfter(':').ifBlank { decoded }
 }
