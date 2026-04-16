@@ -27,6 +27,7 @@ private const val BACKUP_FILENAME = "fittrack_workouts.json"
 private const val TAG = "WorkoutBackup"
 
 private data class BackupExercise(
+    @SerializedName("exerciseId") val exerciseId: Long? = null,
     @SerializedName("exerciseName") val exerciseName: String,
     @SerializedName("setCount") val setCount: Int,
     @SerializedName("orderIndex") val orderIndex: Int,
@@ -100,6 +101,7 @@ object WorkoutBackupHelper {
                     name = workout.name,
                     exercises = exercises.map { ex ->
                         BackupExercise(
+                            exerciseId = ex.exercise.id,
                             exerciseName = ex.exercise.name,
                             setCount = ex.workoutExercise.setCount,
                             orderIndex = ex.workoutExercise.orderIndex,
@@ -174,7 +176,11 @@ object WorkoutBackupHelper {
             data.workouts.forEach { backupWorkout ->
                 val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
                 backupWorkout.exercises.forEach { ex ->
-                    val exercise = exerciseDao.getExerciseByName(ex.exerciseName) ?: return@forEach
+                    val exercise = when {
+                        ex.exerciseId != null -> exerciseDao.getExerciseById(ex.exerciseId)
+                            ?: exerciseDao.getExerciseByName(ex.exerciseName)
+                        else -> exerciseDao.getExerciseByName(ex.exerciseName)
+                    } ?: return@forEach
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = workoutId,
@@ -284,4 +290,3 @@ object WorkoutBackupHelper {
         } catch (_: Exception) { null }
     }
 }
-
