@@ -26,7 +26,8 @@ class SettingsViewModel(
         heightCm: Float,
         ageYears: Int,
         gender: Gender,
-        activityLevel: ActivityLevel
+        activityLevel: ActivityLevel,
+        timerVolumePercent: Int
     ) {
         viewModelScope.launch {
             userPreferences.save(
@@ -35,7 +36,8 @@ class SettingsViewModel(
                     heightCm = heightCm,
                     ageYears = ageYears,
                     gender = gender,
-                    activityLevel = activityLevel
+                    activityLevel = activityLevel,
+                    timerVolumePercent = timerVolumePercent
                 )
             )
         }

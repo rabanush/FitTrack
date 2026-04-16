@@ -118,7 +118,13 @@ fun FitTrackNavGraph(navController: NavHostController) {
         ) { backStackEntry ->
             val workoutId = backStackEntry.arguments?.getLong("workoutId") ?: return@composable
             val vm: ActiveWorkoutViewModel = viewModel(
-                factory = ActiveWorkoutViewModelFactory(repository, workoutId, foodRepository)
+                factory = ActiveWorkoutViewModelFactory(
+                    repository = repository,
+                    workoutId = workoutId,
+                    appContext = context.applicationContext,
+                    userPreferences = app.userPreferences,
+                    foodRepository = foodRepository
+                )
             )
             ActiveWorkoutScreen(
                 viewModel = vm,

@@ -1,12 +1,16 @@
 package com.fittrack.app
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.Manifest
 import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,6 +40,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val notificationPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { /* no-op */ }
+
         // If SharedPreferences was cleared by a reinstall, try to recover the backup
         // folder URI from the system-level persistable permission grants, which can
         // survive reinstalls on many devices.
@@ -62,6 +70,13 @@ class MainActivity : ComponentActivity() {
                 )
             }.getOrNull()
             backupFolderLauncher.launch(initialUri)
+        }
+
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         setContent {

@@ -24,7 +24,8 @@ data class UserProfile(
     val heightCm: Float = 175f,
     val ageYears: Int = 25,
     val gender: Gender = Gender.MALE,
-    val activityLevel: ActivityLevel = ActivityLevel.MODERATE
+    val activityLevel: ActivityLevel = ActivityLevel.MODERATE,
+    val timerVolumePercent: Int = 100
 ) {
     /**
      * Mifflin-St Jeor BMR:
@@ -49,6 +50,7 @@ class UserPreferences(private val context: Context) {
         val AGE = intPreferencesKey("age_years")
         val GENDER = stringPreferencesKey("gender")
         val ACTIVITY = stringPreferencesKey("activity_level")
+        val TIMER_VOLUME = intPreferencesKey("timer_volume_percent")
     }
 
     val userProfile: Flow<UserProfile> = context.dataStore.data.map { prefs ->
@@ -57,7 +59,8 @@ class UserPreferences(private val context: Context) {
             heightCm = prefs[Keys.HEIGHT] ?: 175f,
             ageYears = prefs[Keys.AGE] ?: 25,
             gender = prefs[Keys.GENDER]?.let { runCatching { Gender.valueOf(it) }.getOrNull() } ?: Gender.MALE,
-            activityLevel = prefs[Keys.ACTIVITY]?.let { runCatching { ActivityLevel.valueOf(it) }.getOrNull() } ?: ActivityLevel.MODERATE
+            activityLevel = prefs[Keys.ACTIVITY]?.let { runCatching { ActivityLevel.valueOf(it) }.getOrNull() } ?: ActivityLevel.MODERATE,
+            timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 100).coerceIn(0, 100)
         )
     }
 
@@ -68,6 +71,7 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.AGE] = profile.ageYears
             prefs[Keys.GENDER] = profile.gender.name
             prefs[Keys.ACTIVITY] = profile.activityLevel.name
+            prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
         }
     }
 }
