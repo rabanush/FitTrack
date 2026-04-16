@@ -114,7 +114,10 @@ class RestTimerNotificationHelper(context: Context) {
         return RemoteViews(appContext.packageName, R.layout.notification_rest_timer).apply {
             setTextViewText(R.id.timerTitle, appContext.getString(R.string.timer_running_title))
             setTextViewText(R.id.timerSubtitle, content)
+            setTextColor(R.id.timerTitle, appContext.getColor(android.R.color.holo_red_light))
+            setTextColor(R.id.timerSubtitle, appContext.getColor(android.R.color.white))
             setChronometer(R.id.timerChronometer, baseElapsedRealtime, null, true)
+            setTextColor(R.id.timerChronometer, appContext.getColor(android.R.color.white))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 // Countdown mode is only supported from API 24; older versions show an increasing chronometer.
                 setBoolean(R.id.timerChronometer, "setCountDown", true)
