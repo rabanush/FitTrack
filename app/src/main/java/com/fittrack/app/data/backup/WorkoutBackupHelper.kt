@@ -99,6 +99,11 @@ object WorkoutBackupHelper {
         customFoods: List<CustomFood>,
         recipes: List<RecipeWithItems>
     ) {
+        // On fresh installs, observers can emit an initial empty state before import has
+        // restored existing backups; avoid overwriting those backups with empty data.
+        if (shouldSkipEmptyExport(context, workoutsWithExercises, customFoods, recipes)) {
+            return
+        }
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -261,9 +266,6 @@ object WorkoutBackupHelper {
         try {
             // Priority 1: user-selected SAF folder; falls back to app Documents path, then filesDir.
             if (writeJsonToSelectedTree(context, json)) return
-            if (shouldSkipEmptyExport(context, workoutsWithExercises, customFoods, recipes)) {
-                return
-            }
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
                 getLegacyBackupFile(context)
@@ -281,23 +283,7 @@ object WorkoutBackupHelper {
 
     private fun readJson(context: Context): String? {
         return try {
-            val selectedTreeJson = readJsonFromSelectedTree(context)
-            if (selectedTreeJson != null) return selectedTreeJson
-            val primaryFile = getPrimaryBackupFile(context)
-            val legacyPrimaryFile = getLegacyPrimaryBackupFile(context)
-            when {
-                primaryFile?.exists() == true -> primaryFile.readText()
-                legacyPrimaryFile?.exists() == true -> legacyPrimaryFile.readText()
-                else -> {
-                    val legacyFile = getLegacyBackupFile(context)
-                    if (legacyFile.exists()) {
-                        legacyFile.readText()
-                    } else {
-                        val oldLegacyFile = getOldLegacyBackupFile(context)
-                        if (oldLegacyFile.exists()) oldLegacyFile.readText() else null
-                    }
-                }
-            }
+            readJsonFromSelectedTree(context) ?: readJsonFromFallbackFiles(context)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read workout backup", e)
             null
@@ -409,6 +395,16 @@ object WorkoutBackupHelper {
     private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 
     private fun getOldLegacyBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
+
+    private fun readJsonFromFallbackFiles(context: Context): String? {
+        val existingFile = listOfNotNull(
+            getPrimaryBackupFile(context),
+            getLegacyPrimaryBackupFile(context),
+            getLegacyBackupFile(context),
+            getOldLegacyBackupFile(context)
+        ).firstOrNull { it.exists() } ?: return null
+        return existingFile.readText()
+    }
 
     private fun shouldSkipEmptyExport(
         context: Context,

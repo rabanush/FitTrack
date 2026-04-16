@@ -33,7 +33,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initialBackupPickerRequested = savedInstanceState?.getBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED) == true
+        initialBackupPickerRequested =
+            savedInstanceState?.getBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED) ?: false
 
         val app = application as FitTrackApplication
         resumeWorkoutId = resolveResumeWorkoutId(intent)
