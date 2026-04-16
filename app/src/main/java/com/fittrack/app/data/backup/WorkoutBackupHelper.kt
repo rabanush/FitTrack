@@ -84,8 +84,9 @@ object WorkoutBackupHelper {
     private val gson = Gson()
 
     /**
-     * Serialises all app data to JSON and writes it to app-internal private storage
-     * ([Context.filesDir]). The file is not accessible by other apps.
+     * Serialises all app data to JSON and writes it to
+     * [Context.getExternalFilesDir]`(Environment.DIRECTORY_DOCUMENTS)/FitTrackerBackup`.
+     * Falls back to legacy app-internal storage when needed.
      */
     fun exportData(
         context: Context,
@@ -147,8 +148,8 @@ object WorkoutBackupHelper {
     }
 
     /**
-     * Reads the backup file from app-internal private storage and inserts all data
-     * into the DB and DataStore.
+     * Reads the backup file from `Documents/FitTrackerBackup` (or legacy app-internal storage)
+     * and inserts all data into the DB and DataStore.
      * Workout plans, custom foods, and recipes are only restored when the respective
      * tables are empty (i.e., on a fresh install or after clearing app data).
      * The user profile is always restored from backup when a valid backup file is found
