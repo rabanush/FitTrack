@@ -101,7 +101,7 @@ object WorkoutBackupHelper {
     ) {
         // On fresh installs, observers can emit an initial empty state before import has
         // restored existing backups; avoid overwriting those backups with empty data.
-        if (shouldSkipEmptyExport(context, workoutsWithExercises, customFoods, recipes)) {
+        if (shouldSkipEmptyExportDueToExistingBackup(context, workoutsWithExercises, customFoods, recipes)) {
             return
         }
         val data = BackupData(
@@ -397,7 +397,7 @@ object WorkoutBackupHelper {
     private fun getOldInternalBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
 
     private fun getFallbackBackupFiles(context: Context): List<File> {
-        // Priority: new external name -> old external name -> new internal name -> old internal name.
+        // Priority (when available): new external name -> old external name -> new internal name -> old internal name.
         val files = mutableListOf<File>()
         getPrimaryBackupFile(context)?.let(files::add)
         getLegacyPrimaryBackupFile(context)?.let(files::add)
@@ -414,7 +414,7 @@ object WorkoutBackupHelper {
             .getOrNull()
     }
 
-    private fun shouldSkipEmptyExport(
+    private fun shouldSkipEmptyExportDueToExistingBackup(
         context: Context,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         customFoods: List<CustomFood>,
