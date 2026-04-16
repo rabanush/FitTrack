@@ -25,7 +25,8 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
 
-private const val BACKUP_FILENAME = "fittrack_workouts.json"
+private const val BACKUP_FILENAME = "backup.json"
+private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val BACKUP_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
@@ -98,6 +99,11 @@ object WorkoutBackupHelper {
         customFoods: List<CustomFood>,
         recipes: List<RecipeWithItems>
     ) {
+        // On fresh installs, observers can emit an initial empty state before import has
+        // restored existing backups; avoid overwriting those backups with empty data.
+        if (shouldSkipEmptyExportDueToExistingBackup(context, workoutsWithExercises, customFoods, recipes)) {
+            return
+        }
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -262,7 +268,7 @@ object WorkoutBackupHelper {
             if (writeJsonToSelectedTree(context, json)) return
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
-                getLegacyBackupFile(context)
+                getInternalBackupFile(context)
             }
             val parent = backupFile.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
@@ -277,16 +283,7 @@ object WorkoutBackupHelper {
 
     private fun readJson(context: Context): String? {
         return try {
-            val selectedTreeJson = readJsonFromSelectedTree(context)
-            if (selectedTreeJson != null) return selectedTreeJson
-            val primaryFile = getPrimaryBackupFile(context)
-            when {
-                primaryFile?.exists() == true -> primaryFile.readText()
-                else -> {
-                    val legacyFile = getLegacyBackupFile(context)
-                    if (legacyFile.exists()) legacyFile.readText() else null
-                }
-            }
+            readJsonFromSelectedTree(context) ?: readJsonFromFallbackFiles(context)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read workout backup", e)
             null
@@ -297,6 +294,12 @@ object WorkoutBackupHelper {
         val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
         val backupDir = File(documentsDir, BACKUP_DIRECTORY)
         return File(backupDir, BACKUP_FILENAME)
+    }
+
+    private fun getLegacyPrimaryBackupFile(context: Context): File? {
+        val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
+        val backupDir = File(documentsDir, BACKUP_DIRECTORY)
+        return File(backupDir, LEGACY_BACKUP_FILENAME)
     }
 
     private fun writeJsonToSelectedTree(context: Context, json: String): Boolean {
@@ -330,6 +333,7 @@ object WorkoutBackupHelper {
             val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
                 ?: return null
             val backupFileUri = findDocumentUri(context, backupDirUri, BACKUP_FILENAME)
+                ?: findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME)
                 ?: return null
             context.contentResolver.openInputStream(backupFileUri)?.use { input ->
                 input.bufferedReader(Charsets.UTF_8).readText()
@@ -388,5 +392,54 @@ object WorkoutBackupHelper {
     private fun getSelectedBackupTreeUri(context: Context): Uri? =
         BackupPreferences(context).getBackupTreeUri()
 
-    private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+
+    private fun getOldInternalBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
+
+    private fun getFallbackBackupFiles(context: Context): List<File> {
+        // Priority (when available): new external name -> old external name -> new internal name -> old internal name.
+        val files = mutableListOf<File>()
+        getPrimaryBackupFile(context)?.let(files::add)
+        getLegacyPrimaryBackupFile(context)?.let(files::add)
+        files += getInternalBackupFile(context)
+        files += getOldInternalBackupFile(context)
+        return files
+    }
+
+    private fun readJsonFromFallbackFiles(context: Context): String? {
+        return runCatching {
+            val existingFile = getFallbackBackupFiles(context).firstOrNull { it.exists() } ?: return null
+            existingFile.readText()
+        }.onFailure { Log.w(TAG, "Failed to read backup from fallback files", it) }
+            .getOrNull()
+    }
+
+    private fun shouldSkipEmptyExportDueToExistingBackup(
+        context: Context,
+        workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
+        customFoods: List<CustomFood>,
+        recipes: List<RecipeWithItems>
+    ): Boolean {
+        val isEmptyExport = workoutsWithExercises.isEmpty() && customFoods.isEmpty() && recipes.isEmpty()
+        if (!isEmptyExport) return false
+        return hasExistingBackup(context)
+    }
+
+    private fun hasExistingBackup(context: Context): Boolean {
+        if (selectedTreeBackupExists(context)) return true
+        return getFallbackBackupFiles(context).any { it.exists() }
+    }
+
+    private fun selectedTreeBackupExists(context: Context): Boolean {
+        val treeUri = getSelectedBackupTreeUri(context) ?: return false
+        return try {
+            val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
+                ?: return false
+            findDocumentUri(context, backupDirUri, BACKUP_FILENAME) != null ||
+                findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME) != null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to check selected-tree backup existence", e)
+            false
+        }
+    }
 }

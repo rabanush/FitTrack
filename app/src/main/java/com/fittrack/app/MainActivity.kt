@@ -29,9 +29,12 @@ import com.fittrack.app.util.RestTimerNotificationHelper
 class MainActivity : ComponentActivity() {
     private var resumeWorkoutId: Long? by mutableStateOf(null)
     private var backupFolderUri: Uri? by mutableStateOf(null)
+    private var initialBackupPickerRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        initialBackupPickerRequested =
+            savedInstanceState?.getBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED) ?: false
 
         val app = application as FitTrackApplication
         resumeWorkoutId = resolveResumeWorkoutId(intent)
@@ -77,11 +80,17 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (app.backupPreferences.getBackupTreeUri() == null) {
+        if (app.backupPreferences.getBackupTreeUri() == null && !initialBackupPickerRequested) {
+            initialBackupPickerRequested = true
             window.decorView.doOnPreDraw {
                 backupFolderLauncher.launch(getDocumentsInitialUri())
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_INITIAL_BACKUP_PICKER_REQUESTED, initialBackupPickerRequested)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -115,5 +124,9 @@ class MainActivity : ComponentActivity() {
         val volumeId = treeDocumentId.substringBefore(':').ifBlank { return null }
         val documentsDocumentId = "$volumeId:${Environment.DIRECTORY_DOCUMENTS}"
         return DocumentsContract.buildDocumentUriUsingTree(baseTreeUri, documentsDocumentId)
+    }
+
+    companion object {
+        private const val KEY_INITIAL_BACKUP_PICKER_REQUESTED = "initial_backup_picker_requested"
     }
 }
