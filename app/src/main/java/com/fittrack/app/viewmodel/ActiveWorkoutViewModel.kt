@@ -211,8 +211,8 @@ class ActiveWorkoutViewModel(
             if (remaining <= 0) {
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
                 timerNotificationHelper.cancelRunningTimer()
-                val overdueMs = now - state.endTimeMillis
-                if (overdueMs < LOCAL_END_TONE_WINDOW_MS) {
+                val timeSinceEndMs = now - state.endTimeMillis
+                if (timeSinceEndMs < LOCAL_END_TONE_WINDOW_MS) {
                     timerNotificationHelper.cancelCompletionAlarm()
                     playEndTone()
                     timerNotificationHelper.showFinishedNotification()

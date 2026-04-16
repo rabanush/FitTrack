@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">FitTrack</string>
+    <string name="timer_set_label">Satz %1$d</string>
+    <string name="timer_running_title">Pausentimer läuft</string>
+    <string name="timer_finished_title">Pausentimer beendet</string>
+    <string name="timer_finished_message">Nächsten Satz starten</string>
+    <string name="timer_notification_channel_name">Pausentimer</string>
+    <string name="timer_notification_channel_description">Benachrichtigungen für den Pausentimer</string>
 </resources>

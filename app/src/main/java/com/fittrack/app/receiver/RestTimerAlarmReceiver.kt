@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
-import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 
 class RestTimerAlarmReceiver : BroadcastReceiver() {
@@ -16,9 +15,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         val executor = Executors.newSingleThreadExecutor()
         executor.execute {
             try {
-                runBlocking {
-                    runCatching { TimerAudioPlayer(context).playEndSequence(volume) }
-                }
+                runCatching { TimerAudioPlayer(context).playEndSequenceBlocking(volume) }
                 RestTimerNotificationHelper(context).showFinishedNotification()
             } finally {
                 pendingResult.finish()

@@ -20,8 +20,7 @@ class RestTimerNotificationHelper(context: Context) {
     fun showRunningTimer(endTimeMillis: Long, exerciseName: String?, setNumber: Int) {
         ensureChannel()
         val content = buildString {
-            append("Satz ")
-            append(setNumber)
+            append(appContext.getString(R.string.timer_set_label, setNumber))
             exerciseName?.takeIf { it.isNotBlank() }?.let {
                 append(" • ")
                 append(it)
@@ -29,7 +28,7 @@ class RestTimerNotificationHelper(context: Context) {
         }
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Pausentimer läuft")
+            .setContentTitle(appContext.getString(R.string.timer_running_title))
             .setContentText(content)
             .setContentIntent(mainActivityPendingIntent())
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -48,8 +47,8 @@ class RestTimerNotificationHelper(context: Context) {
         ensureChannel()
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Pausentimer beendet")
-            .setContentText("Nächsten Satz starten")
+            .setContentTitle(appContext.getString(R.string.timer_finished_title))
+            .setContentText(appContext.getString(R.string.timer_finished_message))
             .setContentIntent(mainActivityPendingIntent())
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -105,10 +104,10 @@ class RestTimerNotificationHelper(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Rest timer",
+            appContext.getString(R.string.timer_notification_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Benachrichtigungen für den Pausentimer"
+            description = appContext.getString(R.string.timer_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
     }
