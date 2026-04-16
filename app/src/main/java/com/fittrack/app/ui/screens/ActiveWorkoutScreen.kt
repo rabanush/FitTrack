@@ -53,7 +53,7 @@ fun ActiveWorkoutScreen(
                 actions = {
                     Text(
                         text = "⏱ ${formatElapsedWorkoutTime(workoutElapsedSeconds)}",
-                        color = Color.Red,
+                        color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
                 },

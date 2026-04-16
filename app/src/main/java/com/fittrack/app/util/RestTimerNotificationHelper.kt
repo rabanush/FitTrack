@@ -116,6 +116,7 @@ class RestTimerNotificationHelper(context: Context) {
             setTextViewText(R.id.timerSubtitle, content)
             setChronometer(R.id.timerChronometer, baseElapsedRealtime, null, true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                // Countdown mode is only supported from API 24; older versions show an increasing chronometer.
                 setBoolean(R.id.timerChronometer, "setCountDown", true)
             }
         }
