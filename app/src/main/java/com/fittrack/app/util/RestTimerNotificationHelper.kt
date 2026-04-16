@@ -63,7 +63,7 @@ class RestTimerNotificationHelper(context: Context) {
     }
 
     fun scheduleCompletionAlarm(endTimeMillis: Long, timerVolumePercent: Int) {
-        val pendingIntent = alarmPendingIntent(timerVolumePercent)
+        val pendingIntent = alarmPendingIntent(timerVolumePercent = timerVolumePercent)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
             return
@@ -72,12 +72,14 @@ class RestTimerNotificationHelper(context: Context) {
     }
 
     fun cancelCompletionAlarm() {
-        alarmManager.cancel(alarmPendingIntent(100))
+        alarmManager.cancel(alarmPendingIntent())
     }
 
-    private fun alarmPendingIntent(timerVolumePercent: Int): PendingIntent {
+    private fun alarmPendingIntent(timerVolumePercent: Int? = null): PendingIntent {
         val intent = Intent(appContext, RestTimerAlarmReceiver::class.java).apply {
-            putExtra(EXTRA_TIMER_VOLUME_PERCENT, timerVolumePercent.coerceIn(0, 100))
+            timerVolumePercent?.let {
+                putExtra(EXTRA_TIMER_VOLUME_PERCENT, it.coerceIn(0, 100))
+            }
         }
         return PendingIntent.getBroadcast(
             appContext,

@@ -197,7 +197,8 @@ class ActiveWorkoutViewModel(
     }
 
     private suspend fun tickTimer() {
-        var previousRemaining = _timerState.value.totalSeconds + 1
+        // Start above the initial value so countdown tones are emitted exactly when 3/2/1 is crossed.
+        var previousRemaining = Int.MAX_VALUE
         while (true) {
             val state = _timerState.value
             val now = System.currentTimeMillis()
@@ -211,7 +212,7 @@ class ActiveWorkoutViewModel(
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
                 timerNotificationHelper.cancelRunningTimer()
                 val overdueMs = now - state.endTimeMillis
-                if (overdueMs < 1500L) {
+                if (overdueMs < LOCAL_END_TONE_WINDOW_MS) {
                     timerNotificationHelper.cancelCompletionAlarm()
                     playEndTone()
                     timerNotificationHelper.showFinishedNotification()
@@ -320,6 +321,7 @@ class ActiveWorkoutViewModel(
 
     companion object {
         private const val DEFAULT_MET = 3.5f
+        private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
     }
 
     override fun onCleared() {

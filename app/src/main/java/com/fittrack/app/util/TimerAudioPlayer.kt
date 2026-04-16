@@ -6,17 +6,18 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 class TimerAudioPlayer(context: Context) {
     private val appContext = context.applicationContext
     private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    fun playCountdownBeep(volumePercent: Int) {
+    suspend fun playCountdownBeep(volumePercent: Int) {
         playTone(ToneGenerator.TONE_PROP_BEEP, 150, volumePercent)
     }
 
-    fun playEndSequence(volumePercent: Int) {
+    suspend fun playEndSequence(volumePercent: Int) {
         withAudioFocus {
             val stream = preferredStream()
             val toneVolume = volumePercent.coerceIn(0, 100)
@@ -30,9 +31,9 @@ class TimerAudioPlayer(context: Context) {
                     audioManager.setStreamVolume(stream, targetVolume, 0)
                 }
                 toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 250)
-                Thread.sleep(380L)
+                delay(380L)
                 toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                Thread.sleep(560L)
+                delay(560L)
             } finally {
                 runCatching { toneGenerator.release() }
                 if (targetVolume > originalVolume) {
@@ -42,7 +43,7 @@ class TimerAudioPlayer(context: Context) {
         }
     }
 
-    private fun playTone(toneType: Int, durationMs: Int, volumePercent: Int) {
+    private suspend fun playTone(toneType: Int, durationMs: Int, volumePercent: Int) {
         withAudioFocus {
             val stream = preferredStream()
             val toneVolume = volumePercent.coerceIn(0, 100)
@@ -56,7 +57,7 @@ class TimerAudioPlayer(context: Context) {
                     audioManager.setStreamVolume(stream, targetVolume, 0)
                 }
                 toneGenerator.startTone(toneType, durationMs)
-                Thread.sleep((durationMs + 80).toLong())
+                delay((durationMs + 80).toLong())
             } finally {
                 runCatching { toneGenerator.release() }
                 if (targetVolume > originalVolume) {
@@ -80,7 +81,7 @@ class TimerAudioPlayer(context: Context) {
         return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in bluetoothTypes }
     }
 
-    private fun withAudioFocus(block: () -> Unit) {
+    private suspend fun withAudioFocus(block: suspend () -> Unit) {
         val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
                 AudioAttributes.Builder()
