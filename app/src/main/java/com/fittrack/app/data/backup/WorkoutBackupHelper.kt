@@ -284,9 +284,10 @@ object WorkoutBackupHelper {
             val selectedTreeJson = readJsonFromSelectedTree(context)
             if (selectedTreeJson != null) return selectedTreeJson
             val primaryFile = getPrimaryBackupFile(context)
+            val legacyPrimaryFile = getLegacyPrimaryBackupFile(context)
             when {
                 primaryFile?.exists() == true -> primaryFile.readText()
-                getLegacyPrimaryBackupFile(context)?.exists() == true -> getLegacyPrimaryBackupFile(context)?.readText()
+                legacyPrimaryFile?.exists() == true -> legacyPrimaryFile.readText()
                 else -> {
                     val legacyFile = getLegacyBackupFile(context)
                     if (legacyFile.exists()) {
@@ -421,12 +422,24 @@ object WorkoutBackupHelper {
     }
 
     private fun hasExistingBackup(context: Context): Boolean {
-        if (readJsonFromSelectedTree(context) != null) return true
+        if (selectedTreeBackupExists(context)) return true
         return listOfNotNull(
             getPrimaryBackupFile(context),
             getLegacyPrimaryBackupFile(context),
             getLegacyBackupFile(context),
             getOldLegacyBackupFile(context)
         ).any { it.exists() }
+    }
+
+    private fun selectedTreeBackupExists(context: Context): Boolean {
+        val treeUri = getSelectedBackupTreeUri(context) ?: return false
+        return try {
+            val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
+                ?: return false
+            findDocumentUri(context, backupDirUri, BACKUP_FILENAME) != null ||
+                findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME) != null
+        } catch (_: Exception) {
+            false
+        }
     }
 }
