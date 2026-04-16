@@ -299,7 +299,7 @@ object WorkoutBackupHelper {
     }
 
     private fun writeJsonToSelectedTree(context: Context, json: String): Boolean {
-        val treeUri = BackupPreferences(context).getBackupTreeUri() ?: return false
+        val treeUri = getSelectedBackupTreeUri(context) ?: return false
         return try {
             val backupDirUri = findOrCreateDocument(
                 context = context,
@@ -324,7 +324,7 @@ object WorkoutBackupHelper {
     }
 
     private fun readJsonFromSelectedTree(context: Context): String? {
-        val treeUri = BackupPreferences(context).getBackupTreeUri() ?: return null
+        val treeUri = getSelectedBackupTreeUri(context) ?: return null
         return try {
             val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
                 ?: return null
@@ -371,7 +371,10 @@ object WorkoutBackupHelper {
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            if (nameColumn < 0 || idColumn < 0) return null
+            if (nameColumn < 0 || idColumn < 0) {
+                Log.w(TAG, "Backup document query missing required columns")
+                return null
+            }
             while (cursor.moveToNext()) {
                 if (cursor.getString(nameColumn) == name) {
                     return DocumentsContract.buildDocumentUriUsingTree(parentUri, cursor.getString(idColumn))
@@ -380,6 +383,9 @@ object WorkoutBackupHelper {
         }
         return null
     }
+
+    private fun getSelectedBackupTreeUri(context: Context): Uri? =
+        BackupPreferences(context).getBackupTreeUri()
 
     private fun getLegacyBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 }
