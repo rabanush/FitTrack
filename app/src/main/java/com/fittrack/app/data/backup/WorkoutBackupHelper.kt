@@ -371,7 +371,7 @@ object WorkoutBackupHelper {
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            if (nameColumn < 0 || idColumn < 0) {
+            if (nameColumn == -1 || idColumn == -1) {
                 Log.w(TAG, "Backup document query missing required columns")
                 return null
             }

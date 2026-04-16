@@ -104,7 +104,8 @@ class MainActivity : ComponentActivity() {
         }.getOrNull() ?: return null
 
         val treeDocumentId = DocumentsContract.getTreeDocumentId(baseTreeUri)
-        val volumeId = treeDocumentId.substringBefore(':', treeDocumentId).ifBlank { return null }
+        if (!treeDocumentId.contains(":")) return null
+        val volumeId = treeDocumentId.substringBefore(':').ifBlank { return null }
         val documentsDocumentId = "$volumeId:${Environment.DIRECTORY_DOCUMENTS}"
         return DocumentsContract.buildDocumentUriUsingTree(baseTreeUri, documentsDocumentId)
     }
