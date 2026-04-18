@@ -58,6 +58,8 @@ class FoodRepository(
     fun getMealsForDay(dateMillis: Long): Flow<List<Meal>> =
         foodDao.getMealsForDay(dateMillis)
 
+    fun observeAllMeals(): Flow<List<Meal>> = foodDao.getAllMeals()
+
     suspend fun insertMeal(meal: Meal): Long = foodDao.insertMeal(meal)
 
     suspend fun deleteMeal(meal: Meal) = foodDao.deleteMeal(meal)
@@ -72,6 +74,8 @@ class FoodRepository(
     fun getFoodEntriesForDay(dateMillis: Long): Flow<List<FoodEntry>> =
         foodDao.getFoodEntriesForDay(dateMillis)
 
+    fun observeAllFoodEntries(): Flow<List<FoodEntry>> = foodDao.getAllFoodEntries()
+
     suspend fun insertFoodEntry(entry: FoodEntry): Long = foodDao.insertFoodEntry(entry)
 
     suspend fun updateFoodEntry(entry: FoodEntry) = foodDao.updateFoodEntry(entry)
@@ -85,6 +89,8 @@ class FoodRepository(
 
     fun getTotalBurnedForDay(dateMillis: Long): Flow<Float> =
         workoutCaloriesDao.getTotalBurnedForDay(dateMillis)
+
+    fun observeAllWorkoutCalories(): Flow<List<WorkoutCalories>> = workoutCaloriesDao.getAll()
 
     suspend fun insertWorkoutCalories(entry: WorkoutCalories): Long =
         workoutCaloriesDao.insert(entry)

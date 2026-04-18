@@ -25,6 +25,15 @@ interface FoodDao {
     @Query("SELECT * FROM meals WHERE id = :id")
     suspend fun getMealById(id: Long): Meal?
 
+    @Query("SELECT * FROM meals ORDER BY date_millis ASC, id ASC")
+    fun getAllMeals(): Flow<List<Meal>>
+
+    @Query("SELECT * FROM meals ORDER BY date_millis ASC, id ASC")
+    suspend fun getAllMealsSync(): List<Meal>
+
+    @Query("SELECT COUNT(*) FROM meals")
+    suspend fun getMealCount(): Int
+
     // ---- FoodEntry ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -38,6 +47,15 @@ interface FoodDao {
 
     @Query("SELECT * FROM food_entries WHERE meal_id = :mealId ORDER BY id ASC")
     fun getFoodEntriesForMeal(mealId: Long): Flow<List<FoodEntry>>
+
+    @Query("SELECT * FROM food_entries ORDER BY id ASC")
+    fun getAllFoodEntries(): Flow<List<FoodEntry>>
+
+    @Query("SELECT * FROM food_entries ORDER BY id ASC")
+    suspend fun getAllFoodEntriesSync(): List<FoodEntry>
+
+    @Query("SELECT COUNT(*) FROM food_entries")
+    suspend fun getFoodEntryCount(): Int
 
     /** Returns all food entries logged on a given day (joined via meals). */
     @Query("""

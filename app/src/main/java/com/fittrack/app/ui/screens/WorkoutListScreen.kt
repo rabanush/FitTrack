@@ -50,31 +50,6 @@ fun WorkoutListScreen(
 
     val workouts by viewModel.workouts.observeAsState(emptyList())
 
-    // Show a dialog when exercises could not be resolved during backup restore
-    val skippedExercises by viewModel.skippedImportExercises.collectAsState()
-    if (skippedExercises.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissSkippedExercises() },
-            title = { Text("Hinweis zum Import") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "${skippedExercises.size} Übung(en) konnten beim Wiederherstellen des Backups nicht gefunden werden und wurden übersprungen:"
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    skippedExercises.forEach { name ->
-                        Text("• $name")
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.dismissSkippedExercises() }) {
-                    Text("OK")
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
