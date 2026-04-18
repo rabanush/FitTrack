@@ -15,6 +15,17 @@ interface FoodDao {
         @ColumnInfo(name = "last_entry_id") val lastEntryId: Long
     )
 
+    data class RecentlyUsedFoodWithNutrition(
+        @ColumnInfo(name = "barcode") val barcode: String?,
+        @ColumnInfo(name = "name") val name: String,
+        @ColumnInfo(name = "calories_per100") val caloriesPer100: Float,
+        @ColumnInfo(name = "protein_per100") val proteinPer100: Float,
+        @ColumnInfo(name = "carbs_per100") val carbsPer100: Float,
+        @ColumnInfo(name = "fat_per100") val fatPer100: Float,
+        @ColumnInfo(name = "last_used_date_millis") val lastUsedDateMillis: Long,
+        @ColumnInfo(name = "last_entry_id") val lastEntryId: Long
+    )
+
     // ---- Meal ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -99,4 +110,35 @@ interface FoodDao {
         """
     )
     suspend fun getRecentlyUsedFoodsSince(sinceMillis: Long): List<RecentlyUsedFood>
+
+    @Query(
+        """
+        SELECT
+            r.barcode AS barcode,
+            r.name AS name,
+            fe.calories_per100 AS calories_per100,
+            fe.protein_per100 AS protein_per100,
+            fe.carbs_per100 AS carbs_per100,
+            fe.fat_per100 AS fat_per100,
+            r.last_used_date_millis AS last_used_date_millis,
+            r.last_entry_id AS last_entry_id
+        FROM (
+            SELECT
+                NULLIF(TRIM(fe.barcode), '') AS barcode,
+                TRIM(fe.name) AS name,
+                MAX(m.date_millis) AS last_used_date_millis,
+                MAX(fe.id) AS last_entry_id
+            FROM food_entries fe
+            INNER JOIN meals m ON m.id = fe.meal_id
+            WHERE m.date_millis >= :sinceMillis
+              AND TRIM(fe.name) != ''
+            GROUP BY NULLIF(TRIM(fe.barcode), ''), LOWER(TRIM(fe.name))
+        ) r
+        INNER JOIN food_entries fe ON fe.id = r.last_entry_id
+        ORDER BY r.last_used_date_millis DESC, r.last_entry_id DESC
+        """
+    )
+    suspend fun getRecentlyUsedFoodsWithNutritionSince(
+        sinceMillis: Long
+    ): List<RecentlyUsedFoodWithNutrition>
 }
