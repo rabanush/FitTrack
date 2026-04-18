@@ -20,6 +20,8 @@ import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
+import com.fittrack.app.data.preferences.ActiveWorkoutSession
+import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
@@ -42,8 +44,8 @@ private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
 // Safety guard for storage traversal to avoid long-running I/O on large devices.
 // Once the limit is reached, scanning stops and only already-discovered artifacts are deleted.
 private const val MAX_SCAN_DIRECTORIES = 15_000
-// v2 adds meals, food entries, and workout calories to the automatic backup payload.
-private const val BACKUP_SCHEMA_VERSION = 2
+// v3 adds active workout session and timer state to the automatic backup payload.
+private const val BACKUP_SCHEMA_VERSION = 3
 
 private data class BackupCustomExercise(
     @SerializedName("id") val id: Long? = null,
@@ -123,6 +125,16 @@ private data class BackupWorkoutCalories(
     @SerializedName("durationMinutes") val durationMinutes: Int
 )
 
+private data class BackupActiveWorkoutSession(
+    @SerializedName("workoutId") val workoutId: Long,
+    @SerializedName("workoutStartTimeMillis") val workoutStartTimeMillis: Long,
+    @SerializedName("timerEndTimeMillis") val timerEndTimeMillis: Long,
+    @SerializedName("timerTotalSeconds") val timerTotalSeconds: Int,
+    @SerializedName("timerExerciseIndex") val timerExerciseIndex: Int,
+    @SerializedName("timerSetNumber") val timerSetNumber: Int,
+    @SerializedName("exerciseSessionsState") val exerciseSessionsState: String? = null
+)
+
 private data class BackupData(
     @SerializedName("version") val version: Int = BACKUP_SCHEMA_VERSION,
     @SerializedName("workouts") val workouts: List<BackupWorkout> = emptyList(),
@@ -132,7 +144,8 @@ private data class BackupData(
     @SerializedName("customExercises") val customExercises: List<BackupCustomExercise> = emptyList(),
     @SerializedName("meals") val meals: List<BackupMeal> = emptyList(),
     @SerializedName("foodEntries") val foodEntries: List<BackupFoodEntry> = emptyList(),
-    @SerializedName("workoutCalories") val workoutCalories: List<BackupWorkoutCalories> = emptyList()
+    @SerializedName("workoutCalories") val workoutCalories: List<BackupWorkoutCalories> = emptyList(),
+    @SerializedName("activeWorkoutSession") val activeWorkoutSession: BackupActiveWorkoutSession? = null
 )
 
 object WorkoutBackupHelper {
@@ -173,7 +186,9 @@ object WorkoutBackupHelper {
         customExercises: List<Exercise>,
         meals: List<Meal>,
         foodEntries: List<FoodEntry>,
-        workoutCalories: List<WorkoutCalories>
+        workoutCalories: List<WorkoutCalories>,
+        activeWorkoutSession: ActiveWorkoutSession?,
+        activeWorkoutExerciseSessionsState: String?
     ) {
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
@@ -259,6 +274,17 @@ object WorkoutBackupHelper {
                     caloriesBurned = entry.caloriesBurned,
                     durationMinutes = entry.durationMinutes
                 )
+            },
+            activeWorkoutSession = activeWorkoutSession?.let { session ->
+                BackupActiveWorkoutSession(
+                    workoutId = session.workoutId,
+                    workoutStartTimeMillis = session.workoutStartTimeMillis,
+                    timerEndTimeMillis = session.timerEndTimeMillis,
+                    timerTotalSeconds = session.timerTotalSeconds,
+                    timerExerciseIndex = session.timerExerciseIndex,
+                    timerSetNumber = session.timerSetNumber,
+                    exerciseSessionsState = activeWorkoutExerciseSessionsState
+                )
             }
         )
 
@@ -276,7 +302,8 @@ object WorkoutBackupHelper {
         customFoodDao: CustomFoodDao,
         recipeDao: RecipeDao,
         foodDao: FoodDao,
-        workoutCaloriesDao: WorkoutCaloriesDao
+        workoutCaloriesDao: WorkoutCaloriesDao,
+        activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences
     ) {
         val json = readJson(context) ?: return
         val data = try {
@@ -445,6 +472,30 @@ object WorkoutBackupHelper {
                         activityLevel = activityLevel,
                         timerVolumePercent = profile.timerVolumePercent ?: DEFAULT_TIMER_VOLUME_PERCENT
                     )
+                )
+            }
+        }
+
+        data.activeWorkoutSession?.let { session ->
+            val restoredWorkoutId = workoutIdMapping[session.workoutId] ?: session.workoutId
+            val workoutExists = workoutDao.getWorkoutById(restoredWorkoutId) != null
+            if (!workoutExists) {
+                Log.w(
+                    TAG,
+                    "Clearing active-workout session for non-existent workoutId=${session.workoutId} (remapped to $restoredWorkoutId)"
+                )
+                activeWorkoutSessionPreferences.clearSession()
+            } else {
+                activeWorkoutSessionPreferences.restoreSession(
+                    session = ActiveWorkoutSession(
+                        workoutId = restoredWorkoutId,
+                        workoutStartTimeMillis = session.workoutStartTimeMillis,
+                        timerEndTimeMillis = session.timerEndTimeMillis,
+                        timerTotalSeconds = session.timerTotalSeconds,
+                        timerExerciseIndex = session.timerExerciseIndex,
+                        timerSetNumber = session.timerSetNumber
+                    ),
+                    exerciseSessionsState = session.exerciseSessionsState
                 )
             }
         }
