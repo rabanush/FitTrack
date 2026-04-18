@@ -84,7 +84,11 @@ class FoodRepository(
             .getOrElse { emptyList() }
             .asSequence()
             .filter { it.displayName != "Unbekanntes Produkt" }
-            .distinctBy { (it.code ?: it.displayName).normalizedForSearch() }
+            .distinctBy { product ->
+                product.code?.trim().takeUnless { it.isNullOrBlank() }
+                    ?: "${product.displayName}|${product.brands.orEmpty()}|${product.quantity.orEmpty()}"
+                        .normalizedForSearch()
+            }
             .sortedByDescending { relevanceScore(it, trimmedQuery) }
             .take(30)
             .toList()
@@ -135,16 +139,20 @@ class FoodRepository(
 
         var score = 0
         if (name == normalizedQuery) score += EXACT_MATCH_SCORE
-        if (name.startsWith(normalizedQuery)) score += PREFIX_MATCH_SCORE
-        if (name.contains(" $normalizedQuery")) score += WORD_MATCH_SCORE
-        if (name.contains(normalizedQuery)) score += CONTAINS_MATCH_SCORE
+        when {
+            name.startsWith(normalizedQuery) -> score += PREFIX_MATCH_SCORE
+            name.contains(" $normalizedQuery") -> score += WORD_MATCH_SCORE
+            name.contains(normalizedQuery) -> score += CONTAINS_MATCH_SCORE
+        }
         if (brand.contains(normalizedQuery)) score += BRAND_MATCH_SCORE
 
         val tokens = normalizedQuery.split(" ")
         tokens.forEach { token ->
-            if (name.startsWith(token)) score += TOKEN_PREFIX_SCORE
-            if (name.contains(" $token")) score += TOKEN_WORD_SCORE
-            if (name.contains(token)) score += TOKEN_CONTAINS_SCORE
+            when {
+                name.startsWith(token) -> score += TOKEN_PREFIX_SCORE
+                name.contains(" $token") -> score += TOKEN_WORD_SCORE
+                name.contains(token) -> score += TOKEN_CONTAINS_SCORE
+            }
             if (brand.contains(token)) score += TOKEN_BRAND_SCORE
         }
 
