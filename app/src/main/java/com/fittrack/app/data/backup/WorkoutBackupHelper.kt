@@ -421,6 +421,11 @@ object WorkoutBackupHelper {
                 )
             }
         }
+
+        // After a successful import, remove any legacy backup files so they can never be read
+        // again on a future reinstall.  The new backup system writes auto_backup_snapshot.json
+        // after every data change, so the legacy files are no longer needed.
+        cleanupLegacyFiles(context)
     }
 
     private suspend fun resolveExerciseForImport(
@@ -554,6 +559,16 @@ object WorkoutBackupHelper {
                 add(File(legacyDir, LEGACY_BACKUP_FILENAME))
             }
             add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
+        }
+    }
+
+    private fun cleanupLegacyFiles(context: Context) {
+        legacyBackupFiles(context).forEach { file ->
+            if (file.exists()) {
+                runCatching { file.delete() }
+                    .onSuccess { Log.i(TAG, "Deleted legacy backup file: ${file.absolutePath}") }
+                    .onFailure { Log.w(TAG, "Could not delete legacy backup file: ${file.absolutePath}", it) }
+            }
         }
     }
 }

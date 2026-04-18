@@ -25,6 +25,7 @@ import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.seed.ExerciseSeedLoader
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,6 +45,13 @@ abstract class FitTrackDatabase : RoomDatabase() {
     abstract fun workoutCaloriesDao(): WorkoutCaloriesDao
     abstract fun customFoodDao(): CustomFoodDao
     abstract fun recipeDao(): RecipeDao
+
+    /**
+     * Completes once the one-time on-open initialization (exercise seeding + backup import)
+     * has finished. Any observer that writes derived state (e.g. the auto-export) must
+     * await this before starting to avoid capturing intermediate, partially-restored state.
+     */
+    val initializationComplete: CompletableDeferred<Unit> = CompletableDeferred()
 
     companion object {
         @Volatile
@@ -79,6 +87,10 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                         database.foodDao(),
                                         database.workoutCaloriesDao()
                                     )
+                                    // Signal that seeding + import are complete so that the
+                                    // auto-export observer can start safely (avoids writing a
+                                    // partial snapshot while exercises are still being inserted).
+                                    database.initializationComplete.complete(Unit)
                                 }
                             }
                         }
