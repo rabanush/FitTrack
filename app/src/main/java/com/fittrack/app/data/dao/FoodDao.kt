@@ -46,4 +46,15 @@ interface FoodDao {
         WHERE m.date_millis = :dateMillis
     """)
     fun getFoodEntriesForDay(dateMillis: Long): Flow<List<FoodEntry>>
+
+    @Query(
+        """
+        SELECT barcode
+        FROM food_entries
+        WHERE barcode IS NOT NULL AND TRIM(barcode) != ''
+        GROUP BY barcode
+        ORDER BY MAX(id) DESC
+    """
+    )
+    suspend fun getRecentlyUsedBarcodes(): List<String>
 }

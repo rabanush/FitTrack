@@ -317,7 +317,7 @@ object WorkoutBackupHelper {
                 name = BACKUP_FILENAME,
                 mimeType = "application/json"
             ) ?: return false
-            context.contentResolver.openOutputStream(backupFileUri, "wt")?.use { out ->
+            context.contentResolver.openOutputStream(backupFileUri, "rwt")?.use { out ->
                 out.write(json.toByteArray(Charsets.UTF_8))
             } ?: return false
             true

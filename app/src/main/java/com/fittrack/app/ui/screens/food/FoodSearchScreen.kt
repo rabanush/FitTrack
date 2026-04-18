@@ -80,7 +80,10 @@ fun FoodSearchScreen(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
-                    onSearch = { viewModel.search(query) }
+                    onSearch = { viewModel.search(query) },
+                    onDone = { viewModel.search(query) },
+                    onGo = { viewModel.search(query) },
+                    onSend = { viewModel.search(query) }
                 ),
                 trailingIcon = {
                     IconButton(onClick = { viewModel.search(query) }) {

@@ -90,6 +90,7 @@ class FoodRepository(
         if (trimmedQuery.isBlank()) return emptyList()
         val normalizedQuery = trimmedQuery.normalizedForSearch()
         val queryTokens = normalizedQuery.split(" ")
+        val recentBarcodeIndex = getRecentBarcodeIndex()
 
         return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
             .getOrElse { emptyList() }
@@ -103,7 +104,11 @@ class FoodRepository(
                     quantity = product.quantity.orEmpty().normalizedForSearch()
                 )
             }
-            .sortedByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
+            .sortedWith(
+                compareByDescending<OFFProduct> { recentBarcodeIndex.containsKey(it.code?.trim()) }
+                    .thenBy { recentBarcodeIndex[it.code?.trim()] ?: Int.MAX_VALUE }
+                    .thenByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
+            )
             .take(30)
             .toList()
     }
@@ -119,7 +124,13 @@ class FoodRepository(
 
     suspend fun deleteCustomFood(food: CustomFood) = customFoodDao.delete(food)
 
-    suspend fun searchCustomFoods(query: String): List<CustomFood> = customFoodDao.search(query)
+    suspend fun searchCustomFoods(query: String): List<CustomFood> {
+        val recentBarcodeIndex = getRecentBarcodeIndex()
+        return customFoodDao.search(query).sortedWith(
+            compareBy<CustomFood> { recentBarcodeIndex[it.barcode?.trim()] ?: Int.MAX_VALUE }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
+    }
 
     suspend fun getCustomFoodByBarcode(barcode: String): CustomFood? =
         customFoodDao.findByBarcode(barcode)
@@ -185,4 +196,9 @@ class FoodRepository(
             .replace(NON_ALPHANUMERIC_REGEX, " ")
             .replace(MULTI_SPACE_REGEX, " ")
             .trim()
+
+    private suspend fun getRecentBarcodeIndex(): Map<String, Int> =
+        foodDao.getRecentlyUsedBarcodes()
+            .withIndex()
+            .associate { it.value to it.index }
 }
