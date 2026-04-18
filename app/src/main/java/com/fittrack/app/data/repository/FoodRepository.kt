@@ -32,6 +32,12 @@ class FoodRepository(
         val quantity: String
     )
 
+    private data class RankedProduct(
+        val product: OFFProduct,
+        val barcode: String?,
+        val relevance: Int
+    )
+
     private companion object {
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
@@ -104,11 +110,19 @@ class FoodRepository(
                     quantity = product.quantity.orEmpty().normalizedForSearch()
                 )
             }
+            .map { product ->
+                RankedProduct(
+                    product = product,
+                    barcode = product.code?.trim(),
+                    relevance = relevanceScore(product, normalizedQuery, queryTokens)
+                )
+            }
             .sortedWith(
-                compareByDescending<OFFProduct> { recentBarcodeIndex.containsKey(it.code?.trim()) }
-                    .thenBy { recentBarcodeIndex[it.code?.trim()] ?: Int.MAX_VALUE }
-                    .thenByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
+                compareByDescending<RankedProduct> { recentBarcodeIndex.containsKey(it.barcode) }
+                    .thenBy { recentBarcodeIndex[it.barcode] ?: Int.MAX_VALUE }
+                    .thenByDescending { it.relevance }
             )
+            .map { it.product }
             .take(30)
             .toList()
     }
