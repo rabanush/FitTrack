@@ -15,6 +15,7 @@ import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.data.network.OpenFoodFactsApi
 import com.fittrack.app.data.preferences.UserPreferences
 import kotlinx.coroutines.flow.Flow
+import java.util.Locale
 
 class FoodRepository(
     private val foodDao: FoodDao,
@@ -24,6 +25,27 @@ class FoodRepository(
     private val customFoodDao: CustomFoodDao,
     private val recipeDao: RecipeDao
 ) {
+    private data class ProductDedupKey(
+        val code: String?,
+        val name: String,
+        val brand: String,
+        val quantity: String
+    )
+
+    private companion object {
+        const val EXACT_MATCH_SCORE = 1000
+        const val PREFIX_MATCH_SCORE = 700
+        const val WORD_MATCH_SCORE = 500
+        const val CONTAINS_MATCH_SCORE = 300
+        const val BRAND_MATCH_SCORE = 80
+        const val TOKEN_PREFIX_SCORE = 40
+        const val TOKEN_WORD_SCORE = 35
+        const val TOKEN_CONTAINS_SCORE = 25
+        const val TOKEN_BRAND_SCORE = 10
+        const val MAX_NAME_LENGTH_PENALTY = 80
+        val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
+        val MULTI_SPACE_REGEX = Regex("\\s+")
+    }
 
     // ---- Meals ----
 
@@ -63,8 +85,28 @@ class FoodRepository(
 
     // ---- OpenFoodFacts API ----
 
-    suspend fun searchProducts(query: String): List<OFFProduct> =
-        runCatching { api.searchProducts(query).products }.getOrElse { emptyList() }
+    suspend fun searchProducts(query: String): List<OFFProduct> {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return emptyList()
+        val normalizedQuery = trimmedQuery.normalizedForSearch()
+        val queryTokens = normalizedQuery.split(" ")
+
+        return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
+            .getOrElse { emptyList() }
+            .asSequence()
+            .filter { it.displayName != "Unbekanntes Produkt" }
+            .distinctBy { product ->
+                ProductDedupKey(
+                    code = product.code?.trim().takeUnless { it.isNullOrBlank() }?.normalizedForSearch(),
+                    name = product.displayName.normalizedForSearch(),
+                    brand = product.brands.orEmpty().normalizedForSearch(),
+                    quantity = product.quantity.orEmpty().normalizedForSearch()
+                )
+            }
+            .sortedByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
+            .take(30)
+            .toList()
+    }
 
     suspend fun getProductByBarcode(barcode: String): OFFProduct? =
         runCatching { api.getProductByBarcode(barcode).product }.getOrNull()
@@ -101,4 +143,46 @@ class FoodRepository(
     suspend fun deleteRecipeItem(item: RecipeItem) = recipeDao.deleteRecipeItem(item)
 
     suspend fun getRecipeCount(): Int = recipeDao.getCount()
+
+    private fun relevanceScore(
+        product: OFFProduct,
+        normalizedQuery: String,
+        queryTokens: List<String>
+    ): Int {
+        if (normalizedQuery.isBlank()) return 0
+
+        val name = product.displayName.normalizedForSearch()
+        val brand = product.brands?.normalizedForSearch().orEmpty()
+
+        var score = 0
+        when {
+            name == normalizedQuery -> score += EXACT_MATCH_SCORE
+            name.startsWith(normalizedQuery) -> score += PREFIX_MATCH_SCORE
+            name.contains(" $normalizedQuery") -> score += WORD_MATCH_SCORE
+            name.contains(normalizedQuery) -> score += CONTAINS_MATCH_SCORE
+        }
+        if (brand.contains(normalizedQuery)) score += BRAND_MATCH_SCORE
+
+        queryTokens.forEach { token ->
+            when {
+                name.startsWith(token) -> score += TOKEN_PREFIX_SCORE
+                name.contains(" $token") -> score += TOKEN_WORD_SCORE
+                name.contains(token) -> score += TOKEN_CONTAINS_SCORE
+            }
+            if (brand.contains(token)) score += TOKEN_BRAND_SCORE
+        }
+
+        score -= name.length.coerceAtMost(MAX_NAME_LENGTH_PENALTY)
+        return score
+    }
+
+    private fun String.normalizedForSearch(): String =
+        lowercase(Locale.ROOT)
+            .replace('ä', 'a')
+            .replace('ö', 'o')
+            .replace('ü', 'u')
+            .replace('ß', 's')
+            .replace(NON_ALPHANUMERIC_REGEX, " ")
+            .replace(MULTI_SPACE_REGEX, " ")
+            .trim()
 }
