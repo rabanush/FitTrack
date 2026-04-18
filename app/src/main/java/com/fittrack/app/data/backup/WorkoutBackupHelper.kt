@@ -37,6 +37,7 @@ private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
 private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
+// Safety guard for storage traversal to avoid scanning too much data on large devices.
 private const val MAX_SCAN_DIRECTORIES = 15_000
 // v2 adds meals, food entries, and workout calories to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 2
@@ -136,6 +137,7 @@ object WorkoutBackupHelper {
     private val gson = Gson()
     private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, "backup.json")
     private val knownBackupDirectories = setOf(LEGACY_DIRECTORY.lowercase(Locale.ROOT), LEGACY_DIRECTORY_ALT.lowercase(Locale.ROOT))
+    private val backupJsonPattern = Regex("^fittrack.*backup.*\\.json$", RegexOption.IGNORE_CASE)
 
     fun purgeAllBackupData(context: Context) {
         val deleteCandidates = linkedSetOf<File>()
@@ -630,7 +632,7 @@ object WorkoutBackupHelper {
                 val loweredName = child.name.lowercase(Locale.ROOT)
                 if (child.isDirectory) {
                     val isNamedBackupDir = loweredName in knownBackupDirectories
-                    val looksLikeBackupDir = loweredName.contains("fittrack") && loweredName.contains("backup")
+                    val looksLikeBackupDir = loweredName.startsWith("fittrack") && loweredName.contains("backup")
                     if (isNamedBackupDir || looksLikeBackupDir) {
                         results.add(child)
                         continue
@@ -640,7 +642,7 @@ object WorkoutBackupHelper {
                 }
 
                 val isKnownBackupFile = loweredName in knownBackupFiles
-                val looksLikeBackupJson = loweredName.contains("fittrack") && loweredName.contains("backup") && loweredName.endsWith(".json")
+                val looksLikeBackupJson = backupJsonPattern.matches(loweredName)
                 if (isKnownBackupFile || looksLikeBackupJson) {
                     results.add(child)
                 }
@@ -660,9 +662,6 @@ object WorkoutBackupHelper {
         context.externalMediaDirs.forEach { if (it != null) roots += it }
         context.getExternalFilesDirs(null).forEach { if (it != null) roots += it }
         context.getExternalFilesDirs(Environment.DIRECTORY_DOCUMENTS).forEach { if (it != null) roots += it }
-        runCatching { Environment.getExternalStorageDirectory() }.getOrNull()?.let { roots += it }
-        runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) }.getOrNull()?.let { roots += it }
-        runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) }.getOrNull()?.let { roots += it }
         return roots.toList()
     }
 }
