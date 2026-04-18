@@ -51,14 +51,16 @@ class FitTrackApplication : Application() {
                 repository.observeAllWorkoutsWithExercises(),
                 userPreferences.userProfile,
                 foodRepository.observeAllCustomFoods(),
-                foodRepository.observeAllRecipesWithItems()
-            ) { workouts, profile, customFoods, recipes ->
+                foodRepository.observeAllRecipesWithItems(),
+                repository.allExercises
+            ) { workouts, profile, customFoods, recipes, exercises ->
                 WorkoutBackupHelper.exportData(
                     this@FitTrackApplication,
                     workouts,
                     profile,
                     customFoods,
-                    recipes
+                    recipes,
+                    exercises.filter { it.isCustom }
                 )
             }.collect {}
         }
