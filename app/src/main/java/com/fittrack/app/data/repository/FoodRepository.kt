@@ -62,11 +62,12 @@ class FoodRepository(
             if (exactIndex != null) return exactIndex
             if (normalizedName.isBlank()) return null
 
-            val normalizedTokens = normalizedName.tokensForSimilarity()
+            val normalizedTokens = tokensForSimilarity(normalizedName)
             return orderedNames.firstOrNull { recent ->
-                recent.normalizedName.isLikelySameFoodName(
+                isLikelySameFoodName(
+                    base = recent.normalizedName,
                     candidate = normalizedName,
-                    thisTokens = recent.tokens,
+                    baseTokens = recent.tokens,
                     candidateTokens = normalizedTokens
                 )
             }?.index
@@ -300,7 +301,7 @@ class FoodRepository(
                     orderedNames += RecentUsageIndex.SimilarityNameEntry(
                         normalizedName = normalizedName,
                         index = index,
-                        tokens = normalizedName.tokensForSimilarity()
+                        tokens = tokensForSimilarity(normalizedName)
                     )
                 }
             }
@@ -313,25 +314,26 @@ class FoodRepository(
         )
     }
 
-    private fun String.tokensForSimilarity(): Set<String> =
-        split(" ")
+    private fun tokensForSimilarity(value: String): Set<String> =
+        value.split(" ")
             .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
             .toSet()
 
-    private fun String.isLikelySameFoodName(
+    private fun isLikelySameFoodName(
+        base: String,
         candidate: String,
-        thisTokens: Set<String>,
+        baseTokens: Set<String>,
         candidateTokens: Set<String>
     ): Boolean {
-        if (this == candidate) return true
-        if (this.length >= MIN_PREFIX_NAME_LENGTH &&
+        if (base == candidate) return true
+        if (base.length >= MIN_PREFIX_NAME_LENGTH &&
             candidate.length >= MIN_PREFIX_NAME_LENGTH &&
-            (startsWith(candidate) || candidate.startsWith(this))
+            (base.startsWith(candidate) || candidate.startsWith(base))
         ) {
             return true
         }
-        if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
-        val sharedTokens = thisTokens.intersect(candidateTokens)
+        if (baseTokens.isEmpty() || candidateTokens.isEmpty()) return false
+        val sharedTokens = baseTokens.intersect(candidateTokens)
         if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
         // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
         return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
