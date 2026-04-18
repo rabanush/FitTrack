@@ -438,35 +438,54 @@ object WorkoutBackupHelper {
     }
 
     private fun writeJson(context: Context, json: String) {
+        // Write to internal private storage first (covered by Android Auto Backup).
+        writeToFile(getInternalBackupFile(context), json)
+        // Also write to external app-specific storage, which is preserved across
+        // uninstalls on most Android versions, providing a local reinstall fallback.
+        getExternalBackupFile(context)?.let { writeToFile(it, json) }
+    }
+
+    private fun writeToFile(file: File, json: String) {
         try {
-            val backupFile = getBackupFile(context)
-            val parent = backupFile.parentFile
+            val parent = file.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
                 Log.w(TAG, "Failed to create backup directory: ${parent.absolutePath}")
                 return
             }
-            backupFile.writeText(json)
+            file.writeText(json)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to write workout backup", e)
+            Log.w(TAG, "Failed to write backup to ${file.absolutePath}", e)
         }
     }
 
     private fun readJson(context: Context): String? {
         return try {
-            readJsonFromPrimaryFile(context) ?: readJsonFromLegacyFiles(context)
+            // Prefer the external file — it survives a local reinstall without Google Backup.
+            readJsonFromFile(getExternalBackupFile(context))
+                ?: readJsonFromFile(getInternalBackupFile(context))
+                ?: readJsonFromLegacyFiles(context)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read workout backup", e)
             null
         }
     }
 
-    private fun readJsonFromPrimaryFile(context: Context): String? {
-        val file = getBackupFile(context)
-        if (!file.exists()) return null
-        return file.readText()
+    private fun readJsonFromFile(file: File?): String? {
+        if (file == null || !file.exists()) return null
+        return runCatching { file.readText() }
+            .onFailure { Log.w(TAG, "Failed to read backup from ${file.absolutePath}", it) }
+            .getOrNull()
     }
 
-    private fun getBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+    /** Internal private storage – deleted on uninstall but covered by Android Auto Backup. */
+    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
+
+    /** External app-specific storage – survives uninstall on most Android devices.
+     *  Returns null when external storage is unavailable. */
+    private fun getExternalBackupFile(context: Context): File? {
+        val externalFilesDir = context.getExternalFilesDir(null) ?: return null
+        return File(externalFilesDir, BACKUP_FILENAME)
+    }
 
     private fun readJsonFromLegacyFiles(context: Context): String? {
         val files = buildList {
