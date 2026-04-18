@@ -14,6 +14,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.doOnPreDraw
+import androidx.lifecycle.lifecycleScope
+import com.fittrack.app.data.backup.WorkoutBackupHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -58,6 +62,22 @@ class MainActivity : ComponentActivity() {
                 runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
                 app.backupPreferences.saveBackupTreeUri(uri)
                 backupFolderUri = uri
+                // Re-run import now that the SAF URI is available. importData ran during
+                // DB open (onOpen) before the user had a chance to select a folder, so any
+                // backup that already existed at this SAF location was not yet accessible.
+                // This is the common scenario after a reinstall: the physical backup file
+                // at Documents/FitTrackerBackup/backup.json survives uninstall but the stored
+                // URI is lost, so we must attempt the restore again once the URI is re-granted.
+                lifecycleScope.launch(Dispatchers.IO) {
+                    WorkoutBackupHelper.importData(
+                        applicationContext,
+                        app.database.exerciseDao(),
+                        app.database.workoutDao(),
+                        app.userPreferences,
+                        app.database.customFoodDao(),
+                        app.database.recipeDao()
+                    )
+                }
             }
         }
 
