@@ -72,7 +72,7 @@ class FoodRepository(
             .getOrElse { emptyList() }
             .asSequence()
             .filter { it.displayName != "Unbekanntes Produkt" }
-            .distinctBy { (it.code ?: it.displayName).lowercase(Locale.ROOT) }
+            .distinctBy { (it.code ?: it.displayName).normalizedForSearch() }
             .sortedByDescending { relevanceScore(it, trimmedQuery) }
             .take(30)
             .toList()
@@ -128,7 +128,7 @@ class FoodRepository(
         if (name.contains(normalizedQuery)) score += 300
         if (brand.contains(normalizedQuery)) score += 80
 
-        val tokens = normalizedQuery.split(" ").filter { it.isNotBlank() }
+        val tokens = normalizedQuery.split(" ")
         tokens.forEach { token ->
             if (name.startsWith(token)) score += 40
             if (name.contains(" $token")) score += 35
