@@ -36,6 +36,8 @@ class FoodRepository(
         const val TOKEN_CONTAINS_SCORE = 25
         const val TOKEN_BRAND_SCORE = 10
         const val MAX_NAME_LENGTH_PENALTY = 80
+        val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
+        val MULTI_SPACE_REGEX = Regex("\\s+")
     }
 
     // ---- Meals ----
@@ -86,8 +88,7 @@ class FoodRepository(
             .filter { it.displayName != "Unbekanntes Produkt" }
             .distinctBy { product ->
                 product.code?.trim().takeUnless { it.isNullOrBlank() }?.normalizedForSearch()
-                    ?: "${product.displayName}|${product.brands.orEmpty()}|${product.quantity.orEmpty()}"
-                        .normalizedForSearch()
+                    ?: "${product.displayName.normalizedForSearch()}|${product.brands.orEmpty().normalizedForSearch()}|${product.quantity.orEmpty().normalizedForSearch()}"
             }
             .sortedByDescending { relevanceScore(it, trimmedQuery) }
             .take(30)
@@ -166,7 +167,7 @@ class FoodRepository(
             .replace('ö', 'o')
             .replace('ü', 'u')
             .replace('ß', 's')
-            .replace(Regex("[^a-z0-9 ]"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(NON_ALPHANUMERIC_REGEX, " ")
+            .replace(MULTI_SPACE_REGEX, " ")
             .trim()
 }
