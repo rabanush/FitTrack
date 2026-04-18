@@ -363,7 +363,11 @@ object WorkoutBackupHelper {
 
         if (caloriesEmpty) {
             data.workoutCalories.forEach { backupEntry ->
-                val mappedWorkoutId = workoutIdMapping[backupEntry.workoutId] ?: backupEntry.workoutId
+                val mappedWorkoutId = workoutIdMapping[backupEntry.workoutId]
+                if (mappedWorkoutId == null) {
+                    Log.w(TAG, "Skipping workout-calorie restore for unknown workoutId=${backupEntry.workoutId}")
+                    return@forEach
+                }
                 workoutCaloriesDao.insert(
                     WorkoutCalories(
                         dateMillis = backupEntry.dateMillis,
