@@ -34,6 +34,8 @@ private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val LEGACY_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
+private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
+private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
 // v2 adds meals, food entries, and workout calories to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 2
 
@@ -287,15 +289,16 @@ object WorkoutBackupHelper {
 
                 backupWorkout.exercises.forEach { ex ->
                     val resolvedExercise = resolveExerciseForImport(exerciseDao, ex)
-                        ?: createFallbackExerciseForImport(exerciseDao, ex)
-                    if (resolvedExercise == null) {
-                        Log.w(TAG, "Skipping workout exercise restore: '${ex.exerciseName}' could not be resolved")
+                    val exerciseToUse = resolvedExercise ?: createFallbackExerciseForImport(exerciseDao, ex)
+
+                    if (exerciseToUse == null) {
+                        Log.w(TAG, "Skipping workout exercise restore: '${ex.exerciseName}' could not be resolved or recreated")
                         return@forEach
                     }
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = newWorkoutId,
-                            exerciseId = resolvedExercise.id,
+                            exerciseId = exerciseToUse.id,
                             setCount = ex.setCount,
                             orderIndex = ex.orderIndex,
                             restTimerSeconds = ex.restTimerSeconds
@@ -449,16 +452,15 @@ object WorkoutBackupHelper {
         // Final duplicate guard before insert, in case multiple unresolved entries share a name.
         exerciseDao.getExerciseByNormalizedName(fallbackName)?.let { return it }
 
-        val muscleGroupFallback = "Sonstiges"
         val insertedId = exerciseDao.insertExercise(
             Exercise(
                 name = fallbackName,
-                muscleGroup = muscleGroupFallback,
+                muscleGroup = FALLBACK_MUSCLE_GROUP,
                 isCustom = true,
                 germanName = fallbackName.replaceFirstChar {
                     if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
                 },
-                description = "Aus Backup wiederhergestellt"
+                description = FALLBACK_DESCRIPTION
             )
         )
         return exerciseDao.getExerciseById(insertedId)
@@ -538,8 +540,8 @@ object WorkoutBackupHelper {
         return (currentCandidates + legacyCandidates)
             .filter { it.file.exists() }
             .sortedWith(
-                compareByDescending<BackupCandidate> { it.file.lastModified() }
-                    .thenByDescending { it.priority }
+                compareByDescending<BackupCandidate> { it.priority }
+                    .thenByDescending { it.file.lastModified() }
             )
     }
 
