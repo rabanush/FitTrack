@@ -1,9 +1,11 @@
 package com.fittrack.app.data.preferences
 
 import android.content.Context
+import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -53,7 +55,14 @@ class UserPreferences(private val context: Context) {
         val TIMER_VOLUME = intPreferencesKey("timer_volume_percent")
         val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
         val HAS_PROMPTED_BACKUP_FOLDER = booleanPreferencesKey("has_prompted_backup_folder")
+        val RECENT_FOOD_USAGES = stringSetPreferencesKey("recent_food_usages")
     }
+
+    data class RecentFoodUsage(
+        val name: String,
+        val barcode: String?,
+        val addedAtMillis: Long
+    )
 
     val userProfile: Flow<UserProfile> = context.dataStore.data.map { prefs ->
         UserProfile(
@@ -96,5 +105,62 @@ class UserPreferences(private val context: Context) {
 
     suspend fun markBackupFolderPrompted() {
         context.dataStore.edit { prefs -> prefs[Keys.HAS_PROMPTED_BACKUP_FOLDER] = true }
+    }
+
+    suspend fun addRecentFoodUsage(
+        name: String,
+        barcode: String?,
+        addedAtMillis: Long,
+        retentionDays: Long
+    ) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        val cutoffMillis = addedAtMillis - (retentionDays * MILLIS_PER_DAY)
+        context.dataStore.edit { prefs ->
+            val existing = prefs[Keys.RECENT_FOOD_USAGES].orEmpty()
+            val prunedAndCapped = existing.asSequence()
+                .mapNotNull(::decodeRecentFoodUsage)
+                .plus(
+                    RecentFoodUsage(
+                        name = trimmedName,
+                        barcode = barcode?.trim()?.takeIf { it.isNotEmpty() },
+                        addedAtMillis = addedAtMillis
+                    )
+                )
+                .filter { it.addedAtMillis >= cutoffMillis && it.name.isNotBlank() }
+                .sortedBy { it.addedAtMillis }
+                .takeLast(MAX_RECENT_FOOD_USAGE_ITEMS)
+            prefs[Keys.RECENT_FOOD_USAGES] = prunedAndCapped.map(::encodeRecentFoodUsage).toSet()
+        }
+    }
+
+    suspend fun getRecentFoodUsagesSince(sinceMillis: Long): List<RecentFoodUsage> {
+        val encoded = context.dataStore.data.map { it[Keys.RECENT_FOOD_USAGES].orEmpty() }.first()
+        return encoded.asSequence()
+            .mapNotNull(::decodeRecentFoodUsage)
+            .filter { it.addedAtMillis >= sinceMillis && it.name.isNotBlank() }
+            .sortedByDescending { it.addedAtMillis }
+            .toList()
+    }
+
+    private fun encodeRecentFoodUsage(usage: RecentFoodUsage): String {
+        val encodedName = Uri.encode(usage.name.trim())
+        val encodedBarcode = Uri.encode(usage.barcode?.trim().orEmpty())
+        return "${usage.addedAtMillis}|$encodedBarcode|$encodedName"
+    }
+
+    private fun decodeRecentFoodUsage(encoded: String): RecentFoodUsage? {
+        val parts = encoded.split('|', limit = 3)
+        if (parts.size != 3) return null
+        val addedAt = parts[0].toLongOrNull() ?: return null
+        val barcode = Uri.decode(parts[1]).trim().takeIf { it.isNotEmpty() }
+        val name = Uri.decode(parts[2]).trim()
+        if (name.isEmpty()) return null
+        return RecentFoodUsage(name = name, barcode = barcode, addedAtMillis = addedAt)
+    }
+
+    private companion object {
+        const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
+        const val MAX_RECENT_FOOD_USAGE_ITEMS = 2000
     }
 }

@@ -40,23 +40,31 @@ class FoodRepository(
 
     private data class RecentUsageIndex(
         val barcodes: Map<String, Int>,
-        val names: Map<String, Int>
+        val names: Map<String, Int>,
+        val orderedNames: List<Pair<String, Int>>
     ) {
         fun get(barcode: String?, normalizedName: String): Int? {
             val barcodeIndex = barcode?.trim()
                 ?.takeIf { it.isNotEmpty() }
                 ?.let { barcodes[it] }
             val nameIndex = names[normalizedName]
-            return when {
+            val exactIndex = when {
                 barcodeIndex != null && nameIndex != null -> minOf(barcodeIndex, nameIndex)
                 barcodeIndex != null -> barcodeIndex
                 else -> nameIndex
             }
+            if (exactIndex != null) return exactIndex
+            if (normalizedName.isBlank()) return null
+
+            val normalizedTokens = normalizedName.tokensForSimilarity()
+            return orderedNames.firstOrNull { (recentName, _) ->
+                recentName.isLikelySameFoodName(normalizedName, normalizedTokens)
+            }?.second
         }
     }
 
     private companion object {
-        const val RECENT_USAGE_RETENTION_DAYS = 60L
+        const val RECENT_USAGE_RETENTION_DAYS = 90L
         const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
@@ -95,7 +103,18 @@ class FoodRepository(
 
     fun observeAllFoodEntries(): Flow<List<FoodEntry>> = foodDao.getAllFoodEntries()
 
-    suspend fun insertFoodEntry(entry: FoodEntry): Long = foodDao.insertFoodEntry(entry)
+    suspend fun insertFoodEntry(entry: FoodEntry): Long {
+        val insertedId = foodDao.insertFoodEntry(entry)
+        runCatching {
+            userPreferences.addRecentFoodUsage(
+                name = entry.name,
+                barcode = entry.barcode,
+                addedAtMillis = System.currentTimeMillis(),
+                retentionDays = RECENT_USAGE_RETENTION_DAYS
+            )
+        }
+        return insertedId
+    }
 
     suspend fun updateFoodEntry(entry: FoodEntry) = foodDao.updateFoodEntry(entry)
 
@@ -242,10 +261,11 @@ class FoodRepository(
 
     private suspend fun getRecentUsageIndex(): RecentUsageIndex {
         val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
-        val rows = foodDao.getRecentlyUsedFoodsSince(sinceMillis)
+        val rows = userPreferences.getRecentFoodUsagesSince(sinceMillis)
 
         val barcodeIndex = linkedMapOf<String, Int>()
         val nameIndex = linkedMapOf<String, Int>()
+        val orderedNames = mutableListOf<Pair<String, Int>>()
 
         rows.forEachIndexed { index, row ->
             row.barcode?.trim()
@@ -254,12 +274,36 @@ class FoodRepository(
             val normalizedName = row.name.normalizedForSearch()
             if (normalizedName.isNotEmpty()) {
                 nameIndex.putIfAbsent(normalizedName, index)
+                if (orderedNames.none { it.first == normalizedName }) {
+                    orderedNames += normalizedName to index
+                }
             }
         }
 
         return RecentUsageIndex(
             barcodes = barcodeIndex,
-            names = nameIndex
+            names = nameIndex,
+            orderedNames = orderedNames
         )
+    }
+
+    private fun String.tokensForSimilarity(): Set<String> =
+        split(" ")
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .toSet()
+
+    private fun String.isLikelySameFoodName(
+        candidate: String,
+        candidateTokens: Set<String>
+    ): Boolean {
+        if (this == candidate) return true
+        if (this.length >= 4 && candidate.length >= 4 && (startsWith(candidate) || candidate.startsWith(this))) {
+            return true
+        }
+        val thisTokens = tokensForSimilarity()
+        if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
+        val commonTokens = thisTokens.intersect(candidateTokens).size
+        return commonTokens >= 2
     }
 }
