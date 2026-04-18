@@ -634,7 +634,10 @@ object WorkoutBackupHelper {
     private fun writeToDownloadsFile(json: String) {
         try {
             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!dir.exists()) dir.mkdirs()
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.w(TAG, "Failed to create Downloads directory: ${dir.absolutePath}")
+                return
+            }
             File(dir, BACKUP_FILENAME).writeText(json, Charsets.UTF_8)
             Log.i(TAG, "Wrote backup to Downloads folder")
         } catch (e: Exception) {

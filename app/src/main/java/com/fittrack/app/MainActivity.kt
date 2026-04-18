@@ -24,6 +24,11 @@ import com.fittrack.app.util.RestTimerNotificationHelper
 class MainActivity : ComponentActivity() {
     private var resumeWorkoutId: Long? by mutableStateOf(null)
 
+    // Registered before onCreate completes as required by ActivityResultContracts.
+    private val storagePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op – backup write fails gracefully when denied */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -46,8 +51,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
-                .launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
 
         setContent {
