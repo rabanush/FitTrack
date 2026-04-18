@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 
 class FitTrackApplication : Application() {
 
+    /** Intermediate snapshot for staged flow combination to avoid high-arity combine overload issues. */
     private data class BackupCoreSnapshot(
         val workouts: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         val profile: UserProfile,
