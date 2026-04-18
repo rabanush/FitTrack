@@ -47,9 +47,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
 
     /**
-     * Completes once the one-time on-open initialization (exercise seeding + backup import)
-     * has finished. Any observer that writes derived state (e.g. the auto-export) must
-     * await this before starting to avoid capturing intermediate, partially-restored state.
+     * Completes once one-time on-open initialization has finished.
      */
     val initializationComplete: CompletableDeferred<Unit> = CompletableDeferred()
 
@@ -75,21 +73,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     if (exerciseDao.getCount() == 0) {
                                         exerciseDao.insertAll(ExerciseSeedLoader.loadFromAssets(appContext))
                                     }
-                                    // Restore all data from the automatic app-internal backup
-                                    // if this looks like a fresh install/reinstall.
-                                    WorkoutBackupHelper.importData(
-                                        appContext,
-                                        exerciseDao,
-                                        database.workoutDao(),
-                                        userPreferences,
-                                        database.customFoodDao(),
-                                        database.recipeDao(),
-                                        database.foodDao(),
-                                        database.workoutCaloriesDao()
-                                    )
-                                    // Signal that seeding + import are complete so that the
-                                    // auto-export observer can start safely (avoids writing a
-                                    // partial snapshot while exercises are still being inserted).
+                                    WorkoutBackupHelper.purgeAllBackupData(appContext)
                                     database.initializationComplete.complete(Unit)
                                 }
                             }

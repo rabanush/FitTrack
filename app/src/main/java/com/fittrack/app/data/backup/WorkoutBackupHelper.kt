@@ -32,10 +32,12 @@ import java.util.Locale
 private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
 private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val LEGACY_DIRECTORY = "FitTrackerBackup"
+private const val LEGACY_DIRECTORY_ALT = "FitTrackBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
 private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
+private const val MAX_SCAN_DIRECTORIES = 15_000
 // v2 adds meals, food entries, and workout calories to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 2
 
@@ -132,6 +134,27 @@ private data class BackupData(
 object WorkoutBackupHelper {
 
     private val gson = Gson()
+    private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, "backup.json")
+    private val knownBackupDirectories = setOf(LEGACY_DIRECTORY.lowercase(Locale.ROOT), LEGACY_DIRECTORY_ALT.lowercase(Locale.ROOT))
+
+    fun purgeAllBackupData(context: Context) {
+        val deleteCandidates = linkedSetOf<File>()
+        deleteCandidates += backupCandidates(context).map { it.file }
+        deleteCandidates += legacyBackupFiles(context)
+        deleteCandidates += discoverBackupArtifacts(context)
+        deleteCandidates.sortedByDescending { it.absolutePath.length }.forEach { candidate ->
+            runCatching {
+                if (!candidate.exists()) return@runCatching
+                if (candidate.isDirectory) {
+                    candidate.deleteRecursively()
+                } else {
+                    candidate.delete()
+                }
+            }.onFailure {
+                Log.w(TAG, "Could not delete backup artifact: ${candidate.absolutePath}", it)
+            }
+        }
+    }
 
     /**
      * Serialises all relevant app data to JSON and writes it to app-private storage.
@@ -557,18 +580,89 @@ object WorkoutBackupHelper {
                 val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
                 add(File(legacyDir, "backup.json"))
                 add(File(legacyDir, LEGACY_BACKUP_FILENAME))
+                add(legacyDir)
+                add(File(externalDocs, LEGACY_DIRECTORY_ALT))
             }
             add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
+            add(File(context.filesDir, BACKUP_FILENAME))
+            context.getExternalFilesDir(null)?.let { add(File(it, BACKUP_FILENAME)) }
         }
     }
 
     private fun cleanupLegacyFiles(context: Context) {
         legacyBackupFiles(context).forEach { file ->
             if (file.exists()) {
-                runCatching { file.delete() }
+                runCatching {
+                    if (file.isDirectory) {
+                        file.deleteRecursively()
+                    } else {
+                        file.delete()
+                    }
+                }
                     .onSuccess { Log.i(TAG, "Deleted legacy backup file: ${file.absolutePath}") }
                     .onFailure { Log.w(TAG, "Could not delete legacy backup file: ${file.absolutePath}", it) }
             }
         }
+    }
+
+    private fun discoverBackupArtifacts(context: Context): Set<File> {
+        val results = linkedSetOf<File>()
+        val queue = ArrayDeque<File>()
+        val visited = hashSetOf<String>()
+        var scannedDirectories = 0
+
+        scanRoots(context)
+            .filter { it.exists() }
+            .forEach { queue.add(it) }
+
+        while (queue.isNotEmpty() && scannedDirectories < MAX_SCAN_DIRECTORIES) {
+            val directory = queue.removeFirst()
+            val canonicalPath = runCatching { directory.canonicalPath }.getOrElse { directory.absolutePath }
+            if (!visited.add(canonicalPath)) continue
+            if (!directory.isDirectory) continue
+
+            scannedDirectories++
+            val children = runCatching { directory.listFiles()?.toList().orEmpty() }
+                .onFailure { Log.w(TAG, "Cannot scan directory for backup artifacts: ${directory.absolutePath}", it) }
+                .getOrDefault(emptyList())
+
+            for (child in children) {
+                val loweredName = child.name.lowercase(Locale.ROOT)
+                if (child.isDirectory) {
+                    val isNamedBackupDir = loweredName in knownBackupDirectories
+                    val looksLikeBackupDir = loweredName.contains("fittrack") && loweredName.contains("backup")
+                    if (isNamedBackupDir || looksLikeBackupDir) {
+                        results.add(child)
+                        continue
+                    }
+                    queue.add(child)
+                    continue
+                }
+
+                val isKnownBackupFile = loweredName in knownBackupFiles
+                val looksLikeBackupJson = loweredName.contains("fittrack") && loweredName.contains("backup") && loweredName.endsWith(".json")
+                if (isKnownBackupFile || looksLikeBackupJson) {
+                    results.add(child)
+                }
+            }
+        }
+        return results
+    }
+
+    private fun scanRoots(context: Context): List<File> {
+        val roots = linkedSetOf<File>()
+        roots += context.filesDir
+        roots += context.noBackupFilesDir
+        roots += context.cacheDir
+        context.externalCacheDir?.let { roots += it }
+        context.getExternalFilesDir(null)?.let { roots += it }
+        context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { roots += it }
+        context.externalMediaDirs.forEach { if (it != null) roots += it }
+        context.getExternalFilesDirs(null).forEach { if (it != null) roots += it }
+        context.getExternalFilesDirs(Environment.DIRECTORY_DOCUMENTS).forEach { if (it != null) roots += it }
+        runCatching { Environment.getExternalStorageDirectory() }.getOrNull()?.let { roots += it }
+        runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) }.getOrNull()?.let { roots += it }
+        runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) }.getOrNull()?.let { roots += it }
+        return roots.toList()
     }
 }
