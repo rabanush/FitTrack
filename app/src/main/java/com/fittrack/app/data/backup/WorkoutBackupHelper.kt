@@ -1,40 +1,42 @@
 package com.fittrack.app.data.backup
 
 import android.content.Context
-import android.net.Uri
 import android.os.Environment
-import android.provider.DocumentsContract
 import android.util.Log
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
+import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.RecipeDao
+import com.fittrack.app.data.dao.WorkoutCaloriesDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
+import com.fittrack.app.data.model.FoodEntry
+import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
+import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.preferences.ActivityLevel
-import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
-private const val BACKUP_FILENAME = "backup.json"
+private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
 private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
-private const val BACKUP_DIRECTORY = "FitTrackerBackup"
+private const val LEGACY_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
+private const val BACKUP_SCHEMA_VERSION = 2
 
 private data class BackupCustomExercise(
+    @SerializedName("id") val id: Long? = null,
     @SerializedName("name") val name: String,
     @SerializedName("muscleGroup") val muscleGroup: String,
     @SerializedName("germanName") val germanName: String,
@@ -50,6 +52,7 @@ private data class BackupExercise(
 )
 
 private data class BackupWorkout(
+    @SerializedName("id") val id: Long? = null,
     @SerializedName("name") val name: String,
     @SerializedName("exercises") val exercises: List<BackupExercise>
 )
@@ -86,31 +89,49 @@ private data class BackupRecipe(
     @SerializedName("items") val items: List<BackupRecipeItem>
 )
 
+private data class BackupMeal(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("name") val name: String,
+    @SerializedName("dateMillis") val dateMillis: Long
+)
+
+private data class BackupFoodEntry(
+    @SerializedName("mealId") val mealId: Long,
+    @SerializedName("name") val name: String,
+    @SerializedName("barcode") val barcode: String?,
+    @SerializedName("caloriesPer100") val caloriesPer100: Float,
+    @SerializedName("proteinPer100") val proteinPer100: Float,
+    @SerializedName("carbsPer100") val carbsPer100: Float,
+    @SerializedName("fatPer100") val fatPer100: Float,
+    @SerializedName("amount") val amount: Float
+)
+
+private data class BackupWorkoutCalories(
+    @SerializedName("workoutId") val workoutId: Long,
+    @SerializedName("dateMillis") val dateMillis: Long,
+    @SerializedName("caloriesBurned") val caloriesBurned: Float,
+    @SerializedName("durationMinutes") val durationMinutes: Int
+)
+
 private data class BackupData(
-    @SerializedName("workouts") val workouts: List<BackupWorkout>,
+    @SerializedName("version") val version: Int = BACKUP_SCHEMA_VERSION,
+    @SerializedName("workouts") val workouts: List<BackupWorkout> = emptyList(),
     @SerializedName("userProfile") val userProfile: BackupUserProfile? = null,
     @SerializedName("customFoods") val customFoods: List<BackupCustomFood> = emptyList(),
     @SerializedName("recipes") val recipes: List<BackupRecipe> = emptyList(),
-    @SerializedName("customExercises") val customExercises: List<BackupCustomExercise> = emptyList()
+    @SerializedName("customExercises") val customExercises: List<BackupCustomExercise> = emptyList(),
+    @SerializedName("meals") val meals: List<BackupMeal> = emptyList(),
+    @SerializedName("foodEntries") val foodEntries: List<BackupFoodEntry> = emptyList(),
+    @SerializedName("workoutCalories") val workoutCalories: List<BackupWorkoutCalories> = emptyList()
 )
 
 object WorkoutBackupHelper {
 
     private val gson = Gson()
 
-    private val _pendingSkippedExercises = MutableStateFlow<List<String>>(emptyList())
-    /** Exercises that could not be resolved during the last backup import. */
-    val pendingSkippedExercises: StateFlow<List<String>> = _pendingSkippedExercises
-
-    /** Call after the user has acknowledged the skipped-exercises warning. */
-    fun clearSkippedExercises() {
-        _pendingSkippedExercises.value = emptyList()
-    }
-
     /**
-     * Serialises all app data to JSON and writes it to
-     * [Context.getExternalFilesDir]`(Environment.DIRECTORY_DOCUMENTS)/FitTrackerBackup`.
-     * Falls back to legacy app-internal storage when needed.
+     * Serialises all relevant app data to JSON and writes it to app-private storage.
+     * This file is intended to be restored automatically on reinstall via Android backup.
      */
     fun exportData(
         context: Context,
@@ -118,16 +139,15 @@ object WorkoutBackupHelper {
         userProfile: UserProfile,
         customFoods: List<CustomFood>,
         recipes: List<RecipeWithItems>,
-        customExercises: List<Exercise>
+        customExercises: List<Exercise>,
+        meals: List<Meal>,
+        foodEntries: List<FoodEntry>,
+        workoutCalories: List<WorkoutCalories>
     ) {
-        // On fresh installs, observers can emit an initial empty state before import has
-        // restored existing backups; avoid overwriting those backups with empty data.
-        if (shouldSkipEmptyExportDueToExistingBackup(context, workoutsWithExercises, customFoods, recipes, customExercises)) {
-            return
-        }
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
+                    id = workout.id,
                     name = workout.name,
                     exercises = exercises.map { ex ->
                         BackupExercise(
@@ -175,23 +195,47 @@ object WorkoutBackupHelper {
             },
             customExercises = customExercises.map { ex ->
                 BackupCustomExercise(
+                    id = ex.id,
                     name = ex.name,
                     muscleGroup = ex.muscleGroup,
                     germanName = ex.germanName,
                     description = ex.description
                 )
+            },
+            meals = meals.map { meal ->
+                BackupMeal(
+                    id = meal.id,
+                    name = meal.name,
+                    dateMillis = meal.dateMillis
+                )
+            },
+            foodEntries = foodEntries.map { entry ->
+                BackupFoodEntry(
+                    mealId = entry.mealId,
+                    name = entry.name,
+                    barcode = entry.barcode,
+                    caloriesPer100 = entry.caloriesPer100,
+                    proteinPer100 = entry.proteinPer100,
+                    carbsPer100 = entry.carbsPer100,
+                    fatPer100 = entry.fatPer100,
+                    amount = entry.amount
+                )
+            },
+            workoutCalories = workoutCalories.map { entry ->
+                BackupWorkoutCalories(
+                    workoutId = entry.workoutId,
+                    dateMillis = entry.dateMillis,
+                    caloriesBurned = entry.caloriesBurned,
+                    durationMinutes = entry.durationMinutes
+                )
             }
         )
+
         writeJson(context, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from `Documents/FitTrackerBackup` (or legacy app-internal storage)
-     * and inserts all data into the DB and DataStore.
-     * Workout plans, custom foods, and recipes are only restored when the respective
-     * tables are empty (i.e., on a fresh install or after clearing app data).
-     * The user profile is always restored from backup when a valid backup file is found
-     * and workouts are empty, so that body data is not silently overwritten.
+     * Reads the backup file from app storage and restores all data on a fresh install.
      */
     suspend fun importData(
         context: Context,
@@ -199,21 +243,30 @@ object WorkoutBackupHelper {
         workoutDao: WorkoutDao,
         userPreferences: UserPreferences,
         customFoodDao: CustomFoodDao,
-        recipeDao: RecipeDao
+        recipeDao: RecipeDao,
+        foodDao: FoodDao,
+        workoutCaloriesDao: WorkoutCaloriesDao
     ) {
         val json = readJson(context) ?: return
-        val data = try { gson.fromJson(json, BackupData::class.java) } catch (e: Exception) {
+        val data = try {
+            gson.fromJson(json, BackupData::class.java)
+        } catch (e: Exception) {
             Log.w(TAG, "Failed to parse backup JSON — restore skipped", e)
             return
         }
 
         val workoutsEmpty = workoutDao.getWorkoutCount() == 0
+        val customFoodsEmpty = customFoodDao.getCount() == 0
+        val recipesEmpty = recipeDao.getCount() == 0
+        val mealsEmpty = foodDao.getMealCount() == 0
+        val foodEntriesEmpty = foodDao.getFoodEntryCount() == 0
+        val caloriesEmpty = workoutCaloriesDao.getCount() == 0
 
-        // Restore workout plans
+        val workoutIdMapping = mutableMapOf<Long, Long>()
+
         if (workoutsEmpty) {
-            // Step 1: restore custom exercises so they are available when resolving workout exercises
             data.customExercises.forEach { backupEx ->
-                if (exerciseDao.getExerciseByName(backupEx.name) == null) {
+                if (exerciseDao.getExerciseByNormalizedName(backupEx.name) == null) {
                     exerciseDao.insertExercise(
                         Exercise(
                             name = backupEx.name,
@@ -226,21 +279,16 @@ object WorkoutBackupHelper {
                 }
             }
 
-            // Step 2: restore workouts, tracking any exercises that cannot be found
-            val skippedExercises = mutableListOf<String>()
             data.workouts.forEach { backupWorkout ->
-                val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
+                val newWorkoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
+                backupWorkout.id?.let { oldId -> workoutIdMapping[oldId] = newWorkoutId }
+
                 backupWorkout.exercises.forEach { ex ->
-                    val exercise = resolveExerciseForImport(exerciseDao, ex)
-                    if (exercise == null) {
-                        Log.w(TAG, "Exercise '${ex.exerciseName}' not found during import — skipped")
-                        skippedExercises += ex.exerciseName
-                        return@forEach
-                    }
+                    val resolvedExercise = resolveExerciseForImport(exerciseDao, ex) ?: return@forEach
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
-                            workoutId = workoutId,
-                            exerciseId = exercise.id,
+                            workoutId = newWorkoutId,
+                            exerciseId = resolvedExercise.id,
                             setCount = ex.setCount,
                             orderIndex = ex.orderIndex,
                             restTimerSeconds = ex.restTimerSeconds
@@ -248,12 +296,86 @@ object WorkoutBackupHelper {
                     )
                 }
             }
-            if (skippedExercises.isNotEmpty()) {
-                Log.w(TAG, "Import completed with ${skippedExercises.size} skipped exercise(s): $skippedExercises")
-                _pendingSkippedExercises.value = skippedExercises.distinct()
+        }
+
+        if (customFoodsEmpty) {
+            data.customFoods.forEach { backupFood ->
+                customFoodDao.insert(
+                    CustomFood(
+                        name = backupFood.name,
+                        barcode = backupFood.barcode,
+                        caloriesPer100 = backupFood.caloriesPer100,
+                        proteinPer100 = backupFood.proteinPer100,
+                        carbsPer100 = backupFood.carbsPer100,
+                        fatPer100 = backupFood.fatPer100
+                    )
+                )
+            }
+        }
+
+        if (recipesEmpty) {
+            data.recipes.forEach { backupRecipe ->
+                val recipeId = recipeDao.insertRecipe(Recipe(name = backupRecipe.name))
+                backupRecipe.items.forEach { backupItem ->
+                    recipeDao.insertRecipeItem(
+                        RecipeItem(
+                            recipeId = recipeId,
+                            name = backupItem.name,
+                            caloriesPer100 = backupItem.caloriesPer100,
+                            proteinPer100 = backupItem.proteinPer100,
+                            carbsPer100 = backupItem.carbsPer100,
+                            fatPer100 = backupItem.fatPer100,
+                            amount = backupItem.amount
+                        )
+                    )
+                }
+            }
+        }
+
+        if (mealsEmpty && foodEntriesEmpty) {
+            val mealIdMap = mutableMapOf<Long, Long>()
+            data.meals.forEach { backupMeal ->
+                val newMealId = foodDao.insertMeal(
+                    Meal(
+                        name = backupMeal.name,
+                        dateMillis = backupMeal.dateMillis
+                    )
+                )
+                backupMeal.id?.let { oldId -> mealIdMap[oldId] = newMealId }
             }
 
-            // Restore user profile when this looks like a fresh install
+            data.foodEntries.forEach { backupEntry ->
+                val mappedMealId = mealIdMap[backupEntry.mealId] ?: return@forEach
+                foodDao.insertFoodEntry(
+                    FoodEntry(
+                        mealId = mappedMealId,
+                        name = backupEntry.name,
+                        barcode = backupEntry.barcode,
+                        caloriesPer100 = backupEntry.caloriesPer100,
+                        proteinPer100 = backupEntry.proteinPer100,
+                        carbsPer100 = backupEntry.carbsPer100,
+                        fatPer100 = backupEntry.fatPer100,
+                        amount = backupEntry.amount
+                    )
+                )
+            }
+        }
+
+        if (caloriesEmpty) {
+            data.workoutCalories.forEach { backupEntry ->
+                val mappedWorkoutId = workoutIdMapping[backupEntry.workoutId] ?: backupEntry.workoutId
+                workoutCaloriesDao.insert(
+                    WorkoutCalories(
+                        dateMillis = backupEntry.dateMillis,
+                        workoutId = mappedWorkoutId,
+                        caloriesBurned = backupEntry.caloriesBurned,
+                        durationMinutes = backupEntry.durationMinutes
+                    )
+                )
+            }
+        }
+
+        if (workoutsEmpty && customFoodsEmpty && recipesEmpty && mealsEmpty && foodEntriesEmpty && caloriesEmpty) {
             data.userProfile?.let { profile ->
                 val gender = runCatching { Gender.valueOf(profile.gender) }.getOrElse {
                     Log.w(TAG, "Unknown gender value '${profile.gender}' in backup — falling back to MALE")
@@ -273,42 +395,6 @@ object WorkoutBackupHelper {
                         timerVolumePercent = profile.timerVolumePercent ?: DEFAULT_TIMER_VOLUME_PERCENT
                     )
                 )
-            }
-        }
-
-        // Restore custom foods (only when table is empty)
-        if (customFoodDao.getCount() == 0) {
-            data.customFoods.forEach { backupFood ->
-                customFoodDao.insert(
-                    CustomFood(
-                        name = backupFood.name,
-                        barcode = backupFood.barcode,
-                        caloriesPer100 = backupFood.caloriesPer100,
-                        proteinPer100 = backupFood.proteinPer100,
-                        carbsPer100 = backupFood.carbsPer100,
-                        fatPer100 = backupFood.fatPer100
-                    )
-                )
-            }
-        }
-
-        // Restore recipes (only when table is empty)
-        if (recipeDao.getCount() == 0) {
-            data.recipes.forEach { backupRecipe ->
-                val recipeId = recipeDao.insertRecipe(Recipe(name = backupRecipe.name))
-                backupRecipe.items.forEach { backupItem ->
-                    recipeDao.insertRecipeItem(
-                        RecipeItem(
-                            recipeId = recipeId,
-                            name = backupItem.name,
-                            caloriesPer100 = backupItem.caloriesPer100,
-                            proteinPer100 = backupItem.proteinPer100,
-                            carbsPer100 = backupItem.carbsPer100,
-                            fatPer100 = backupItem.fatPer100,
-                            amount = backupItem.amount
-                        )
-                    )
-                }
             }
         }
     }
@@ -334,19 +420,7 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
-            // Write to user-selected SAF folder when configured.
-            val safWriteOk = writeJsonToSelectedTree(context, json)
-            if (!safWriteOk && getSelectedBackupTreeUri(context) != null) {
-                Log.w(TAG, "SAF backup write failed — falling back to local file only")
-            }
-            // Always also write to the app-private fallback file so the backup survives
-            // a reinstall (external-files dir is preserved across reinstalls). Without this
-            // mirror copy, a reinstall clears BackupPreferences (SAF URI is lost) and the
-            // app can no longer read the SAF backup, causing an empty restore.
-            val backupFile = getPrimaryBackupFile(context) ?: run {
-                Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
-                getInternalBackupFile(context)
-            }
+            val backupFile = getBackupFile(context)
             val parent = backupFile.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
                 Log.w(TAG, "Failed to create backup directory: ${parent.absolutePath}")
@@ -360,164 +434,34 @@ object WorkoutBackupHelper {
 
     private fun readJson(context: Context): String? {
         return try {
-            readJsonFromSelectedTree(context) ?: readJsonFromFallbackFiles(context)
+            readJsonFromPrimaryFile(context) ?: readJsonFromLegacyFiles(context)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read workout backup", e)
             null
         }
     }
 
-    private fun getPrimaryBackupFile(context: Context): File? {
-        val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
-        val backupDir = File(documentsDir, BACKUP_DIRECTORY)
-        return File(backupDir, BACKUP_FILENAME)
+    private fun readJsonFromPrimaryFile(context: Context): String? {
+        val file = getBackupFile(context)
+        if (!file.exists()) return null
+        return file.readText()
     }
 
-    private fun getLegacyPrimaryBackupFile(context: Context): File? {
-        val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: return null
-        val backupDir = File(documentsDir, BACKUP_DIRECTORY)
-        return File(backupDir, LEGACY_BACKUP_FILENAME)
-    }
+    private fun getBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
 
-    private fun writeJsonToSelectedTree(context: Context, json: String): Boolean {
-        val treeUri = getSelectedBackupTreeUri(context) ?: return false
-        return try {
-            val backupDirUri = findOrCreateDocument(
-                context = context,
-                parentUri = rootDocumentUri(treeUri),
-                name = BACKUP_DIRECTORY,
-                mimeType = DocumentsContract.Document.MIME_TYPE_DIR
-            ) ?: return false
-            val backupFileUri = findOrCreateDocument(
-                context = context,
-                parentUri = backupDirUri,
-                name = BACKUP_FILENAME,
-                mimeType = "application/json"
-            ) ?: return false
-            context.contentResolver.openOutputStream(backupFileUri, "rwt")?.use { out ->
-                out.write(json.toByteArray(Charsets.UTF_8))
-            } ?: return false
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to write selected-tree backup", e)
-            false
-        }
-    }
-
-    private fun readJsonFromSelectedTree(context: Context): String? {
-        val treeUri = getSelectedBackupTreeUri(context) ?: return null
-        return try {
-            val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
-                ?: return null
-            val backupFileUri = findDocumentUri(context, backupDirUri, BACKUP_FILENAME)
-                ?: findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME)
-                ?: return null
-            context.contentResolver.openInputStream(backupFileUri)?.use { input ->
-                input.bufferedReader(Charsets.UTF_8).readText()
+    private fun readJsonFromLegacyFiles(context: Context): String? {
+        val files = buildList {
+            val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+            if (externalDocs != null) {
+                val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
+                add(File(legacyDir, "backup.json"))
+                add(File(legacyDir, LEGACY_BACKUP_FILENAME))
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to read selected-tree backup", e)
-            null
+            add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
         }
-    }
-
-    private fun rootDocumentUri(treeUri: Uri): Uri =
-        DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
-
-    private fun findOrCreateDocument(
-        context: Context,
-        parentUri: Uri,
-        name: String,
-        mimeType: String
-    ): Uri? {
-        val existing = findDocumentUri(context, parentUri, name)
-        if (existing != null) return existing
-        return DocumentsContract.createDocument(context.contentResolver, parentUri, mimeType, name)
-    }
-
-    private fun findDocumentUri(context: Context, parentUri: Uri, name: String): Uri? {
-        val resolver = context.contentResolver
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
-            parentUri,
-            DocumentsContract.getDocumentId(parentUri)
-        )
-        resolver.query(
-            childrenUri,
-            arrayOf(
-                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                DocumentsContract.Document.COLUMN_DISPLAY_NAME
-            ),
-            null,
-            null,
-            null
-        )?.use { cursor ->
-            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            if (nameColumn == -1 || idColumn == -1) {
-                Log.w(TAG, "Backup document query missing required columns")
-                return null
-            }
-            while (cursor.moveToNext()) {
-                if (cursor.getString(nameColumn) == name) {
-                    return DocumentsContract.buildDocumentUriUsingTree(parentUri, cursor.getString(idColumn))
-                }
-            }
-        }
-        return null
-    }
-
-    private fun getSelectedBackupTreeUri(context: Context): Uri? =
-        BackupPreferences(context).getBackupTreeUri()
-
-    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
-
-    private fun getOldInternalBackupFile(context: Context): File = File(context.filesDir, LEGACY_BACKUP_FILENAME)
-
-    private fun getFallbackBackupFiles(context: Context): List<File> {
-        // Priority (when available): new external name -> old external name -> new internal name -> old internal name.
-        val files = mutableListOf<File>()
-        getPrimaryBackupFile(context)?.let(files::add)
-        getLegacyPrimaryBackupFile(context)?.let(files::add)
-        files += getInternalBackupFile(context)
-        files += getOldInternalBackupFile(context)
-        return files
-    }
-
-    private fun readJsonFromFallbackFiles(context: Context): String? {
-        return runCatching {
-            val existingFile = getFallbackBackupFiles(context).firstOrNull { it.exists() } ?: return null
-            existingFile.readText()
-        }.onFailure { Log.w(TAG, "Failed to read backup from fallback files", it) }
+        val existing = files.firstOrNull { it.exists() } ?: return null
+        return runCatching { existing.readText() }
+            .onFailure { Log.w(TAG, "Failed to read legacy backup file", it) }
             .getOrNull()
-    }
-
-    private fun shouldSkipEmptyExportDueToExistingBackup(
-        context: Context,
-        workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
-        customFoods: List<CustomFood>,
-        recipes: List<RecipeWithItems>,
-        customExercises: List<Exercise>
-    ): Boolean {
-        val isEmptyExport = workoutsWithExercises.isEmpty() && customFoods.isEmpty() && recipes.isEmpty() && customExercises.isEmpty()
-        if (!isEmptyExport) return false
-        return hasExistingBackup(context)
-    }
-
-    private fun hasExistingBackup(context: Context): Boolean {
-        if (selectedTreeBackupExists(context)) return true
-        return getFallbackBackupFiles(context).any { it.exists() }
-    }
-
-    private fun selectedTreeBackupExists(context: Context): Boolean {
-        val treeUri = getSelectedBackupTreeUri(context) ?: return false
-        return try {
-            val backupDirUri = findDocumentUri(context, rootDocumentUri(treeUri), BACKUP_DIRECTORY)
-                ?: return false
-            findDocumentUri(context, backupDirUri, BACKUP_FILENAME) != null ||
-                findDocumentUri(context, backupDirUri, LEGACY_BACKUP_FILENAME) != null
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to check selected-tree backup existence", e)
-            false
-        }
     }
 }

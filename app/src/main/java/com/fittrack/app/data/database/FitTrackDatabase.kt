@@ -67,15 +67,17 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     if (exerciseDao.getCount() == 0) {
                                         exerciseDao.insertAll(ExerciseSeedLoader.loadFromAssets(appContext))
                                     }
-                                    // Restore all data (workout plans, custom foods, recipes, user profile)
-                                    // from the app-internal backup if this looks like a fresh install.
+                                    // Restore all data from the automatic app-internal backup
+                                    // if this looks like a fresh install/reinstall.
                                     WorkoutBackupHelper.importData(
                                         appContext,
                                         exerciseDao,
                                         database.workoutDao(),
                                         userPreferences,
                                         database.customFoodDao(),
-                                        database.recipeDao()
+                                        database.recipeDao(),
+                                        database.foodDao(),
+                                        database.workoutCaloriesDao()
                                     )
                                 }
                             }

@@ -5,7 +5,6 @@ import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.database.FitTrackDatabase
 import com.fittrack.app.data.network.RetrofitInstance
 import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
-import com.fittrack.app.data.preferences.BackupPreferences
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.data.repository.FoodRepository
@@ -20,7 +19,6 @@ class FitTrackApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val userPreferences by lazy { UserPreferences(this) }
-    val backupPreferences by lazy { BackupPreferences(this) }
     val activeWorkoutSessionPreferences by lazy { ActiveWorkoutSessionPreferences(this) }
     val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences) }
     val repository by lazy {
@@ -43,24 +41,28 @@ class FitTrackApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Auto-export workout plans, user profile, custom foods, and recipes to
-        // app-internal private storage whenever any of them change.
-        // Workout history (log entries) and daily food logs are intentionally excluded.
+        // Auto-export all relevant data to app-private storage whenever it changes.
         applicationScope.launch {
             combine(
                 repository.observeAllWorkoutsWithExercises(),
                 userPreferences.userProfile,
                 foodRepository.observeAllCustomFoods(),
                 foodRepository.observeAllRecipesWithItems(),
-                repository.allExercises
-            ) { workouts, profile, customFoods, recipes, exercises ->
+                repository.allExercises,
+                foodRepository.observeAllMeals(),
+                foodRepository.observeAllFoodEntries(),
+                foodRepository.observeAllWorkoutCalories()
+            ) { workouts, profile, customFoods, recipes, exercises, meals, foodEntries, workoutCalories ->
                 WorkoutBackupHelper.exportData(
                     this@FitTrackApplication,
                     workouts,
                     profile,
                     customFoods,
                     recipes,
-                    exercises.filter { it.isCustom }
+                    exercises.filter { it.isCustom },
+                    meals,
+                    foodEntries,
+                    workoutCalories
                 )
             }.collect {}
         }
