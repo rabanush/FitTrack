@@ -51,6 +51,8 @@ class UserPreferences(private val context: Context) {
         val GENDER = stringPreferencesKey("gender")
         val ACTIVITY = stringPreferencesKey("activity_level")
         val TIMER_VOLUME = intPreferencesKey("timer_volume_percent")
+        val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
+        val HAS_PROMPTED_BACKUP_FOLDER = booleanPreferencesKey("has_prompted_backup_folder")
     }
 
     val userProfile: Flow<UserProfile> = context.dataStore.data.map { prefs ->
@@ -64,6 +66,16 @@ class UserPreferences(private val context: Context) {
         )
     }
 
+    /** Persisted SAF tree URI for the user-chosen backup folder (e.g. Documents). Null if not yet configured. */
+    val backupFolderUri: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.BACKUP_FOLDER_URI]
+    }
+
+    /** True once the user has been shown the backup-folder picker at least once. */
+    val hasPromptedBackupFolder: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.HAS_PROMPTED_BACKUP_FOLDER] ?: false
+    }
+
     suspend fun save(profile: UserProfile) {
         context.dataStore.edit { prefs ->
             prefs[Keys.WEIGHT] = profile.weightKg
@@ -73,5 +85,16 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.ACTIVITY] = profile.activityLevel.name
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
         }
+    }
+
+    suspend fun saveBackupFolderUri(uri: String?) {
+        context.dataStore.edit { prefs ->
+            if (uri != null) prefs[Keys.BACKUP_FOLDER_URI] = uri
+            else prefs.remove(Keys.BACKUP_FOLDER_URI)
+        }
+    }
+
+    suspend fun markBackupFolderPrompted() {
+        context.dataStore.edit { prefs -> prefs[Keys.HAS_PROMPTED_BACKUP_FOLDER] = true }
     }
 }

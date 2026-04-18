@@ -1,14 +1,9 @@
 package com.fittrack.app.data.backup
 
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
-import androidx.annotation.RequiresApi
+import androidx.documentfile.provider.DocumentFile
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
@@ -34,11 +29,12 @@ import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import java.io.File
 import java.util.Locale
 
-// Backup file stored in the public Downloads folder – survives app reinstall on all Android versions.
+// FitTrackBackup.json is stored in the user-chosen folder (default: Documents).
+// The folder is granted via ACTION_OPEN_DOCUMENT_TREE on first app start.
 private const val BACKUP_FILENAME = "FitTrackBackup.json"
+private const val BACKUP_MIME_TYPE = "application/json"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
@@ -152,12 +148,12 @@ object WorkoutBackupHelper {
     private val gson = Gson()
 
     /**
-     * Serialises all relevant app data to JSON and writes it to the public Downloads folder
-     * as FitTrackBackup.json. This file survives app reinstall on all Android versions,
-     * including Xiaomi/MIUI devices that use scoped storage.
+     * Serialises all relevant app data to JSON and writes FitTrackBackup.json into the
+     * user-chosen SAF folder. No-op when [treeUriString] is null (folder not yet configured).
      */
     fun exportData(
         context: Context,
+        treeUriString: String?,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         userProfile: UserProfile,
         customFoods: List<CustomFood>,
@@ -169,6 +165,7 @@ object WorkoutBackupHelper {
         activeWorkoutSession: ActiveWorkoutSession?,
         activeWorkoutExerciseSessionsState: String?
     ) {
+        if (treeUriString == null) return
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -267,14 +264,18 @@ object WorkoutBackupHelper {
             }
         )
 
-        writeJson(context, gson.toJson(data))
+        writeJson(context, treeUriString, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from app storage and restores all data on a fresh install.
+     * Reads FitTrackBackup.json from the SAF folder and restores all data.
+     * Only restores each category if the corresponding DB table is empty (fresh install / data-clear).
+     * Restore order: custom exercises → workouts + exercises in workouts → custom foods →
+     * recipes → meals → food entries → workout calories → user profile → active session.
      */
     suspend fun importData(
         context: Context,
+        treeUriString: String?,
         exerciseDao: ExerciseDao,
         workoutDao: WorkoutDao,
         userPreferences: UserPreferences,
@@ -284,7 +285,7 @@ object WorkoutBackupHelper {
         workoutCaloriesDao: WorkoutCaloriesDao,
         activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences
     ) {
-        val json = readJson(context) ?: return
+        val json = readJson(context, treeUriString) ?: return
         val data = try {
             gson.fromJson(json, BackupData::class.java)
         } catch (e: Exception) {
@@ -526,137 +527,50 @@ object WorkoutBackupHelper {
         return exerciseDao.getExerciseById(insertedId)
     }
 
-    private fun writeJson(context: Context, json: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            writeToMediaStoreDownloads(context, json)
-        } else {
-            writeToDownloadsFile(json)
-        }
-    }
-
-    private fun readJson(context: Context): String? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            readFromMediaStoreDownloads(context)
-        } else {
-            readFromDownloadsFile()
-        }
-    }
-
-    /**
-     * Writes the backup JSON to the public Downloads folder via MediaStore (Android 10+).
-     * The file is visible in the file manager as "FitTrackBackup.json" in Downloads,
-     * survives app reinstall, and requires no special permissions on Android 10+.
-     */
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun writeToMediaStoreDownloads(context: Context, json: String) {
-        val resolver = context.contentResolver
-        val jsonBytes = json.toByteArray(Charsets.UTF_8)
-        val existingUri = findInMediaStoreDownloads(context)
-        if (existingUri != null) {
-            try {
-                // Overwrite the existing file in place (wt = write-truncate).
-                resolver.openOutputStream(existingUri, "wt")?.use { it.write(jsonBytes) }
-                Log.i(TAG, "Updated backup in MediaStore Downloads")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to update backup in MediaStore Downloads", e)
-            }
-        } else {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILENAME)
-                put(MediaStore.Downloads.MIME_TYPE, "application/json")
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }
-            val insertUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            if (insertUri == null) {
-                Log.w(TAG, "Failed to create backup entry in MediaStore Downloads")
+    private fun writeJson(context: Context, treeUriString: String, json: String) {
+        try {
+            val treeUri = Uri.parse(treeUriString)
+            val treeDoc = DocumentFile.fromTreeUri(context, treeUri)
+            if (treeDoc == null || !treeDoc.isDirectory) {
+                Log.w(TAG, "Backup folder is not accessible: $treeUriString")
                 return
             }
-            try {
-                resolver.openOutputStream(insertUri)?.use { it.write(jsonBytes) }
-                values.clear()
-                values.put(MediaStore.Downloads.IS_PENDING, 0)
-                resolver.update(insertUri, values, null, null)
-                Log.i(TAG, "Created new backup in MediaStore Downloads")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to write backup to MediaStore Downloads", e)
-                runCatching { resolver.delete(insertUri, null, null) }
+            // Re-use the existing file if it exists, otherwise create it.
+            val backupFile = treeDoc.findFile(BACKUP_FILENAME)
+                ?: treeDoc.createFile(BACKUP_MIME_TYPE, BACKUP_FILENAME)
+            if (backupFile == null) {
+                Log.w(TAG, "Could not create $BACKUP_FILENAME in backup folder")
+                return
             }
+            context.contentResolver.openOutputStream(backupFile.uri, "wt")?.use { out ->
+                out.write(json.toByteArray(Charsets.UTF_8))
+            }
+            Log.i(TAG, "Backup written to ${backupFile.uri}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write backup to SAF folder", e)
         }
     }
 
-    /**
-     * Reads the backup JSON from the public Downloads folder via MediaStore (Android 10+).
-     * Queries by filename only so the file can be found after app reinstall even when
-     * ownership metadata has been reset by the system.
-     */
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun readFromMediaStoreDownloads(context: Context): String? {
-        val uri = findInMediaStoreDownloads(context) ?: run {
-            Log.i(TAG, "No backup found in MediaStore Downloads")
-            return null
-        }
+    private fun readJson(context: Context, treeUriString: String?): String? {
+        if (treeUriString == null) return null
         return try {
-            context.contentResolver.openInputStream(uri)?.use {
-                it.bufferedReader(Charsets.UTF_8).readText()
+            val treeUri = Uri.parse(treeUriString)
+            val treeDoc = DocumentFile.fromTreeUri(context, treeUri)
+            if (treeDoc == null || !treeDoc.isDirectory) {
+                Log.w(TAG, "Backup folder is not accessible: $treeUriString")
+                return null
+            }
+            val backupFile = treeDoc.findFile(BACKUP_FILENAME)
+            if (backupFile == null) {
+                Log.i(TAG, "No $BACKUP_FILENAME found in backup folder")
+                return null
+            }
+            context.contentResolver.openInputStream(backupFile.uri)?.use { stream ->
+                stream.bufferedReader(Charsets.UTF_8).readText()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to read backup from MediaStore Downloads", e)
+            Log.w(TAG, "Failed to read backup from SAF folder", e)
             null
         }
-    }
-
-    /**
-     * Returns the MediaStore URI for the most recently modified FitTrackBackup.json in Downloads,
-     * or null if no such file exists.
-     */
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun findInMediaStoreDownloads(context: Context): Uri? {
-        val resolver = context.contentResolver
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
-        val args = arrayOf(BACKUP_FILENAME)
-        val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
-        return resolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            projection, selection, args, sortOrder
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
-            } else null
-        }
-    }
-
-    /**
-     * Writes the backup JSON directly to the public Downloads folder (Android 8–9).
-     * Requires WRITE_EXTERNAL_STORAGE permission granted at runtime.
-     */
-    private fun writeToDownloadsFile(json: String) {
-        try {
-            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!dir.exists() && !dir.mkdirs()) {
-                Log.w(TAG, "Failed to create Downloads directory: ${dir.absolutePath}")
-                return
-            }
-            File(dir, BACKUP_FILENAME).writeText(json, Charsets.UTF_8)
-            Log.i(TAG, "Wrote backup to Downloads folder")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to write backup to Downloads folder", e)
-        }
-    }
-
-    /**
-     * Reads the backup JSON directly from the public Downloads folder (Android 8–9).
-     * Requires READ_EXTERNAL_STORAGE permission granted at runtime.
-     */
-    private fun readFromDownloadsFile(): String? {
-        val file = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            BACKUP_FILENAME
-        )
-        if (!file.exists()) return null
-        return runCatching { file.readText(Charsets.UTF_8) }
-            .onFailure { Log.w(TAG, "Failed to read backup from Downloads folder", it) }
-            .getOrNull()
     }
 }

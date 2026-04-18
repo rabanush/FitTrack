@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class FitTrackApplication : Application() {
@@ -31,7 +32,8 @@ class FitTrackApplication : Application() {
         const val BACKUP_DEBOUNCE_MILLIS = 300L
     }
 
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Internal so MainActivity can launch import after the user picks a backup folder.
+    internal val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val userPreferences by lazy { UserPreferences(this) }
     val activeWorkoutSessionPreferences by lazy { ActiveWorkoutSessionPreferences(this) }
@@ -58,19 +60,36 @@ class FitTrackApplication : Application() {
         super.onCreate()
         applicationScope.launch {
             database.initializationComplete.await()
-            WorkoutBackupHelper.importData(
-                context = this@FitTrackApplication,
-                exerciseDao = database.exerciseDao(),
-                workoutDao = database.workoutDao(),
-                userPreferences = userPreferences,
-                customFoodDao = database.customFoodDao(),
-                recipeDao = database.recipeDao(),
-                foodDao = database.foodDao(),
-                workoutCaloriesDao = database.workoutCaloriesDao(),
-                activeWorkoutSessionPreferences = activeWorkoutSessionPreferences
-            )
+            // Restore from backup using whatever folder URI is already stored (may be null on
+            // a truly fresh install before the user has picked a folder).
+            runImport()
             observeAndPersistBackups()
         }
+    }
+
+    /**
+     * Called by MainActivity after the user selects a backup folder for the first time.
+     * Waits for DB initialisation to complete and then attempts to restore from the backup.
+     */
+    suspend fun performImportAfterFolderSelected() {
+        database.initializationComplete.await()
+        runImport()
+    }
+
+    private suspend fun runImport() {
+        val treeUriString = userPreferences.backupFolderUri.first()
+        WorkoutBackupHelper.importData(
+            context = this@FitTrackApplication,
+            treeUriString = treeUriString,
+            exerciseDao = database.exerciseDao(),
+            workoutDao = database.workoutDao(),
+            userPreferences = userPreferences,
+            customFoodDao = database.customFoodDao(),
+            recipeDao = database.recipeDao(),
+            foodDao = database.foodDao(),
+            workoutCaloriesDao = database.workoutCaloriesDao(),
+            activeWorkoutSessionPreferences = activeWorkoutSessionPreferences
+        )
     }
 
     private suspend fun observeAndPersistBackups() {
@@ -109,8 +128,14 @@ class FitTrackApplication : Application() {
             }
             .debounce(BACKUP_DEBOUNCE_MILLIS)
             .collect { snapshot ->
+                // Read the current URI at export time so that folder changes are always picked
+                // up without requiring a restart.  Intentionally not combined into the flow to
+                // avoid exporting an empty snapshot immediately after the user selects a folder
+                // (before import has run).
+                val treeUriString = userPreferences.backupFolderUri.first()
                 WorkoutBackupHelper.exportData(
                     context = this@FitTrackApplication,
+                    treeUriString = treeUriString,
                     workoutsWithExercises = snapshot.workouts,
                     userProfile = snapshot.userProfile,
                     customFoods = snapshot.customFoods,
