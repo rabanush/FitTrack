@@ -100,6 +100,31 @@ class FoodRepository(
         const val MIN_DISTINCTIVE_TOKEN_LENGTH = 4
         val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
         val MULTI_SPACE_REGEX = Regex("\\s+")
+
+        private fun tokensForSimilarity(value: String): Set<String> =
+            value.split(" ")
+                .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
+                .toSet()
+
+        private fun isLikelySameFoodName(
+            base: String,
+            candidate: String,
+            baseTokens: Set<String>,
+            candidateTokens: Set<String>
+        ): Boolean {
+            if (base == candidate) return true
+            if (base.length >= MIN_PREFIX_NAME_LENGTH &&
+                candidate.length >= MIN_PREFIX_NAME_LENGTH &&
+                (base.startsWith(candidate) || candidate.startsWith(base))
+            ) {
+                return true
+            }
+            if (baseTokens.isEmpty() || candidateTokens.isEmpty()) return false
+            val sharedTokens = baseTokens.intersect(candidateTokens)
+            if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
+            // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
+            return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
+        }
     }
 
     // ---- Meals ----
@@ -314,28 +339,4 @@ class FoodRepository(
         )
     }
 
-    private fun tokensForSimilarity(value: String): Set<String> =
-        value.split(" ")
-            .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
-            .toSet()
-
-    private fun isLikelySameFoodName(
-        base: String,
-        candidate: String,
-        baseTokens: Set<String>,
-        candidateTokens: Set<String>
-    ): Boolean {
-        if (base == candidate) return true
-        if (base.length >= MIN_PREFIX_NAME_LENGTH &&
-            candidate.length >= MIN_PREFIX_NAME_LENGTH &&
-            (base.startsWith(candidate) || candidate.startsWith(base))
-        ) {
-            return true
-        }
-        if (baseTokens.isEmpty() || candidateTokens.isEmpty()) return false
-        val sharedTokens = baseTokens.intersect(candidateTokens)
-        if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
-        // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
-        return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
-    }
 }
