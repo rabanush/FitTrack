@@ -38,6 +38,7 @@ fun FoodSearchScreen(
     var selectedCustomFood by remember { mutableStateOf<CustomFood?>(null) }
     // When not null, shows the create-product dialog (barcode may be pre-filled)
     var createWithBarcode by remember { mutableStateOf<String?>(null) }
+    val triggerSearch: () -> Unit = { viewModel.search(query) }
 
     // Auto-show the create dialog when the barcode scan returns no result
     LaunchedEffect(searchState) {
@@ -80,13 +81,13 @@ fun FoodSearchScreen(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
-                    onSearch = { viewModel.search(query) },
-                    onDone = { viewModel.search(query) },
-                    onGo = { viewModel.search(query) },
-                    onSend = { viewModel.search(query) }
+                    onSearch = { triggerSearch() },
+                    onDone = { triggerSearch() },
+                    onGo = { triggerSearch() },
+                    onSend = { triggerSearch() }
                 ),
                 trailingIcon = {
-                    IconButton(onClick = { viewModel.search(query) }) {
+                    IconButton(onClick = triggerSearch) {
                         Icon(Icons.Default.Search, contentDescription = "Suchen")
                     }
                 },
