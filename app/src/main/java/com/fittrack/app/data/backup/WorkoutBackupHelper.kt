@@ -31,6 +31,7 @@ import java.util.Locale
 
 private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
 private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
+private const val LEGACY_BACKUP_JSON_FILENAME = "backup.json"
 private const val LEGACY_DIRECTORY = "FitTrackerBackup"
 private const val LEGACY_DIRECTORY_ALT = "FitTrackBackup"
 private const val TAG = "WorkoutBackup"
@@ -135,9 +136,8 @@ private data class BackupData(
 object WorkoutBackupHelper {
 
     private val gson = Gson()
-    private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, "backup.json")
+    private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, LEGACY_BACKUP_JSON_FILENAME)
     private val knownBackupDirectories = setOf(LEGACY_DIRECTORY.lowercase(Locale.ROOT), LEGACY_DIRECTORY_ALT.lowercase(Locale.ROOT))
-    private val backupJsonPattern = Regex("^fittrack.*backup.*\\.json$", RegexOption.IGNORE_CASE)
 
     fun purgeAllBackupData(context: Context) {
         val deleteCandidates = linkedSetOf<File>()
@@ -580,7 +580,7 @@ object WorkoutBackupHelper {
             val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
             if (externalDocs != null) {
                 val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
-                add(File(legacyDir, "backup.json"))
+                add(File(legacyDir, LEGACY_BACKUP_JSON_FILENAME))
                 add(File(legacyDir, LEGACY_BACKUP_FILENAME))
                 add(legacyDir)
                 add(File(externalDocs, LEGACY_DIRECTORY_ALT))
@@ -619,8 +619,7 @@ object WorkoutBackupHelper {
 
         while (queue.isNotEmpty() && scannedDirectories < MAX_SCAN_DIRECTORIES) {
             val directory = queue.removeFirst()
-            val canonicalPath = runCatching { directory.canonicalPath }.getOrElse { directory.absolutePath }
-            if (!visited.add(canonicalPath)) continue
+            if (!visited.add(directory.absolutePath)) continue
             if (!directory.isDirectory) continue
 
             scannedDirectories++
@@ -632,8 +631,7 @@ object WorkoutBackupHelper {
                 val loweredName = child.name.lowercase(Locale.ROOT)
                 if (child.isDirectory) {
                     val isNamedBackupDir = loweredName in knownBackupDirectories
-                    val looksLikeBackupDir = loweredName.startsWith("fittrack") && loweredName.contains("backup")
-                    if (isNamedBackupDir || looksLikeBackupDir) {
+                    if (isNamedBackupDir) {
                         results.add(child)
                         continue
                     }
@@ -642,8 +640,7 @@ object WorkoutBackupHelper {
                 }
 
                 val isKnownBackupFile = loweredName in knownBackupFiles
-                val looksLikeBackupJson = backupJsonPattern.matches(loweredName)
-                if (isKnownBackupFile || looksLikeBackupJson) {
+                if (isKnownBackupFile) {
                     results.add(child)
                 }
             }
