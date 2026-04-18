@@ -337,8 +337,8 @@ object WorkoutBackupHelper {
             }
         }
 
-        if (mealsEmpty && foodEntriesEmpty) {
-            val mealIdMap = mutableMapOf<Long, Long>()
+        val mealIdMap = mutableMapOf<Long, Long>()
+        if (mealsEmpty) {
             data.meals.forEach { backupMeal ->
                 val newMealId = foodDao.insertMeal(
                     Meal(
@@ -348,25 +348,31 @@ object WorkoutBackupHelper {
                 )
                 backupMeal.id?.let { oldId -> mealIdMap[oldId] = newMealId }
             }
+        }
 
-            data.foodEntries.forEach { backupEntry ->
-                val mappedMealId = mealIdMap[backupEntry.mealId]
-                if (mappedMealId == null) {
-                    Log.w(TAG, "Skipping food-entry restore for unknown mealId=${backupEntry.mealId}")
-                    return@forEach
-                }
-                foodDao.insertFoodEntry(
-                    FoodEntry(
-                        mealId = mappedMealId,
-                        name = backupEntry.name,
-                        barcode = backupEntry.barcode,
-                        caloriesPer100 = backupEntry.caloriesPer100,
-                        proteinPer100 = backupEntry.proteinPer100,
-                        carbsPer100 = backupEntry.carbsPer100,
-                        fatPer100 = backupEntry.fatPer100,
-                        amount = backupEntry.amount
+        if (foodEntriesEmpty) {
+            if (mealIdMap.isEmpty() && data.foodEntries.isNotEmpty()) {
+                Log.w(TAG, "Skipping food-entry restore because no meal ID mapping is available")
+            } else {
+                data.foodEntries.forEach { backupEntry ->
+                    val mappedMealId = mealIdMap[backupEntry.mealId]
+                    if (mappedMealId == null) {
+                        Log.w(TAG, "Skipping food-entry restore for unknown mealId=${backupEntry.mealId}")
+                        return@forEach
+                    }
+                    foodDao.insertFoodEntry(
+                        FoodEntry(
+                            mealId = mappedMealId,
+                            name = backupEntry.name,
+                            barcode = backupEntry.barcode,
+                            caloriesPer100 = backupEntry.caloriesPer100,
+                            proteinPer100 = backupEntry.proteinPer100,
+                            carbsPer100 = backupEntry.carbsPer100,
+                            fatPer100 = backupEntry.fatPer100,
+                            amount = backupEntry.amount
+                        )
                     )
-                )
+                }
             }
         }
 
