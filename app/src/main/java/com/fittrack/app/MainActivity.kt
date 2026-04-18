@@ -40,6 +40,16 @@ class MainActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        // On Android 8–9 (API 26–28), WRITE_EXTERNAL_STORAGE is required to create
+        // FitTrackBackup.json in the public Downloads folder. On Android 10+ the
+        // MediaStore API handles this without any permission.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
+                .launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
         setContent {
             FitTrackTheme {
                 Surface(

@@ -1,8 +1,14 @@
 package com.fittrack.app.data.backup
 
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
@@ -29,21 +35,14 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
-import java.nio.file.Files
 import java.util.Locale
 
-private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
-private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
-private const val LEGACY_BACKUP_JSON_FILENAME = "backup.json"
-private const val LEGACY_DIRECTORY = "FitTrackerBackup"
-private const val LEGACY_DIRECTORY_ALT = "FitTrackBackup"
+// Backup file stored in the public Downloads folder – survives app reinstall on all Android versions.
+private const val BACKUP_FILENAME = "FitTrackBackup.json"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
 private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
-// Safety guard for storage traversal to avoid long-running I/O on large devices.
-// Once the limit is reached, scanning stops and only already-discovered artifacts are deleted.
-private const val MAX_SCAN_DIRECTORIES = 15_000
 // v3 adds active workout session and timer state to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 3
 
@@ -151,31 +150,11 @@ private data class BackupData(
 object WorkoutBackupHelper {
 
     private val gson = Gson()
-    private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, LEGACY_BACKUP_JSON_FILENAME)
-    private val knownBackupDirectories = setOf(LEGACY_DIRECTORY.lowercase(Locale.ROOT), LEGACY_DIRECTORY_ALT.lowercase(Locale.ROOT))
-
-    fun purgeAllBackupData(context: Context) {
-        val deleteCandidates = linkedSetOf<File>()
-        deleteCandidates += backupCandidates(context).map { it.file }
-        deleteCandidates += legacyBackupFiles(context)
-        deleteCandidates += discoverBackupArtifacts(context)
-        deleteCandidates.forEach { candidate ->
-            runCatching {
-                if (!candidate.exists()) return@runCatching
-                if (candidate.isDirectory) {
-                    candidate.deleteRecursively()
-                } else {
-                    candidate.delete()
-                }
-            }.onFailure {
-                Log.w(TAG, "Could not delete backup artifact: ${candidate.absolutePath}", it)
-            }
-        }
-    }
 
     /**
-     * Serialises all relevant app data to JSON and writes it to app-private storage.
-     * This file is intended to be restored automatically on reinstall via Android backup.
+     * Serialises all relevant app data to JSON and writes it to the public Downloads folder
+     * as FitTrackBackup.json. This file survives app reinstall on all Android versions,
+     * including Xiaomi/MIUI devices that use scoped storage.
      */
     fun exportData(
         context: Context,
@@ -500,10 +479,8 @@ object WorkoutBackupHelper {
             }
         }
 
-        // After a successful import, remove any legacy backup files so they can never be read
-        // again on a future reinstall.  The new backup system writes auto_backup_snapshot.json
-        // after every data change, so the legacy files are no longer needed.
-        cleanupLegacyFiles(context)
+        // After a successful import the backup file in Downloads already contains
+        // the current snapshot, so no further cleanup step is needed.
     }
 
     private suspend fun resolveExerciseForImport(
@@ -550,170 +527,133 @@ object WorkoutBackupHelper {
     }
 
     private fun writeJson(context: Context, json: String) {
-        // Write to internal private storage first (covered by Android Auto Backup).
-        writeToFile(getInternalBackupFile(context), json)
-        // Also write to external app-specific storage, which is preserved across
-        // uninstalls on most Android versions, providing a local reinstall fallback.
-        getExternalBackupFile(context)?.let { writeToFile(it, json) }
-    }
-
-    private fun writeToFile(file: File, json: String) {
-        try {
-            val parent = file.parentFile
-            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                Log.w(TAG, "Failed to create backup directory: ${parent.absolutePath}")
-                return
-            }
-            file.writeText(json)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to write backup to ${file.absolutePath}", e)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            writeToMediaStoreDownloads(context, json)
+        } else {
+            writeToDownloadsFile(json)
         }
     }
 
     private fun readJson(context: Context): String? {
-        val candidates = backupCandidates(context)
-        if (candidates.isEmpty()) return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            readFromMediaStoreDownloads(context)
+        } else {
+            readFromDownloadsFile()
+        }
+    }
 
-        for (candidate in candidates) {
-            val json = readJsonFromFile(candidate.file)
-            if (!json.isNullOrBlank()) {
-                Log.i(
-                    TAG,
-                    "Using backup from ${candidate.source} (${candidate.file.absolutePath}, ts=${candidate.file.lastModified()})"
-                )
-                return json
+    /**
+     * Writes the backup JSON to the public Downloads folder via MediaStore (Android 10+).
+     * The file is visible in the file manager as "FitTrackBackup.json" in Downloads,
+     * survives app reinstall, and requires no special permissions on Android 10+.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun writeToMediaStoreDownloads(context: Context, json: String) {
+        val resolver = context.contentResolver
+        val jsonBytes = json.toByteArray(Charsets.UTF_8)
+        val existingUri = findInMediaStoreDownloads(context)
+        if (existingUri != null) {
+            try {
+                // Overwrite the existing file in place (wt = write-truncate).
+                resolver.openOutputStream(existingUri, "wt")?.use { it.write(jsonBytes) }
+                Log.i(TAG, "Updated backup in MediaStore Downloads")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update backup in MediaStore Downloads", e)
+            }
+        } else {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILENAME)
+                put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val insertUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            if (insertUri == null) {
+                Log.w(TAG, "Failed to create backup entry in MediaStore Downloads")
+                return
+            }
+            try {
+                resolver.openOutputStream(insertUri)?.use { it.write(jsonBytes) }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(insertUri, values, null, null)
+                Log.i(TAG, "Created new backup in MediaStore Downloads")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to write backup to MediaStore Downloads", e)
+                runCatching { resolver.delete(insertUri, null, null) }
             }
         }
-        return null
     }
 
-    private fun readJsonFromFile(file: File?): String? {
-        if (file == null || !file.exists()) return null
-        return runCatching { file.readText() }
-            .onFailure { Log.w(TAG, "Failed to read backup from ${file.absolutePath}", it) }
-            .getOrNull()
+    /**
+     * Reads the backup JSON from the public Downloads folder via MediaStore (Android 10+).
+     * Queries by filename only so the file can be found after app reinstall even when
+     * ownership metadata has been reset by the system.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun readFromMediaStoreDownloads(context: Context): String? {
+        val uri = findInMediaStoreDownloads(context) ?: run {
+            Log.i(TAG, "No backup found in MediaStore Downloads")
+            return null
+        }
+        return try {
+            context.contentResolver.openInputStream(uri)?.use {
+                it.bufferedReader(Charsets.UTF_8).readText()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read backup from MediaStore Downloads", e)
+            null
+        }
     }
 
-    /** Internal private storage – deleted on uninstall but covered by Android Auto Backup. */
-    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
-
-    /** External app-specific storage – survives uninstall on most Android devices.
-     *  Returns null when external storage is unavailable. */
-    private fun getExternalBackupFile(context: Context): File? {
-        val externalFilesDir = context.getExternalFilesDir(null) ?: return null
-        return File(externalFilesDir, BACKUP_FILENAME)
+    /**
+     * Returns the MediaStore URI for the most recently modified FitTrackBackup.json in Downloads,
+     * or null if no such file exists.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun findInMediaStoreDownloads(context: Context): Uri? {
+        val resolver = context.contentResolver
+        val projection = arrayOf(MediaStore.Downloads._ID)
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+        val args = arrayOf(BACKUP_FILENAME)
+        val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
+        return resolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection, selection, args, sortOrder
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
+                ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+            } else null
+        }
     }
 
-    private data class BackupCandidate(
-        val file: File,
-        val source: String,
-        val priority: Int
-    )
+    /**
+     * Writes the backup JSON directly to the public Downloads folder (Android 8–9).
+     * Requires WRITE_EXTERNAL_STORAGE permission granted at runtime.
+     */
+    private fun writeToDownloadsFile(json: String) {
+        try {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, BACKUP_FILENAME).writeText(json, Charsets.UTF_8)
+            Log.i(TAG, "Wrote backup to Downloads folder")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write backup to Downloads folder", e)
+        }
+    }
 
-    private fun backupCandidates(context: Context): List<BackupCandidate> {
-        val currentCandidates = listOfNotNull(
-            BackupCandidate(getInternalBackupFile(context), "internal", priority = 2),
-            getExternalBackupFile(context)?.let { BackupCandidate(it, "external", priority = 2) }
+    /**
+     * Reads the backup JSON directly from the public Downloads folder (Android 8–9).
+     * Requires READ_EXTERNAL_STORAGE permission granted at runtime.
+     */
+    private fun readFromDownloadsFile(): String? {
+        val file = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            BACKUP_FILENAME
         )
-
-        val legacyCandidates = legacyBackupFiles(context).map { file ->
-            BackupCandidate(file, "legacy", priority = 1)
-        }
-
-        return (currentCandidates + legacyCandidates)
-            .filter { it.file.exists() }
-            .sortedWith(
-                compareByDescending<BackupCandidate> { it.priority }
-                    .thenByDescending { it.file.lastModified() }
-            )
-    }
-
-    private fun legacyBackupFiles(context: Context): List<File> {
-        return buildList {
-            val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-            if (externalDocs != null) {
-                val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
-                add(File(legacyDir, LEGACY_BACKUP_JSON_FILENAME))
-                add(File(legacyDir, LEGACY_BACKUP_FILENAME))
-                add(legacyDir)
-                add(File(externalDocs, LEGACY_DIRECTORY_ALT))
-            }
-            add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
-            add(File(context.filesDir, BACKUP_FILENAME))
-            context.getExternalFilesDir(null)?.let { add(File(it, BACKUP_FILENAME)) }
-        }
-    }
-
-    private fun cleanupLegacyFiles(context: Context) {
-        legacyBackupFiles(context).forEach { file ->
-            if (file.exists()) {
-                runCatching {
-                    if (file.isDirectory) {
-                        file.deleteRecursively()
-                    } else {
-                        file.delete()
-                    }
-                }
-                    .onSuccess { Log.i(TAG, "Deleted legacy backup file: ${file.absolutePath}") }
-                    .onFailure { Log.w(TAG, "Could not delete legacy backup file: ${file.absolutePath}", it) }
-            }
-        }
-    }
-
-    private fun discoverBackupArtifacts(context: Context): Set<File> {
-        val results = linkedSetOf<File>()
-        val queue = ArrayDeque<File>()
-        val visited = hashSetOf<String>()
-        var scannedDirectories = 0
-
-        scanRoots(context)
-            .filter { it.exists() }
-            .forEach { queue.add(it) }
-
-        while (queue.isNotEmpty() && scannedDirectories < MAX_SCAN_DIRECTORIES) {
-            val directory = queue.removeFirst()
-            if (!visited.add(directory.absolutePath)) continue
-            if (!directory.isDirectory) continue
-            if (runCatching { Files.isSymbolicLink(directory.toPath()) }.getOrDefault(false)) continue
-
-            scannedDirectories++
-            val children = runCatching { directory.listFiles()?.toList().orEmpty() }
-                .onFailure { Log.w(TAG, "Cannot scan directory for backup artifacts: ${directory.absolutePath}", it) }
-                .getOrDefault(emptyList())
-
-            for (child in children) {
-                val loweredName = child.name.lowercase(Locale.ROOT)
-                if (child.isDirectory) {
-                    val isNamedBackupDir = loweredName in knownBackupDirectories
-                    if (isNamedBackupDir) {
-                        results.add(child)
-                        continue
-                    }
-                    if (runCatching { Files.isSymbolicLink(child.toPath()) }.getOrDefault(false)) continue
-                    queue.add(child)
-                    continue
-                }
-
-                val isKnownBackupFile = loweredName in knownBackupFiles
-                if (isKnownBackupFile) {
-                    results.add(child)
-                }
-            }
-        }
-        return results
-    }
-
-    private fun scanRoots(context: Context): List<File> {
-        val roots = linkedSetOf<File>()
-        roots += context.filesDir
-        roots += context.noBackupFilesDir
-        roots += context.cacheDir
-        context.externalCacheDir?.let { roots += it }
-        context.getExternalFilesDir(null)?.let { roots += it }
-        context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { roots += it }
-        context.externalMediaDirs.forEach { if (it != null) roots += it }
-        context.getExternalFilesDirs(null).forEach { if (it != null) roots += it }
-        context.getExternalFilesDirs(Environment.DIRECTORY_DOCUMENTS).forEach { if (it != null) roots += it }
-        return roots.toList()
+        if (!file.exists()) return null
+        return runCatching { file.readText(Charsets.UTF_8) }
+            .onFailure { Log.w(TAG, "Failed to read backup from Downloads folder", it) }
+            .getOrNull()
     }
 }
