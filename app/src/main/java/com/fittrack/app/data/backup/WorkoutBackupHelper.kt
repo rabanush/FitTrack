@@ -27,6 +27,7 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
+import java.nio.file.Files
 import java.util.Locale
 
 private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
@@ -38,7 +39,8 @@ private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
 private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
-// Safety guard for storage traversal to avoid scanning too much data on large devices.
+// Safety guard for storage traversal to avoid long-running I/O on large devices.
+// Once the limit is reached, scanning stops and only already-discovered artifacts are deleted.
 private const val MAX_SCAN_DIRECTORIES = 15_000
 // v2 adds meals, food entries, and workout calories to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 2
@@ -144,7 +146,7 @@ object WorkoutBackupHelper {
         deleteCandidates += backupCandidates(context).map { it.file }
         deleteCandidates += legacyBackupFiles(context)
         deleteCandidates += discoverBackupArtifacts(context)
-        deleteCandidates.sortedByDescending { it.absolutePath.length }.forEach { candidate ->
+        deleteCandidates.forEach { candidate ->
             runCatching {
                 if (!candidate.exists()) return@runCatching
                 if (candidate.isDirectory) {
@@ -621,6 +623,7 @@ object WorkoutBackupHelper {
             val directory = queue.removeFirst()
             if (!visited.add(directory.absolutePath)) continue
             if (!directory.isDirectory) continue
+            if (runCatching { Files.isSymbolicLink(directory.toPath()) }.getOrDefault(false)) continue
 
             scannedDirectories++
             val children = runCatching { directory.listFiles()?.toList().orEmpty() }
@@ -635,6 +638,7 @@ object WorkoutBackupHelper {
                         results.add(child)
                         continue
                     }
+                    if (runCatching { Files.isSymbolicLink(child.toPath()) }.getOrDefault(false)) continue
                     queue.add(child)
                     continue
                 }
