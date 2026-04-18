@@ -32,6 +32,12 @@ class FoodRepository(
         val quantity: String
     )
 
+    private data class RankedProduct(
+        val product: OFFProduct,
+        val barcode: String?,
+        val relevance: Int
+    )
+
     private companion object {
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
@@ -90,6 +96,7 @@ class FoodRepository(
         if (trimmedQuery.isBlank()) return emptyList()
         val normalizedQuery = trimmedQuery.normalizedForSearch()
         val queryTokens = normalizedQuery.split(" ")
+        val recentBarcodeIndex = getRecentBarcodeIndex()
 
         return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
             .getOrElse { emptyList() }
@@ -103,7 +110,19 @@ class FoodRepository(
                     quantity = product.quantity.orEmpty().normalizedForSearch()
                 )
             }
-            .sortedByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
+            .map { product ->
+                RankedProduct(
+                    product = product,
+                    barcode = product.code?.trim(),
+                    relevance = relevanceScore(product, normalizedQuery, queryTokens)
+                )
+            }
+            .sortedWith(
+                compareByDescending<RankedProduct> { recentBarcodeIndex.containsKey(it.barcode) }
+                    .thenBy { recentBarcodeIndex[it.barcode] ?: Int.MAX_VALUE }
+                    .thenByDescending { it.relevance }
+            )
+            .map { it.product }
             .take(30)
             .toList()
     }
@@ -119,7 +138,13 @@ class FoodRepository(
 
     suspend fun deleteCustomFood(food: CustomFood) = customFoodDao.delete(food)
 
-    suspend fun searchCustomFoods(query: String): List<CustomFood> = customFoodDao.search(query)
+    suspend fun searchCustomFoods(query: String): List<CustomFood> {
+        val recentBarcodeIndex = getRecentBarcodeIndex()
+        return customFoodDao.search(query).sortedWith(
+            compareBy<CustomFood> { recentBarcodeIndex[it.barcode?.trim()] ?: Int.MAX_VALUE }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
+    }
 
     suspend fun getCustomFoodByBarcode(barcode: String): CustomFood? =
         customFoodDao.findByBarcode(barcode)
@@ -185,4 +210,9 @@ class FoodRepository(
             .replace(NON_ALPHANUMERIC_REGEX, " ")
             .replace(MULTI_SPACE_REGEX, " ")
             .trim()
+
+    private suspend fun getRecentBarcodeIndex(): Map<String, Int> =
+        foodDao.getRecentlyUsedBarcodes()
+            .withIndex()
+            .associate { it.value to it.index }
 }
