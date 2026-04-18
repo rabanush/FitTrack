@@ -25,6 +25,13 @@ class FoodRepository(
     private val customFoodDao: CustomFoodDao,
     private val recipeDao: RecipeDao
 ) {
+    private data class ProductDedupKey(
+        val code: String?,
+        val name: String,
+        val brand: String,
+        val quantity: String
+    )
+
     private companion object {
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
@@ -81,16 +88,22 @@ class FoodRepository(
     suspend fun searchProducts(query: String): List<OFFProduct> {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) return emptyList()
+        val normalizedQuery = trimmedQuery.normalizedForSearch()
+        val queryTokens = normalizedQuery.split(" ")
 
         return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
             .getOrElse { emptyList() }
             .asSequence()
             .filter { it.displayName != "Unbekanntes Produkt" }
             .distinctBy { product ->
-                product.code?.trim().takeUnless { it.isNullOrBlank() }?.normalizedForSearch()
-                    ?: "${product.displayName.normalizedForSearch()}|${product.brands.orEmpty().normalizedForSearch()}|${product.quantity.orEmpty().normalizedForSearch()}"
+                ProductDedupKey(
+                    code = product.code?.trim().takeUnless { it.isNullOrBlank() }?.normalizedForSearch(),
+                    name = product.displayName.normalizedForSearch(),
+                    brand = product.brands.orEmpty().normalizedForSearch(),
+                    quantity = product.quantity.orEmpty().normalizedForSearch()
+                )
             }
-            .sortedByDescending { relevanceScore(it, trimmedQuery) }
+            .sortedByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
             .take(30)
             .toList()
     }
@@ -131,8 +144,11 @@ class FoodRepository(
 
     suspend fun getRecipeCount(): Int = recipeDao.getCount()
 
-    private fun relevanceScore(product: OFFProduct, query: String): Int {
-        val normalizedQuery = query.normalizedForSearch()
+    private fun relevanceScore(
+        product: OFFProduct,
+        normalizedQuery: String,
+        queryTokens: List<String>
+    ): Int {
         if (normalizedQuery.isBlank()) return 0
 
         val name = product.displayName.normalizedForSearch()
@@ -147,8 +163,7 @@ class FoodRepository(
         }
         if (brand.contains(normalizedQuery)) score += BRAND_MATCH_SCORE
 
-        val tokens = normalizedQuery.split(" ")
-        tokens.forEach { token ->
+        queryTokens.forEach { token ->
             when {
                 name.startsWith(token) -> score += TOKEN_PREFIX_SCORE
                 name.contains(" $token") -> score += TOKEN_WORD_SCORE
