@@ -40,23 +40,41 @@ class FoodRepository(
 
     private data class RecentUsageIndex(
         val barcodes: Map<String, Int>,
-        val names: Map<String, Int>
+        val names: Map<String, Int>,
+        val orderedNames: List<SimilarityNameEntry>
     ) {
+        data class SimilarityNameEntry(
+            val normalizedName: String,
+            val index: Int,
+            val tokens: Set<String>
+        )
+
         fun get(barcode: String?, normalizedName: String): Int? {
             val barcodeIndex = barcode?.trim()
                 ?.takeIf { it.isNotEmpty() }
                 ?.let { barcodes[it] }
             val nameIndex = names[normalizedName]
-            return when {
+            val exactIndex = when {
                 barcodeIndex != null && nameIndex != null -> minOf(barcodeIndex, nameIndex)
                 barcodeIndex != null -> barcodeIndex
                 else -> nameIndex
             }
+            if (exactIndex != null) return exactIndex
+            if (normalizedName.isBlank()) return null
+
+            val normalizedTokens = normalizedName.tokensForSimilarity()
+            return orderedNames.firstOrNull { recent ->
+                recent.normalizedName.isLikelySameFoodName(
+                    candidate = normalizedName,
+                    thisTokens = recent.tokens,
+                    candidateTokens = normalizedTokens
+                )
+            }?.index
         }
     }
 
     private companion object {
-        const val RECENT_USAGE_RETENTION_DAYS = 60L
+        const val RECENT_USAGE_RETENTION_DAYS = 90L
         const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
@@ -68,6 +86,17 @@ class FoodRepository(
         const val TOKEN_CONTAINS_SCORE = 25
         const val TOKEN_BRAND_SCORE = 10
         const val MAX_NAME_LENGTH_PENALTY = 80
+        /** Ignore very short fragments when comparing food-name similarity. */
+        const val MIN_SIMILARITY_TOKEN_LENGTH = 3
+        /** Allow prefix similarity only for names with enough signal. */
+        const val MIN_PREFIX_NAME_LENGTH = 4
+        /** Require at least this many shared tokens for fuzzy name equality. */
+        const val MIN_COMMON_TOKENS_FOR_SIMILARITY = 2
+        /**
+         * A single shared token of at least this length is considered distinctive enough
+         * to count as a recency match on its own (e.g. "skyr" in "Naturl Skyr" vs "Skyr Natur").
+         */
+        const val MIN_DISTINCTIVE_TOKEN_LENGTH = 4
         val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
         val MULTI_SPACE_REGEX = Regex("\\s+")
     }
@@ -95,7 +124,18 @@ class FoodRepository(
 
     fun observeAllFoodEntries(): Flow<List<FoodEntry>> = foodDao.getAllFoodEntries()
 
-    suspend fun insertFoodEntry(entry: FoodEntry): Long = foodDao.insertFoodEntry(entry)
+    suspend fun insertFoodEntry(entry: FoodEntry): Long {
+        val insertedId = foodDao.insertFoodEntry(entry)
+        runCatching {
+            userPreferences.addRecentFoodUsage(
+                name = entry.name,
+                barcode = entry.barcode,
+                addedAtMillis = System.currentTimeMillis(),
+                retentionDays = RECENT_USAGE_RETENTION_DAYS
+            )
+        }
+        return insertedId
+    }
 
     suspend fun updateFoodEntry(entry: FoodEntry) = foodDao.updateFoodEntry(entry)
 
@@ -242,10 +282,12 @@ class FoodRepository(
 
     private suspend fun getRecentUsageIndex(): RecentUsageIndex {
         val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
-        val rows = foodDao.getRecentlyUsedFoodsSince(sinceMillis)
+        val rows = userPreferences.getRecentFoodUsagesSince(sinceMillis)
 
         val barcodeIndex = linkedMapOf<String, Int>()
         val nameIndex = linkedMapOf<String, Int>()
+        val orderedNames = mutableListOf<RecentUsageIndex.SimilarityNameEntry>()
+        val seenOrderedNames = hashSetOf<String>()
 
         rows.forEachIndexed { index, row ->
             row.barcode?.trim()
@@ -254,12 +296,44 @@ class FoodRepository(
             val normalizedName = row.name.normalizedForSearch()
             if (normalizedName.isNotEmpty()) {
                 nameIndex.putIfAbsent(normalizedName, index)
+                if (seenOrderedNames.add(normalizedName)) {
+                    orderedNames += RecentUsageIndex.SimilarityNameEntry(
+                        normalizedName = normalizedName,
+                        index = index,
+                        tokens = normalizedName.tokensForSimilarity()
+                    )
+                }
             }
         }
 
         return RecentUsageIndex(
             barcodes = barcodeIndex,
-            names = nameIndex
+            names = nameIndex,
+            orderedNames = orderedNames
         )
+    }
+
+    private fun String.tokensForSimilarity(): Set<String> =
+        split(" ")
+            .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
+            .toSet()
+
+    private fun String.isLikelySameFoodName(
+        candidate: String,
+        thisTokens: Set<String>,
+        candidateTokens: Set<String>
+    ): Boolean {
+        if (this == candidate) return true
+        if (this.length >= MIN_PREFIX_NAME_LENGTH &&
+            candidate.length >= MIN_PREFIX_NAME_LENGTH &&
+            (startsWith(candidate) || candidate.startsWith(this))
+        ) {
+            return true
+        }
+        if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
+        val sharedTokens = thisTokens.intersect(candidateTokens)
+        if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
+        // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
+        return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
     }
 }

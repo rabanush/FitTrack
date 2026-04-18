@@ -5,6 +5,7 @@ import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.data.repository.FoodRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -29,16 +30,20 @@ class FoodSearchViewModel(
 
     private val _barcodeProduct = MutableStateFlow<OFFProduct?>(null)
     val barcodeProduct: StateFlow<OFFProduct?> = _barcodeProduct
+    private var searchJob: Job? = null
 
     fun search(query: String) {
-        if (query.isBlank()) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            searchJob?.cancel()
             _searchState.value = SearchState.Idle
             return
         }
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _searchState.value = SearchState.Loading
-            val apiProducts = foodRepository.searchProducts(query)
-            val customFoods = foodRepository.searchCustomFoods(query)
+            val apiProducts = foodRepository.searchProducts(trimmedQuery)
+            val customFoods = foodRepository.searchCustomFoods(trimmedQuery)
             _searchState.value = if (apiProducts.isEmpty() && customFoods.isEmpty()) {
                 SearchState.Error("Keine Produkte gefunden")
             } else {
