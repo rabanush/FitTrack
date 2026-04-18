@@ -1,6 +1,9 @@
 package com.fittrack.app.data.preferences
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 data class ActiveWorkoutSession(
     val workoutId: Long,
@@ -13,6 +16,8 @@ data class ActiveWorkoutSession(
 
 class ActiveWorkoutSessionPreferences(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val _changeEvents = MutableStateFlow(0L)
+    val changeEvents: StateFlow<Long> = _changeEvents.asStateFlow()
 
     fun getSession(): ActiveWorkoutSession? {
         val workoutId = prefs.getLong(KEY_WORKOUT_ID, NO_WORKOUT_ID)
@@ -44,6 +49,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
                 }
             }
             .apply()
+        notifyChange()
     }
 
     fun saveTimerState(endTimeMillis: Long, totalSeconds: Int, exerciseIndex: Int, setNumber: Int) {
@@ -53,6 +59,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             .putInt(KEY_TIMER_EXERCISE_INDEX, exerciseIndex)
             .putInt(KEY_TIMER_SET_NUMBER, setNumber)
             .apply()
+        notifyChange()
     }
 
     fun clearTimerState() {
@@ -62,16 +69,19 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             .remove(KEY_TIMER_EXERCISE_INDEX)
             .remove(KEY_TIMER_SET_NUMBER)
             .apply()
+        notifyChange()
     }
 
     fun clearSession() {
         prefs.edit().clear().apply()
+        notifyChange()
     }
 
     fun saveExerciseSessionsState(stateJson: String) {
         prefs.edit()
             .putString(KEY_EXERCISE_SESSIONS_STATE, stateJson)
             .apply()
+        notifyChange()
     }
 
     fun getExerciseSessionsState(): String? = prefs.getString(KEY_EXERCISE_SESSIONS_STATE, null)
@@ -80,6 +90,30 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         prefs.edit()
             .remove(KEY_EXERCISE_SESSIONS_STATE)
             .apply()
+        notifyChange()
+    }
+
+    fun restoreSession(session: ActiveWorkoutSession, exerciseSessionsState: String?) {
+        prefs.edit()
+            .putLong(KEY_WORKOUT_ID, session.workoutId)
+            .putLong(KEY_WORKOUT_START_TIME, session.workoutStartTimeMillis)
+            .putLong(KEY_TIMER_END_TIME, session.timerEndTimeMillis)
+            .putInt(KEY_TIMER_TOTAL_SECONDS, session.timerTotalSeconds)
+            .putInt(KEY_TIMER_EXERCISE_INDEX, session.timerExerciseIndex)
+            .putInt(KEY_TIMER_SET_NUMBER, session.timerSetNumber)
+            .apply {
+                if (exerciseSessionsState.isNullOrBlank()) {
+                    remove(KEY_EXERCISE_SESSIONS_STATE)
+                } else {
+                    putString(KEY_EXERCISE_SESSIONS_STATE, exerciseSessionsState)
+                }
+            }
+            .apply()
+        notifyChange()
+    }
+
+    private fun notifyChange() {
+        _changeEvents.value = _changeEvents.value + 1
     }
 
     companion object {

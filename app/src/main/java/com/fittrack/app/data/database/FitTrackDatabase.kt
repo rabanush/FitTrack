@@ -5,7 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
@@ -73,7 +72,6 @@ abstract class FitTrackDatabase : RoomDatabase() {
                                     if (exerciseDao.getCount() == 0) {
                                         exerciseDao.insertAll(ExerciseSeedLoader.loadFromAssets(appContext))
                                     }
-                                    WorkoutBackupHelper.purgeAllBackupData(appContext)
                                     database.initializationComplete.complete(Unit)
                                 }
                             }
