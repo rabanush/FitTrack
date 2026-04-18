@@ -28,6 +28,9 @@ class ActiveWorkoutSessionPreferences(context: Context) {
     }
 
     fun startSession(workoutId: Long, workoutStartTimeMillis: Long) {
+        val existingWorkoutId = prefs.getLong(KEY_WORKOUT_ID, NO_WORKOUT_ID)
+        val existingStartTime = prefs.getLong(KEY_WORKOUT_START_TIME, NO_WORKOUT_START_TIME)
+        val isSameSession = existingWorkoutId == workoutId && existingStartTime == workoutStartTimeMillis
         prefs.edit()
             .putLong(KEY_WORKOUT_ID, workoutId)
             .putLong(KEY_WORKOUT_START_TIME, workoutStartTimeMillis)
@@ -35,6 +38,11 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             .remove(KEY_TIMER_TOTAL_SECONDS)
             .remove(KEY_TIMER_EXERCISE_INDEX)
             .remove(KEY_TIMER_SET_NUMBER)
+            .apply {
+                if (!isSameSession) {
+                    remove(KEY_EXERCISE_SESSIONS_STATE)
+                }
+            }
             .apply()
     }
 
@@ -60,6 +68,20 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         prefs.edit().clear().apply()
     }
 
+    fun saveExerciseSessionsState(stateJson: String) {
+        prefs.edit()
+            .putString(KEY_EXERCISE_SESSIONS_STATE, stateJson)
+            .apply()
+    }
+
+    fun getExerciseSessionsState(): String? = prefs.getString(KEY_EXERCISE_SESSIONS_STATE, null)
+
+    fun clearExerciseSessionsState() {
+        prefs.edit()
+            .remove(KEY_EXERCISE_SESSIONS_STATE)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "active_workout_session"
         private const val KEY_WORKOUT_ID = "workout_id"
@@ -68,6 +90,8 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         private const val KEY_TIMER_TOTAL_SECONDS = "timer_total_seconds"
         private const val KEY_TIMER_EXERCISE_INDEX = "timer_exercise_index"
         private const val KEY_TIMER_SET_NUMBER = "timer_set_number"
+        private const val KEY_EXERCISE_SESSIONS_STATE = "exercise_sessions_state"
         private const val NO_WORKOUT_ID = -1L
+        private const val NO_WORKOUT_START_TIME = -1L
     }
 }

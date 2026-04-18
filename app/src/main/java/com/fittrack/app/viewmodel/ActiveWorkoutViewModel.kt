@@ -12,6 +12,8 @@ import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
 import com.fittrack.app.util.displayName
 import com.fittrack.app.util.todayMillis
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -78,12 +80,19 @@ class ActiveWorkoutViewModel(
     private val _timerVolumePercent = MutableStateFlow(100)
     private val _workoutElapsedSeconds = MutableStateFlow(0)
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
+    private var restoredProgressByWorkoutExerciseId = emptyMap<Long, PersistedExerciseSessionState>()
 
     init {
         val restoredSession = activeWorkoutSessionPreferences.getSession()
             ?.takeIf { it.workoutId == workoutId }
         workoutStartTimeMillis = restoredSession?.workoutStartTimeMillis ?: System.currentTimeMillis()
         activeWorkoutSessionPreferences.startSession(workoutId, workoutStartTimeMillis)
+        restoredProgressByWorkoutExerciseId = if (restoredSession != null) {
+            restoreProgressByWorkoutExerciseId()
+        } else {
+            activeWorkoutSessionPreferences.clearExerciseSessionsState()
+            emptyMap()
+        }
 
         viewModelScope.launch {
             userPreferences.userProfile.collect { profile ->
@@ -99,7 +108,9 @@ class ActiveWorkoutViewModel(
                     return@collect
                 }
                 // Render immediately without waiting for previous-log lookup to finish.
-                _exerciseSessions.value = exercises.map { buildSessionForExercise(it, emptyList()) }
+                _exerciseSessions.value = exercises
+                    .map { buildSessionForExercise(it, emptyList()) }
+                    .let(::applyPersistedProgress)
 
                 val exerciseIds = exercises.map { it.exercise.id }
 
@@ -107,9 +118,9 @@ class ActiveWorkoutViewModel(
                     repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
                         .groupBy { it.exerciseId }
                 }
-                _exerciseSessions.value = exercises.map {
-                    buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList())
-                }
+                _exerciseSessions.value = exercises
+                    .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
+                    .let(::applyPersistedProgress)
             }
         }
 
@@ -123,6 +134,7 @@ class ActiveWorkoutViewModel(
         if (exerciseIndex >= sessions.size) return
         sessions[exerciseIndex] = transform(sessions[exerciseIndex])
         _exerciseSessions.value = sessions
+        persistCurrentProgress()
     }
 
     // Returns a copy of this SetData that is marked as completed, back-filling any empty fields
@@ -356,6 +368,7 @@ class ActiveWorkoutViewModel(
     companion object {
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
+        private val GSON = Gson()
     }
 
     override fun onCleared() {
@@ -414,7 +427,85 @@ class ActiveWorkoutViewModel(
             }
         }
     }
+
+    private fun applyPersistedProgress(freshSessions: List<ExerciseSessionData>): List<ExerciseSessionData> {
+        if (restoredProgressByWorkoutExerciseId.isEmpty()) return freshSessions
+        return freshSessions.map { session ->
+            val persistedSets = restoredProgressByWorkoutExerciseId[session.workoutExercise.workoutExercise.id]
+                ?: return@map session
+            val maxSize = maxOf(session.sets.size, persistedSets.sets.size)
+            val restoredSets = (0 until maxSize).mapNotNull { index ->
+                val persisted = persistedSets.sets.getOrNull(index)
+                val base = session.sets.getOrNull(index)
+                when {
+                    persisted != null && base != null -> persisted.toSetData(base)
+                    persisted != null -> persisted.toSetData()
+                    else -> base
+                }
+            }
+            session.copy(sets = restoredSets)
+        }
+    }
+
+    private fun persistCurrentProgress() {
+        val persisted = _exerciseSessions.value.map { session ->
+            PersistedExerciseSessionState(
+                workoutExerciseId = session.workoutExercise.workoutExercise.id,
+                sets = session.sets.map { it.toPersisted() }
+            )
+        }
+        restoredProgressByWorkoutExerciseId = persisted.associateBy { it.workoutExerciseId }
+        activeWorkoutSessionPreferences.saveExerciseSessionsState(GSON.toJson(persisted))
+    }
+
+    private fun restoreProgressByWorkoutExerciseId(): Map<Long, PersistedExerciseSessionState> {
+        val stateJson = activeWorkoutSessionPreferences.getExerciseSessionsState() ?: return emptyMap()
+        return runCatching {
+            val type = object : TypeToken<List<PersistedExerciseSessionState>>() {}.type
+            val list: List<PersistedExerciseSessionState> = GSON.fromJson(stateJson, type) ?: emptyList()
+            list.associateBy { it.workoutExerciseId }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun SetData.toPersisted() = PersistedSetState(
+        setNumber = setNumber,
+        weight = weight,
+        reps = reps,
+        rir = rir,
+        isCompleted = isCompleted,
+        prevWeight = prevWeight,
+        prevReps = prevReps,
+        prevRir = prevRir
+    )
+
+    private fun PersistedSetState.toSetData(base: SetData? = null): SetData =
+        SetData(
+            setNumber = setNumber,
+            weight = weight,
+            reps = reps,
+            rir = rir,
+            isCompleted = isCompleted,
+            prevWeight = base?.prevWeight ?: prevWeight,
+            prevReps = base?.prevReps ?: prevReps,
+            prevRir = base?.prevRir ?: prevRir
+        )
 }
+
+private data class PersistedExerciseSessionState(
+    val workoutExerciseId: Long,
+    val sets: List<PersistedSetState>
+)
+
+private data class PersistedSetState(
+    val setNumber: Int,
+    val weight: String,
+    val reps: String,
+    val rir: String,
+    val isCompleted: Boolean,
+    val prevWeight: String,
+    val prevReps: String,
+    val prevRir: String
+)
 
 // Each factory below uses an unchecked cast instead of an isAssignableFrom guard:
 // these factories are single-purpose and are always paired with the correct ViewModel
