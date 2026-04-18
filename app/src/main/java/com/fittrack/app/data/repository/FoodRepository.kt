@@ -310,7 +310,6 @@ class FoodRepository(
 
     private fun String.tokensForSimilarity(): Set<String> =
         split(" ")
-            .map { it.trim() }
             .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
             .toSet()
 
@@ -327,7 +326,7 @@ class FoodRepository(
             return true
         }
         if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
-        val commonTokens = thisTokens.intersect(candidateTokens).size
-        return commonTokens >= MIN_COMMON_TOKENS_FOR_SIMILARITY
+        val commonTokenCount = thisTokens.intersect(candidateTokens).size
+        return commonTokenCount >= MIN_COMMON_TOKENS_FOR_SIMILARITY
     }
 }

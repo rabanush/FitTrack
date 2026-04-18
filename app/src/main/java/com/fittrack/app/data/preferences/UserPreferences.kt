@@ -1,13 +1,13 @@
 package com.fittrack.app.data.preferences
 
 import android.content.Context
-import android.net.Uri
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
 
@@ -144,18 +144,20 @@ class UserPreferences(private val context: Context) {
     }
 
     private fun encodeRecentFoodUsage(usage: RecentFoodUsage): String {
-        val encodedName = Uri.encode(usage.name.trim())
-        val encodedBarcode = Uri.encode(usage.barcode?.trim().orEmpty())
-        return "${usage.addedAtMillis}|$encodedBarcode|$encodedName"
+        return JSONObject()
+            .put("addedAtMillis", usage.addedAtMillis)
+            .put("name", usage.name)
+            .put("barcode", usage.barcode)
+            .toString()
     }
 
     private fun decodeRecentFoodUsage(encoded: String): RecentFoodUsage? {
-        val parts = encoded.split('|', limit = 3)
-        if (parts.size != 3) return null
-        val addedAt = parts[0].toLongOrNull() ?: return null
-        val barcode = Uri.decode(parts[1]).trim().takeIf { it.isNotEmpty() }
-        val name = Uri.decode(parts[2]).trim()
+        val obj = runCatching { JSONObject(encoded) }.getOrNull() ?: return null
+        val addedAt = obj.optLong("addedAtMillis", Long.MIN_VALUE)
+        if (addedAt == Long.MIN_VALUE) return null
+        val name = obj.optString("name", "")
         if (name.isEmpty()) return null
+        val barcode = obj.optString("barcode", "").trim().takeIf { it.isNotEmpty() }
         return RecentFoodUsage(name = name, barcode = barcode, addedAtMillis = addedAt)
     }
 
