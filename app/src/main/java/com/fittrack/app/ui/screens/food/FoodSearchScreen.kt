@@ -22,6 +22,7 @@ import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.viewmodel.FoodSearchViewModel
 import com.fittrack.app.viewmodel.SearchState
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +40,17 @@ fun FoodSearchScreen(
     // When not null, shows the create-product dialog (barcode may be pre-filled)
     var createWithBarcode by remember { mutableStateOf<String?>(null) }
     val triggerSearch: () -> Unit = { viewModel.search(query) }
+
+    // Auto-search: trigger 500 ms after the user stops typing so the search
+    // button never needs to be pressed multiple times.
+    LaunchedEffect(query) {
+        if (query.isNotBlank()) {
+            delay(500)
+            viewModel.search(query)
+        } else {
+            viewModel.search("")   // resets to RecentlyUsed / Idle
+        }
+    }
 
     // Auto-show the create dialog when the barcode scan returns no result
     LaunchedEffect(searchState) {
@@ -100,6 +112,35 @@ fun FoodSearchScreen(
                 is SearchState.Idle -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Gib einen Produktnamen ein oder scanne einen Barcode")
+                    }
+                }
+                is SearchState.RecentlyUsed -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            Text(
+                                "Zuletzt verwendet",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                        items(state.foods) { food ->
+                            CustomFoodSearchCard(
+                                food = food,
+                                onClick = { selectedCustomFood = food }
+                            )
+                        }
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { createWithBarcode = "" },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Eigenes Produkt erstellen")
+                            }
+                        }
                     }
                 }
                 is SearchState.Loading -> {

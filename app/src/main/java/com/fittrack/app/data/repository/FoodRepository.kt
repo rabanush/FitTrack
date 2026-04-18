@@ -246,6 +246,56 @@ class FoodRepository(
 
     suspend fun getCustomFoodCount(): Int = customFoodDao.getCount()
 
+    /**
+     * Returns the most recently used foods (distinct by barcode/name) with full nutrition
+     * data from the matching food_entry row. Used to populate the "recently used" list on
+     * the food search screen before the user has entered any query.
+     */
+    suspend fun getRecentlyUsedFoodsAsCustom(): List<CustomFood> {
+        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
+        return foodDao.getRecentlyUsedFoodsWithNutritionSince(sinceMillis).map { row ->
+            CustomFood(
+                id = 0,
+                name = row.name,
+                barcode = row.barcode,
+                caloriesPer100 = row.caloriesPer100,
+                proteinPer100 = row.proteinPer100,
+                carbsPer100 = row.carbsPer100,
+                fatPer100 = row.fatPer100
+            )
+        }
+    }
+
+    /**
+     * Saves an OpenFoodFacts product into the local custom_foods table so it is
+     * found by future keyword searches without requiring a network request.
+     * If a custom food with the same barcode already exists it is skipped to
+     * avoid duplicates.
+     */
+    suspend fun cacheProductAsCustomFood(
+        name: String,
+        barcode: String?,
+        caloriesPer100: Float,
+        proteinPer100: Float,
+        carbsPer100: Float,
+        fatPer100: Float
+    ) {
+        val trimmedBarcode = barcode?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedBarcode != null && customFoodDao.findByBarcode(trimmedBarcode) != null) return
+        runCatching {
+            customFoodDao.insert(
+                CustomFood(
+                    name = name,
+                    barcode = trimmedBarcode,
+                    caloriesPer100 = caloriesPer100,
+                    proteinPer100 = proteinPer100,
+                    carbsPer100 = carbsPer100,
+                    fatPer100 = fatPer100
+                )
+            )
+        }
+    }
+
     // ---- Recipes ----
 
     fun observeAllRecipesWithItems(): Flow<List<RecipeWithItems>> =
