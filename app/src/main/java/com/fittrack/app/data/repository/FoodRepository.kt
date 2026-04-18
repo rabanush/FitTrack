@@ -32,48 +32,6 @@ class FoodRepository(
         val quantity: String
     )
 
-    private data class RankedProduct(
-        val product: OFFProduct,
-        val recentUsageIndex: Int?,
-        val relevance: Int
-    )
-
-    private data class RecentUsageIndex(
-        val barcodes: Map<String, Int>,
-        val names: Map<String, Int>,
-        val orderedNames: List<SimilarityNameEntry>
-    ) {
-        data class SimilarityNameEntry(
-            val normalizedName: String,
-            val index: Int,
-            val tokens: Set<String>
-        )
-
-        fun get(barcode: String?, normalizedName: String): Int? {
-            val barcodeIndex = barcode?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { barcodes[it] }
-            val nameIndex = names[normalizedName]
-            val exactIndex = when {
-                barcodeIndex != null && nameIndex != null -> minOf(barcodeIndex, nameIndex)
-                barcodeIndex != null -> barcodeIndex
-                else -> nameIndex
-            }
-            if (exactIndex != null) return exactIndex
-            if (normalizedName.isBlank()) return null
-
-            val normalizedTokens = tokensForSimilarity(normalizedName)
-            return orderedNames.firstOrNull { recent ->
-                isLikelySameFoodName(
-                    base = recent.normalizedName,
-                    candidate = normalizedName,
-                    baseTokens = recent.tokens,
-                    candidateTokens = normalizedTokens
-                )
-            }?.index
-        }
-    }
-
     private companion object {
         const val RECENT_USAGE_RETENTION_DAYS = 90L
         const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
@@ -87,44 +45,8 @@ class FoodRepository(
         const val TOKEN_CONTAINS_SCORE = 25
         const val TOKEN_BRAND_SCORE = 10
         const val MAX_NAME_LENGTH_PENALTY = 80
-        /** Ignore very short fragments when comparing food-name similarity. */
-        const val MIN_SIMILARITY_TOKEN_LENGTH = 3
-        /** Allow prefix similarity only for names with enough signal. */
-        const val MIN_PREFIX_NAME_LENGTH = 4
-        /** Require at least this many shared tokens for fuzzy name equality. */
-        const val MIN_COMMON_TOKENS_FOR_SIMILARITY = 2
-        /**
-         * A single shared token of at least this length is considered distinctive enough
-         * to count as a recency match on its own (e.g. "skyr" in "Naturl Skyr" vs "Skyr Natur").
-         */
-        const val MIN_DISTINCTIVE_TOKEN_LENGTH = 4
         val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
         val MULTI_SPACE_REGEX = Regex("\\s+")
-
-        private fun tokensForSimilarity(value: String): Set<String> =
-            value.split(" ")
-                .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
-                .toSet()
-
-        private fun isLikelySameFoodName(
-            base: String,
-            candidate: String,
-            baseTokens: Set<String>,
-            candidateTokens: Set<String>
-        ): Boolean {
-            if (base == candidate) return true
-            if (base.length >= MIN_PREFIX_NAME_LENGTH &&
-                candidate.length >= MIN_PREFIX_NAME_LENGTH &&
-                (base.startsWith(candidate) || candidate.startsWith(base))
-            ) {
-                return true
-            }
-            if (baseTokens.isEmpty() || candidateTokens.isEmpty()) return false
-            val sharedTokens = baseTokens.intersect(candidateTokens)
-            if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
-            // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
-            return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
-        }
     }
 
     // ---- Meals ----
@@ -150,18 +72,7 @@ class FoodRepository(
 
     fun observeAllFoodEntries(): Flow<List<FoodEntry>> = foodDao.getAllFoodEntries()
 
-    suspend fun insertFoodEntry(entry: FoodEntry): Long {
-        val insertedId = foodDao.insertFoodEntry(entry)
-        runCatching {
-            userPreferences.addRecentFoodUsage(
-                name = entry.name,
-                barcode = entry.barcode,
-                addedAtMillis = System.currentTimeMillis(),
-                retentionDays = RECENT_USAGE_RETENTION_DAYS
-            )
-        }
-        return insertedId
-    }
+    suspend fun insertFoodEntry(entry: FoodEntry): Long = foodDao.insertFoodEntry(entry)
 
     suspend fun updateFoodEntry(entry: FoodEntry) = foodDao.updateFoodEntry(entry)
 
@@ -187,8 +98,6 @@ class FoodRepository(
         if (trimmedQuery.isBlank()) return emptyList()
         val normalizedQuery = trimmedQuery.normalizedForSearch()
         val queryTokens = normalizedQuery.split(" ")
-        val recentUsageIndex = getRecentUsageIndex()
-
         return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
             .getOrElse { emptyList() }
             .asSequence()
@@ -201,21 +110,7 @@ class FoodRepository(
                     quantity = product.quantity.orEmpty().normalizedForSearch()
                 )
             }
-            .map { product ->
-                RankedProduct(
-                    product = product,
-                    recentUsageIndex = recentUsageIndex.get(
-                        product.code,
-                        product.displayName.normalizedForSearch()
-                    ),
-                    relevance = relevanceScore(product, normalizedQuery, queryTokens)
-                )
-            }
-            .sortedWith(
-                compareBy<RankedProduct> { it.recentUsageIndex ?: Int.MAX_VALUE }
-                    .thenByDescending { it.relevance }
-            )
-            .map { it.product }
+            .sortedByDescending { relevanceScore(it, normalizedQuery, queryTokens) }
             .take(30)
             .toList()
     }
@@ -231,20 +126,46 @@ class FoodRepository(
 
     suspend fun deleteCustomFood(food: CustomFood) = customFoodDao.delete(food)
 
-    suspend fun searchCustomFoods(query: String): List<CustomFood> {
-        val recentUsageIndex = getRecentUsageIndex()
-        return customFoodDao.search(query).sortedWith(
-            compareBy<CustomFood> {
-                recentUsageIndex.get(it.barcode, it.name.normalizedForSearch()) ?: Int.MAX_VALUE
-            }
-                .thenBy { it.name.lowercase(Locale.ROOT) }
-        )
-    }
+    suspend fun searchCustomFoods(query: String): List<CustomFood> =
+        customFoodDao.search(query).sortedBy { it.name.lowercase(Locale.ROOT) }
 
     suspend fun getCustomFoodByBarcode(barcode: String): CustomFood? =
         customFoodDao.findByBarcode(barcode)
 
     suspend fun getCustomFoodCount(): Int = customFoodDao.getCount()
+
+    private fun FoodDao.RecentlyUsedFoodWithNutrition.toCustomFood() = CustomFood(
+        id = 0,
+        name = name,
+        barcode = barcode,
+        caloriesPer100 = caloriesPer100,
+        proteinPer100 = proteinPer100,
+        carbsPer100 = carbsPer100,
+        fatPer100 = fatPer100
+    )
+
+    /**
+     * Returns the most recently used foods (distinct by barcode/name) with full nutrition
+     * data from the matching food_entry row. Used to populate the "recently used" list on
+     * the food search screen before the user has entered any query.
+     */
+    suspend fun getRecentlyUsedFoodsAsCustom(): List<CustomFood> {
+        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
+        return foodDao.searchRecentFoodEntriesWithNutrition(query = "", sinceMillis = sinceMillis)
+            .map { it.toCustomFood() }
+    }
+
+    /**
+     * Searches the history of logged food entries (food_entries table) for items whose
+     * name contains [query]. Returns distinct results (by barcode/name) sorted by most
+     * recently used. This ensures products previously scanned or logged – including
+     * OpenFoodFacts products like "Natural SKyr" – always appear when the user searches
+     * a matching keyword, regardless of what the API returns.
+     */
+    suspend fun searchRecentFoodEntries(query: String): List<CustomFood> {
+        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
+        return foodDao.searchRecentFoodEntriesWithNutrition(query, sinceMillis).map { it.toCustomFood() }
+    }
 
     // ---- Recipes ----
 
@@ -305,38 +226,5 @@ class FoodRepository(
             .replace(NON_ALPHANUMERIC_REGEX, " ")
             .replace(MULTI_SPACE_REGEX, " ")
             .trim()
-
-    private suspend fun getRecentUsageIndex(): RecentUsageIndex {
-        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
-        val rows = userPreferences.getRecentFoodUsagesSince(sinceMillis)
-
-        val barcodeIndex = linkedMapOf<String, Int>()
-        val nameIndex = linkedMapOf<String, Int>()
-        val orderedNames = mutableListOf<RecentUsageIndex.SimilarityNameEntry>()
-        val seenOrderedNames = hashSetOf<String>()
-
-        rows.forEachIndexed { index, row ->
-            row.barcode?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { barcodeIndex.putIfAbsent(it, index) }
-            val normalizedName = row.name.normalizedForSearch()
-            if (normalizedName.isNotEmpty()) {
-                nameIndex.putIfAbsent(normalizedName, index)
-                if (seenOrderedNames.add(normalizedName)) {
-                    orderedNames += RecentUsageIndex.SimilarityNameEntry(
-                        normalizedName = normalizedName,
-                        index = index,
-                        tokens = tokensForSimilarity(normalizedName)
-                    )
-                }
-            }
-        }
-
-        return RecentUsageIndex(
-            barcodes = barcodeIndex,
-            names = nameIndex,
-            orderedNames = orderedNames
-        )
-    }
 
 }

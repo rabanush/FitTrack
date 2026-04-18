@@ -12,9 +12,13 @@ import kotlinx.coroutines.launch
 sealed class SearchState {
     object Idle : SearchState()
     object Loading : SearchState()
+    /** Recently used foods shown before the user has entered any search query. */
+    data class RecentlyUsed(val foods: List<CustomFood>) : SearchState()
     data class Success(
         val products: List<OFFProduct>,
-        val customFoods: List<CustomFood> = emptyList()
+        val customFoods: List<CustomFood> = emptyList(),
+        /** Previously logged foods (from food_entries) matching the query. */
+        val recentFoods: List<CustomFood> = emptyList()
     ) : SearchState()
     data class Error(val message: String) : SearchState()
     /** Barcode was not found in API or local DB; barcode string is provided to pre-fill creation. */
@@ -32,11 +36,17 @@ class FoodSearchViewModel(
     val barcodeProduct: StateFlow<OFFProduct?> = _barcodeProduct
     private var searchJob: Job? = null
 
+    init {
+        // Populate recently used foods immediately so the screen never shows
+        // the "enter a product name" hint when items have already been logged.
+        viewModelScope.launch { showRecentlyUsed() }
+    }
+
     fun search(query: String) {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) {
             searchJob?.cancel()
-            _searchState.value = SearchState.Idle
+            viewModelScope.launch { showRecentlyUsed() }
             return
         }
         searchJob?.cancel()
@@ -44,10 +54,18 @@ class FoodSearchViewModel(
             _searchState.value = SearchState.Loading
             val apiProducts = foodRepository.searchProducts(trimmedQuery)
             val customFoods = foodRepository.searchCustomFoods(trimmedQuery)
-            _searchState.value = if (apiProducts.isEmpty() && customFoods.isEmpty()) {
+            // Also search previously logged food entries so that items like
+            // "Natural SKyr" (scanned earlier) always appear regardless of what
+            // the OpenFoodFacts API happens to return for the search term.
+            val recentFoods = foodRepository.searchRecentFoodEntries(trimmedQuery)
+                .filterNot { recent ->
+                    // Deduplicate: skip entries already covered by customFoods
+                    customFoods.any { it.name.equals(recent.name, ignoreCase = true) }
+                }
+            _searchState.value = if (apiProducts.isEmpty() && customFoods.isEmpty() && recentFoods.isEmpty()) {
                 SearchState.Error("Keine Produkte gefunden")
             } else {
-                SearchState.Success(apiProducts, customFoods)
+                SearchState.Success(apiProducts, customFoods, recentFoods)
             }
         }
     }
@@ -159,7 +177,14 @@ class FoodSearchViewModel(
     }
 
     fun resetState() {
-        _searchState.value = SearchState.Idle
+        viewModelScope.launch { showRecentlyUsed() }
+    }
+
+    // ---- private helpers ----
+
+    private suspend fun showRecentlyUsed() {
+        val recent = foodRepository.getRecentlyUsedFoodsAsCustom()
+        _searchState.value = if (recent.isNotEmpty()) SearchState.RecentlyUsed(recent) else SearchState.Idle
     }
 }
 

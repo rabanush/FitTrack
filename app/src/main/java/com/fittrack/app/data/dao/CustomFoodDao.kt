@@ -16,7 +16,7 @@ interface CustomFoodDao {
     @Query("SELECT * FROM custom_foods ORDER BY name ASC")
     fun getAll(): Flow<List<CustomFood>>
 
-    @Query("SELECT * FROM custom_foods WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM custom_foods WHERE LOWER(name) LIKE '%' || LOWER(TRIM(:query)) || '%' ORDER BY name ASC")
     suspend fun search(query: String): List<CustomFood>
 
     @Query("SELECT * FROM custom_foods WHERE barcode = :barcode LIMIT 1")
