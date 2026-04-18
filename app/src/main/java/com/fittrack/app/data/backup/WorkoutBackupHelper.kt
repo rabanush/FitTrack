@@ -10,6 +10,7 @@ import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.RecipeDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.CustomFood
+import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
@@ -24,12 +25,21 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 private const val BACKUP_FILENAME = "backup.json"
 private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val BACKUP_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
+
+private data class BackupCustomExercise(
+    @SerializedName("name") val name: String,
+    @SerializedName("muscleGroup") val muscleGroup: String,
+    @SerializedName("germanName") val germanName: String,
+    @SerializedName("description") val description: String
+)
 
 private data class BackupExercise(
     @SerializedName("exerciseId") val exerciseId: Long? = null,
@@ -80,12 +90,22 @@ private data class BackupData(
     @SerializedName("workouts") val workouts: List<BackupWorkout>,
     @SerializedName("userProfile") val userProfile: BackupUserProfile? = null,
     @SerializedName("customFoods") val customFoods: List<BackupCustomFood> = emptyList(),
-    @SerializedName("recipes") val recipes: List<BackupRecipe> = emptyList()
+    @SerializedName("recipes") val recipes: List<BackupRecipe> = emptyList(),
+    @SerializedName("customExercises") val customExercises: List<BackupCustomExercise> = emptyList()
 )
 
 object WorkoutBackupHelper {
 
     private val gson = Gson()
+
+    private val _pendingSkippedExercises = MutableStateFlow<List<String>>(emptyList())
+    /** Exercises that could not be resolved during the last backup import. */
+    val pendingSkippedExercises: StateFlow<List<String>> = _pendingSkippedExercises
+
+    /** Call after the user has acknowledged the skipped-exercises warning. */
+    fun clearSkippedExercises() {
+        _pendingSkippedExercises.value = emptyList()
+    }
 
     /**
      * Serialises all app data to JSON and writes it to
@@ -97,11 +117,12 @@ object WorkoutBackupHelper {
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         userProfile: UserProfile,
         customFoods: List<CustomFood>,
-        recipes: List<RecipeWithItems>
+        recipes: List<RecipeWithItems>,
+        customExercises: List<Exercise>
     ) {
         // On fresh installs, observers can emit an initial empty state before import has
         // restored existing backups; avoid overwriting those backups with empty data.
-        if (shouldSkipEmptyExportDueToExistingBackup(context, workoutsWithExercises, customFoods, recipes)) {
+        if (shouldSkipEmptyExportDueToExistingBackup(context, workoutsWithExercises, customFoods, recipes, customExercises)) {
             return
         }
         val data = BackupData(
@@ -151,6 +172,14 @@ object WorkoutBackupHelper {
                         )
                     }
                 )
+            },
+            customExercises = customExercises.map { ex ->
+                BackupCustomExercise(
+                    name = ex.name,
+                    muscleGroup = ex.muscleGroup,
+                    germanName = ex.germanName,
+                    description = ex.description
+                )
             }
         )
         writeJson(context, gson.toJson(data))
@@ -182,6 +211,23 @@ object WorkoutBackupHelper {
 
         // Restore workout plans
         if (workoutsEmpty) {
+            // Step 1: restore custom exercises so they are available when resolving workout exercises
+            data.customExercises.forEach { backupEx ->
+                if (exerciseDao.getExerciseByName(backupEx.name) == null) {
+                    exerciseDao.insertExercise(
+                        Exercise(
+                            name = backupEx.name,
+                            muscleGroup = backupEx.muscleGroup,
+                            isCustom = true,
+                            germanName = backupEx.germanName,
+                            description = backupEx.description
+                        )
+                    )
+                }
+            }
+
+            // Step 2: restore workouts, tracking any exercises that cannot be found
+            val skippedExercises = mutableListOf<String>()
             data.workouts.forEach { backupWorkout ->
                 val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
                 backupWorkout.exercises.forEach { ex ->
@@ -189,7 +235,12 @@ object WorkoutBackupHelper {
                         ex.exerciseId != null -> exerciseDao.getExerciseById(ex.exerciseId)
                             ?: exerciseDao.getExerciseByName(ex.exerciseName)
                         else -> exerciseDao.getExerciseByName(ex.exerciseName)
-                    } ?: return@forEach
+                    }
+                    if (exercise == null) {
+                        Log.w(TAG, "Exercise '${ex.exerciseName}' not found during import — skipped")
+                        skippedExercises += ex.exerciseName
+                        return@forEach
+                    }
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = workoutId,
@@ -200,6 +251,10 @@ object WorkoutBackupHelper {
                         )
                     )
                 }
+            }
+            if (skippedExercises.isNotEmpty()) {
+                Log.w(TAG, "Import completed with ${skippedExercises.size} skipped exercise(s): $skippedExercises")
+                _pendingSkippedExercises.value = skippedExercises.distinct()
             }
 
             // Restore user profile when this looks like a fresh install
@@ -418,9 +473,10 @@ object WorkoutBackupHelper {
         context: Context,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         customFoods: List<CustomFood>,
-        recipes: List<RecipeWithItems>
+        recipes: List<RecipeWithItems>,
+        customExercises: List<Exercise>
     ): Boolean {
-        val isEmptyExport = workoutsWithExercises.isEmpty() && customFoods.isEmpty() && recipes.isEmpty()
+        val isEmptyExport = workoutsWithExercises.isEmpty() && customFoods.isEmpty() && recipes.isEmpty() && customExercises.isEmpty()
         if (!isEmptyExport) return false
         return hasExistingBackup(context)
     }
