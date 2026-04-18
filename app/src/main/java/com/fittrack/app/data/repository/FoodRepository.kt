@@ -25,6 +25,18 @@ class FoodRepository(
     private val customFoodDao: CustomFoodDao,
     private val recipeDao: RecipeDao
 ) {
+    private companion object {
+        const val EXACT_MATCH_SCORE = 1000
+        const val PREFIX_MATCH_SCORE = 700
+        const val WORD_MATCH_SCORE = 500
+        const val CONTAINS_MATCH_SCORE = 300
+        const val BRAND_MATCH_SCORE = 80
+        const val TOKEN_PREFIX_SCORE = 40
+        const val TOKEN_WORD_SCORE = 35
+        const val TOKEN_CONTAINS_SCORE = 25
+        const val TOKEN_BRAND_SCORE = 10
+        const val MAX_NAME_LENGTH_PENALTY = 80
+    }
 
     // ---- Meals ----
 
@@ -122,21 +134,21 @@ class FoodRepository(
         val brand = product.brands?.normalizedForSearch().orEmpty()
 
         var score = 0
-        if (name == normalizedQuery) score += 1000
-        if (name.startsWith(normalizedQuery)) score += 700
-        if (name.contains(" $normalizedQuery")) score += 500
-        if (name.contains(normalizedQuery)) score += 300
-        if (brand.contains(normalizedQuery)) score += 80
+        if (name == normalizedQuery) score += EXACT_MATCH_SCORE
+        if (name.startsWith(normalizedQuery)) score += PREFIX_MATCH_SCORE
+        if (name.contains(" $normalizedQuery")) score += WORD_MATCH_SCORE
+        if (name.contains(normalizedQuery)) score += CONTAINS_MATCH_SCORE
+        if (brand.contains(normalizedQuery)) score += BRAND_MATCH_SCORE
 
         val tokens = normalizedQuery.split(" ")
         tokens.forEach { token ->
-            if (name.startsWith(token)) score += 40
-            if (name.contains(" $token")) score += 35
-            if (name.contains(token)) score += 25
-            if (brand.contains(token)) score += 10
+            if (name.startsWith(token)) score += TOKEN_PREFIX_SCORE
+            if (name.contains(" $token")) score += TOKEN_WORD_SCORE
+            if (name.contains(token)) score += TOKEN_CONTAINS_SCORE
+            if (brand.contains(token)) score += TOKEN_BRAND_SCORE
         }
 
-        score -= name.length.coerceAtMost(80)
+        score -= name.length.coerceAtMost(MAX_NAME_LENGTH_PENALTY)
         return score
     }
 
