@@ -41,8 +41,14 @@ class FoodRepository(
     private data class RecentUsageIndex(
         val barcodes: Map<String, Int>,
         val names: Map<String, Int>,
-        val orderedNames: List<Pair<String, Int>>
+        val orderedNames: List<SimilarityNameEntry>
     ) {
+        data class SimilarityNameEntry(
+            val normalizedName: String,
+            val index: Int,
+            val tokens: Set<String>
+        )
+
         fun get(barcode: String?, normalizedName: String): Int? {
             val barcodeIndex = barcode?.trim()
                 ?.takeIf { it.isNotEmpty() }
@@ -57,9 +63,13 @@ class FoodRepository(
             if (normalizedName.isBlank()) return null
 
             val normalizedTokens = normalizedName.tokensForSimilarity()
-            return orderedNames.firstOrNull { (recentName, _) ->
-                recentName.isLikelySameFoodName(normalizedName, normalizedTokens)
-            }?.second
+            return orderedNames.firstOrNull { recent ->
+                recent.normalizedName.isLikelySameFoodName(
+                    candidate = normalizedName,
+                    thisTokens = recent.tokens,
+                    candidateTokens = normalizedTokens
+                )
+            }?.index
         }
     }
 
@@ -76,6 +86,12 @@ class FoodRepository(
         const val TOKEN_CONTAINS_SCORE = 25
         const val TOKEN_BRAND_SCORE = 10
         const val MAX_NAME_LENGTH_PENALTY = 80
+        /** Ignore very short fragments when comparing food-name similarity. */
+        const val MIN_SIMILARITY_TOKEN_LENGTH = 3
+        /** Allow prefix similarity only for names with enough signal. */
+        const val MIN_PREFIX_NAME_LENGTH = 4
+        /** Require at least this many shared tokens for fuzzy name equality. */
+        const val MIN_COMMON_TOKENS_FOR_SIMILARITY = 2
         val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
         val MULTI_SPACE_REGEX = Regex("\\s+")
     }
@@ -265,7 +281,8 @@ class FoodRepository(
 
         val barcodeIndex = linkedMapOf<String, Int>()
         val nameIndex = linkedMapOf<String, Int>()
-        val orderedNames = mutableListOf<Pair<String, Int>>()
+        val orderedNames = mutableListOf<RecentUsageIndex.SimilarityNameEntry>()
+        val seenOrderedNames = hashSetOf<String>()
 
         rows.forEachIndexed { index, row ->
             row.barcode?.trim()
@@ -274,8 +291,12 @@ class FoodRepository(
             val normalizedName = row.name.normalizedForSearch()
             if (normalizedName.isNotEmpty()) {
                 nameIndex.putIfAbsent(normalizedName, index)
-                if (orderedNames.none { it.first == normalizedName }) {
-                    orderedNames += normalizedName to index
+                if (seenOrderedNames.add(normalizedName)) {
+                    orderedNames += RecentUsageIndex.SimilarityNameEntry(
+                        normalizedName = normalizedName,
+                        index = index,
+                        tokens = normalizedName.tokensForSimilarity()
+                    )
                 }
             }
         }
@@ -290,20 +311,23 @@ class FoodRepository(
     private fun String.tokensForSimilarity(): Set<String> =
         split(" ")
             .map { it.trim() }
-            .filter { it.length >= 3 }
+            .filter { it.length >= MIN_SIMILARITY_TOKEN_LENGTH }
             .toSet()
 
     private fun String.isLikelySameFoodName(
         candidate: String,
+        thisTokens: Set<String>,
         candidateTokens: Set<String>
     ): Boolean {
         if (this == candidate) return true
-        if (this.length >= 4 && candidate.length >= 4 && (startsWith(candidate) || candidate.startsWith(this))) {
+        if (this.length >= MIN_PREFIX_NAME_LENGTH &&
+            candidate.length >= MIN_PREFIX_NAME_LENGTH &&
+            (startsWith(candidate) || candidate.startsWith(this))
+        ) {
             return true
         }
-        val thisTokens = tokensForSimilarity()
         if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
         val commonTokens = thisTokens.intersect(candidateTokens).size
-        return commonTokens >= 2
+        return commonTokens >= MIN_COMMON_TOKENS_FOR_SIMILARITY
     }
 }

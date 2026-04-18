@@ -127,9 +127,9 @@ class UserPreferences(private val context: Context) {
                         addedAtMillis = addedAtMillis
                     )
                 )
-                .filter { it.addedAtMillis >= cutoffMillis && it.name.isNotBlank() }
-                .sortedBy { it.addedAtMillis }
-                .takeLast(MAX_RECENT_FOOD_USAGE_ITEMS)
+                .filter { it.addedAtMillis >= cutoffMillis }
+                .sortedByDescending { it.addedAtMillis }
+                .take(MAX_RECENT_FOOD_USAGE_ITEMS)
             prefs[Keys.RECENT_FOOD_USAGES] = prunedAndCapped.map(::encodeRecentFoodUsage).toSet()
         }
     }
