@@ -231,11 +231,7 @@ object WorkoutBackupHelper {
             data.workouts.forEach { backupWorkout ->
                 val workoutId = workoutDao.insertWorkout(Workout(name = backupWorkout.name))
                 backupWorkout.exercises.forEach { ex ->
-                    val exercise = when {
-                        ex.exerciseId != null -> exerciseDao.getExerciseById(ex.exerciseId)
-                            ?: exerciseDao.getExerciseByName(ex.exerciseName)
-                        else -> exerciseDao.getExerciseByName(ex.exerciseName)
-                    }
+                    val exercise = resolveExerciseForImport(exerciseDao, ex)
                     if (exercise == null) {
                         Log.w(TAG, "Exercise '${ex.exerciseName}' not found during import — skipped")
                         skippedExercises += ex.exerciseName
@@ -315,6 +311,24 @@ object WorkoutBackupHelper {
                 }
             }
         }
+    }
+
+    private suspend fun resolveExerciseForImport(
+        exerciseDao: ExerciseDao,
+        backupExercise: BackupExercise
+    ): Exercise? {
+        val byName = exerciseDao.getExerciseByName(backupExercise.exerciseName)
+            ?: exerciseDao.getExerciseByNormalizedName(backupExercise.exerciseName)
+            ?: exerciseDao.getExerciseByGermanName(backupExercise.exerciseName)
+        val byId = backupExercise.exerciseId?.let { exerciseDao.getExerciseById(it) }
+
+        if (byId != null && byName == null) return byId
+        if (byId != null && byName != null) {
+            val idNameMatches = byId.name.trim().equals(backupExercise.exerciseName.trim(), ignoreCase = true) ||
+                byId.germanName.trim().equals(backupExercise.exerciseName.trim(), ignoreCase = true)
+            return if (idNameMatches) byId else byName
+        }
+        return byName
     }
 
     private fun writeJson(context: Context, json: String) {
