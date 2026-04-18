@@ -29,7 +29,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
 
     fun startSession(workoutId: Long, workoutStartTimeMillis: Long) {
         val existingWorkoutId = prefs.getLong(KEY_WORKOUT_ID, NO_WORKOUT_ID)
-        val existingStartTime = prefs.getLong(KEY_WORKOUT_START_TIME, -1L)
+        val existingStartTime = prefs.getLong(KEY_WORKOUT_START_TIME, NO_WORKOUT_START_TIME)
         val isSameSession = existingWorkoutId == workoutId && existingStartTime == workoutStartTimeMillis
         prefs.edit()
             .putLong(KEY_WORKOUT_ID, workoutId)
@@ -92,5 +92,6 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         private const val KEY_TIMER_SET_NUMBER = "timer_set_number"
         private const val KEY_EXERCISE_SESSIONS_STATE = "exercise_sessions_state"
         private const val NO_WORKOUT_ID = -1L
+        private const val NO_WORKOUT_START_TIME = -1L
     }
 }

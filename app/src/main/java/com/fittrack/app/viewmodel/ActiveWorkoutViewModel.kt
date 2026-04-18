@@ -80,7 +80,6 @@ class ActiveWorkoutViewModel(
     private val _timerVolumePercent = MutableStateFlow(100)
     private val _workoutElapsedSeconds = MutableStateFlow(0)
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
-    private val gson = Gson()
     private var restoredProgressByWorkoutExerciseId = restoreProgressByWorkoutExerciseId()
 
     init {
@@ -363,6 +362,7 @@ class ActiveWorkoutViewModel(
     companion object {
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
+        private val GSON = Gson()
     }
 
     override fun onCleared() {
@@ -449,14 +449,14 @@ class ActiveWorkoutViewModel(
             )
         }
         restoredProgressByWorkoutExerciseId = persisted.associateBy { it.workoutExerciseId }
-        activeWorkoutSessionPreferences.saveExerciseSessionsState(gson.toJson(persisted))
+        activeWorkoutSessionPreferences.saveExerciseSessionsState(GSON.toJson(persisted))
     }
 
     private fun restoreProgressByWorkoutExerciseId(): Map<Long, PersistedExerciseSessionState> {
         val stateJson = activeWorkoutSessionPreferences.getExerciseSessionsState() ?: return emptyMap()
         return runCatching {
             val type = object : TypeToken<List<PersistedExerciseSessionState>>() {}.type
-            val list: List<PersistedExerciseSessionState> = gson.fromJson(stateJson, type) ?: emptyList()
+            val list: List<PersistedExerciseSessionState> = GSON.fromJson(stateJson, type) ?: emptyList()
             list.associateBy { it.workoutExerciseId }
         }.getOrDefault(emptyMap())
     }
