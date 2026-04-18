@@ -15,6 +15,7 @@ import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.data.network.OpenFoodFactsApi
 import com.fittrack.app.data.preferences.UserPreferences
 import kotlinx.coroutines.flow.Flow
+import java.util.Locale
 
 class FoodRepository(
     private val foodDao: FoodDao,
@@ -63,8 +64,19 @@ class FoodRepository(
 
     // ---- OpenFoodFacts API ----
 
-    suspend fun searchProducts(query: String): List<OFFProduct> =
-        runCatching { api.searchProducts(query).products }.getOrElse { emptyList() }
+    suspend fun searchProducts(query: String): List<OFFProduct> {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return emptyList()
+
+        return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
+            .getOrElse { emptyList() }
+            .asSequence()
+            .filter { it.displayName != "Unbekanntes Produkt" }
+            .distinctBy { (it.code ?: it.displayName).lowercase(Locale.ROOT) }
+            .sortedByDescending { relevanceScore(it, trimmedQuery) }
+            .take(30)
+            .toList()
+    }
 
     suspend fun getProductByBarcode(barcode: String): OFFProduct? =
         runCatching { api.getProductByBarcode(barcode).product }.getOrNull()
@@ -101,4 +113,40 @@ class FoodRepository(
     suspend fun deleteRecipeItem(item: RecipeItem) = recipeDao.deleteRecipeItem(item)
 
     suspend fun getRecipeCount(): Int = recipeDao.getCount()
+
+    private fun relevanceScore(product: OFFProduct, query: String): Int {
+        val normalizedQuery = query.normalizedForSearch()
+        if (normalizedQuery.isBlank()) return 0
+
+        val name = product.displayName.normalizedForSearch()
+        val brand = product.brands?.normalizedForSearch().orEmpty()
+
+        var score = 0
+        if (name == normalizedQuery) score += 1000
+        if (name.startsWith(normalizedQuery)) score += 700
+        if (name.contains(" $normalizedQuery")) score += 500
+        if (name.contains(normalizedQuery)) score += 300
+        if (brand.contains(normalizedQuery)) score += 80
+
+        val tokens = normalizedQuery.split(" ").filter { it.isNotBlank() }
+        tokens.forEach { token ->
+            if (name.startsWith(token)) score += 40
+            if (name.contains(" $token")) score += 35
+            if (name.contains(token)) score += 25
+            if (brand.contains(token)) score += 10
+        }
+
+        score -= name.length.coerceAtMost(80)
+        return score
+    }
+
+    private fun String.normalizedForSearch(): String =
+        lowercase(Locale.ROOT)
+            .replace('ä', 'a')
+            .replace('ö', 'o')
+            .replace('ü', 'u')
+            .replace('ß', 's')
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 }
