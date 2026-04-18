@@ -27,6 +27,7 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.io.File
+import java.util.Locale
 
 private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
 private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
@@ -286,6 +287,7 @@ object WorkoutBackupHelper {
 
                 backupWorkout.exercises.forEach { ex ->
                     val resolvedExercise = resolveExerciseForImport(exerciseDao, ex)
+                        ?: createFallbackExerciseForImport(exerciseDao, ex)
                     if (resolvedExercise == null) {
                         Log.w(TAG, "Skipping workout exercise restore: '${ex.exerciseName}' could not be resolved")
                         return@forEach
@@ -437,6 +439,31 @@ object WorkoutBackupHelper {
         return byName
     }
 
+    private suspend fun createFallbackExerciseForImport(
+        exerciseDao: ExerciseDao,
+        backupExercise: BackupExercise
+    ): Exercise? {
+        val fallbackName = backupExercise.exerciseName.trim()
+        if (fallbackName.isEmpty()) return null
+
+        // Final duplicate guard before insert, in case multiple unresolved entries share a name.
+        exerciseDao.getExerciseByNormalizedName(fallbackName)?.let { return it }
+
+        val muscleGroupFallback = "Sonstiges"
+        val insertedId = exerciseDao.insertExercise(
+            Exercise(
+                name = fallbackName,
+                muscleGroup = muscleGroupFallback,
+                isCustom = true,
+                germanName = fallbackName.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                },
+                description = "Aus Backup wiederhergestellt"
+            )
+        )
+        return exerciseDao.getExerciseById(insertedId)
+    }
+
     private fun writeJson(context: Context, json: String) {
         // Write to internal private storage first (covered by Android Auto Backup).
         writeToFile(getInternalBackupFile(context), json)
@@ -459,15 +486,20 @@ object WorkoutBackupHelper {
     }
 
     private fun readJson(context: Context): String? {
-        return try {
-            // Prefer the external file — it survives a local reinstall without Google Backup.
-            readJsonFromFile(getExternalBackupFile(context))
-                ?: readJsonFromFile(getInternalBackupFile(context))
-                ?: readJsonFromLegacyFiles(context)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to read workout backup", e)
-            null
+        val candidates = backupCandidates(context)
+        if (candidates.isEmpty()) return null
+
+        for (candidate in candidates) {
+            val json = readJsonFromFile(candidate.file)
+            if (!json.isNullOrBlank()) {
+                Log.i(
+                    TAG,
+                    "Using backup from ${candidate.source} (${candidate.file.absolutePath}, ts=${candidate.file.lastModified()})"
+                )
+                return json
+            }
         }
+        return null
     }
 
     private fun readJsonFromFile(file: File?): String? {
@@ -487,8 +519,32 @@ object WorkoutBackupHelper {
         return File(externalFilesDir, BACKUP_FILENAME)
     }
 
-    private fun readJsonFromLegacyFiles(context: Context): String? {
-        val files = buildList {
+    private data class BackupCandidate(
+        val file: File,
+        val source: String,
+        val priority: Int
+    )
+
+    private fun backupCandidates(context: Context): List<BackupCandidate> {
+        val currentCandidates = listOfNotNull(
+            BackupCandidate(getInternalBackupFile(context), "internal", priority = 2),
+            getExternalBackupFile(context)?.let { BackupCandidate(it, "external", priority = 2) }
+        )
+
+        val legacyCandidates = legacyBackupFiles(context).map { file ->
+            BackupCandidate(file, "legacy", priority = 1)
+        }
+
+        return (currentCandidates + legacyCandidates)
+            .filter { it.file.exists() }
+            .sortedWith(
+                compareByDescending<BackupCandidate> { it.file.lastModified() }
+                    .thenByDescending { it.priority }
+            )
+    }
+
+    private fun legacyBackupFiles(context: Context): List<File> {
+        return buildList {
             val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
             if (externalDocs != null) {
                 val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
@@ -497,9 +553,5 @@ object WorkoutBackupHelper {
             }
             add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
         }
-        val existing = files.firstOrNull { it.exists() } ?: return null
-        return runCatching { existing.readText() }
-            .onFailure { Log.w(TAG, "Failed to read legacy backup file", it) }
-            .getOrNull()
     }
 }
