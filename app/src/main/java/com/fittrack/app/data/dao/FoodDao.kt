@@ -8,6 +8,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface FoodDao {
 
+    data class RecentlyUsedFood(
+        @ColumnInfo(name = "barcode") val barcode: String?,
+        @ColumnInfo(name = "name") val name: String,
+        @ColumnInfo(name = "last_used_date_millis") val lastUsedDateMillis: Long,
+        @ColumnInfo(name = "last_entry_id") val lastEntryId: Long
+    )
+
     // ---- Meal ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -75,4 +82,21 @@ interface FoodDao {
     """
     )
     suspend fun getRecentlyUsedBarcodes(): List<String>
+
+    @Query(
+        """
+        SELECT
+            NULLIF(TRIM(fe.barcode), '') AS barcode,
+            TRIM(fe.name) AS name,
+            MAX(m.date_millis) AS last_used_date_millis,
+            MAX(fe.id) AS last_entry_id
+        FROM food_entries fe
+        INNER JOIN meals m ON m.id = fe.meal_id
+        WHERE m.date_millis >= :sinceMillis
+          AND TRIM(fe.name) != ''
+        GROUP BY NULLIF(TRIM(fe.barcode), ''), LOWER(TRIM(fe.name))
+        ORDER BY last_used_date_millis DESC, last_entry_id DESC
+        """
+    )
+    suspend fun getRecentlyUsedFoodsSince(sinceMillis: Long): List<RecentlyUsedFood>
 }

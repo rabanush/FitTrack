@@ -34,11 +34,30 @@ class FoodRepository(
 
     private data class RankedProduct(
         val product: OFFProduct,
-        val barcode: String?,
+        val recentUsageIndex: Int?,
         val relevance: Int
     )
 
+    private data class RecentUsageIndex(
+        val barcodes: Map<String, Int>,
+        val names: Map<String, Int>
+    ) {
+        fun get(barcode: String?, normalizedName: String): Int? {
+            val barcodeIndex = barcode?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { barcodes[it] }
+            val nameIndex = names[normalizedName]
+            return when {
+                barcodeIndex != null && nameIndex != null -> minOf(barcodeIndex, nameIndex)
+                barcodeIndex != null -> barcodeIndex
+                else -> nameIndex
+            }
+        }
+    }
+
     private companion object {
+        const val RECENT_USAGE_RETENTION_DAYS = 60L
+        const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
         const val EXACT_MATCH_SCORE = 1000
         const val PREFIX_MATCH_SCORE = 700
         const val WORD_MATCH_SCORE = 500
@@ -102,7 +121,7 @@ class FoodRepository(
         if (trimmedQuery.isBlank()) return emptyList()
         val normalizedQuery = trimmedQuery.normalizedForSearch()
         val queryTokens = normalizedQuery.split(" ")
-        val recentBarcodeIndex = getRecentBarcodeIndex()
+        val recentUsageIndex = getRecentUsageIndex()
 
         return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
             .getOrElse { emptyList() }
@@ -119,13 +138,15 @@ class FoodRepository(
             .map { product ->
                 RankedProduct(
                     product = product,
-                    barcode = product.code?.trim(),
+                    recentUsageIndex = recentUsageIndex.get(
+                        product.code,
+                        product.displayName.normalizedForSearch()
+                    ),
                     relevance = relevanceScore(product, normalizedQuery, queryTokens)
                 )
             }
             .sortedWith(
-                compareByDescending<RankedProduct> { recentBarcodeIndex.containsKey(it.barcode) }
-                    .thenBy { recentBarcodeIndex[it.barcode] ?: Int.MAX_VALUE }
+                compareBy<RankedProduct> { it.recentUsageIndex ?: Int.MAX_VALUE }
                     .thenByDescending { it.relevance }
             )
             .map { it.product }
@@ -145,9 +166,11 @@ class FoodRepository(
     suspend fun deleteCustomFood(food: CustomFood) = customFoodDao.delete(food)
 
     suspend fun searchCustomFoods(query: String): List<CustomFood> {
-        val recentBarcodeIndex = getRecentBarcodeIndex()
+        val recentUsageIndex = getRecentUsageIndex()
         return customFoodDao.search(query).sortedWith(
-            compareBy<CustomFood> { recentBarcodeIndex[it.barcode?.trim()] ?: Int.MAX_VALUE }
+            compareBy<CustomFood> {
+                recentUsageIndex.get(it.barcode, it.name.normalizedForSearch()) ?: Int.MAX_VALUE
+            }
                 .thenBy { it.name.lowercase(Locale.ROOT) }
         )
     }
@@ -217,8 +240,26 @@ class FoodRepository(
             .replace(MULTI_SPACE_REGEX, " ")
             .trim()
 
-    private suspend fun getRecentBarcodeIndex(): Map<String, Int> =
-        foodDao.getRecentlyUsedBarcodes()
-            .withIndex()
-            .associate { it.value to it.index }
+    private suspend fun getRecentUsageIndex(): RecentUsageIndex {
+        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
+        val rows = foodDao.getRecentlyUsedFoodsSince(sinceMillis)
+
+        val barcodeIndex = linkedMapOf<String, Int>()
+        val nameIndex = linkedMapOf<String, Int>()
+
+        rows.forEachIndexed { index, row ->
+            row.barcode?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { barcodeIndex.putIfAbsent(it, index) }
+            val normalizedName = row.name.normalizedForSearch()
+            if (normalizedName.isNotEmpty()) {
+                nameIndex.putIfAbsent(normalizedName, index)
+            }
+        }
+
+        return RecentUsageIndex(
+            barcodes = barcodeIndex,
+            names = nameIndex
+        )
+    }
 }
