@@ -58,6 +58,13 @@ class FitTrackApplication : Application() {
         super.onCreate()
         // Auto-export all relevant data to app-private storage whenever it changes.
         applicationScope.launch {
+            // Wait until the one-time DB initialisation (exercise seeding + backup import) is
+            // complete before subscribing to the export flows.  Without this guard the export
+            // observer fires on every intermediate insert that happens during import, which can
+            // overwrite the good backup file with a partial snapshot (e.g. workouts without
+            // their exercises).
+            database.initializationComplete.await()
+
             val backupCoreFlow = combine(
                 repository.observeAllWorkoutsWithExercises(),
                 userPreferences.userProfile,
