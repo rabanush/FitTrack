@@ -324,8 +324,9 @@ object WorkoutBackupHelper {
 
         if (byId != null && byName == null) return byId
         if (byId != null && byName != null) {
-            val idNameMatches = byId.name.trim().equals(backupExercise.exerciseName.trim(), ignoreCase = true) ||
-                byId.germanName.trim().equals(backupExercise.exerciseName.trim(), ignoreCase = true)
+            val searchName = backupExercise.exerciseName.trim()
+            val idNameMatches = byId.name.trim().equals(searchName, ignoreCase = true) ||
+                byId.germanName.trim().equals(searchName, ignoreCase = true)
             return if (idNameMatches) byId else byName
         }
         return byName
@@ -333,8 +334,15 @@ object WorkoutBackupHelper {
 
     private fun writeJson(context: Context, json: String) {
         try {
-            // Priority 1: user-selected SAF folder; falls back to app Documents path, then filesDir.
-            if (writeJsonToSelectedTree(context, json)) return
+            // Write to user-selected SAF folder when configured.
+            val safWriteOk = writeJsonToSelectedTree(context, json)
+            if (!safWriteOk && getSelectedBackupTreeUri(context) != null) {
+                Log.w(TAG, "SAF backup write failed — falling back to local file only")
+            }
+            // Always also write to the app-private fallback file so the backup survives
+            // a reinstall (external-files dir is preserved across reinstalls). Without this
+            // mirror copy, a reinstall clears BackupPreferences (SAF URI is lost) and the
+            // app can no longer read the SAF backup, causing an empty restore.
             val backupFile = getPrimaryBackupFile(context) ?: run {
                 Log.w(TAG, "Documents backup folder unavailable, writing backup to legacy internal storage")
                 getInternalBackupFile(context)
