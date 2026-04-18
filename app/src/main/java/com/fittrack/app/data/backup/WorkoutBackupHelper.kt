@@ -375,7 +375,10 @@ object WorkoutBackupHelper {
             }
         }
 
-        if (workoutsEmpty && customFoodsEmpty && recipesEmpty && mealsEmpty && foodEntriesEmpty && caloriesEmpty) {
+        val isCompletelyFreshInstall =
+            workoutsEmpty && customFoodsEmpty && recipesEmpty &&
+                mealsEmpty && foodEntriesEmpty && caloriesEmpty
+        if (isCompletelyFreshInstall) {
             data.userProfile?.let { profile ->
                 val gender = runCatching { Gender.valueOf(profile.gender) }.getOrElse {
                     Log.w(TAG, "Unknown gender value '${profile.gender}' in backup — falling back to MALE")
