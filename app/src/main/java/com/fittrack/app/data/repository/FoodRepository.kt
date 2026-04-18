@@ -85,7 +85,7 @@ class FoodRepository(
             .asSequence()
             .filter { it.displayName != "Unbekanntes Produkt" }
             .distinctBy { product ->
-                product.code?.trim().takeUnless { it.isNullOrBlank() }
+                product.code?.trim().takeUnless { it.isNullOrBlank() }?.normalizedForSearch()
                     ?: "${product.displayName}|${product.brands.orEmpty()}|${product.quantity.orEmpty()}"
                         .normalizedForSearch()
             }
@@ -138,8 +138,8 @@ class FoodRepository(
         val brand = product.brands?.normalizedForSearch().orEmpty()
 
         var score = 0
-        if (name == normalizedQuery) score += EXACT_MATCH_SCORE
         when {
+            name == normalizedQuery -> score += EXACT_MATCH_SCORE
             name.startsWith(normalizedQuery) -> score += PREFIX_MATCH_SCORE
             name.contains(" $normalizedQuery") -> score += WORD_MATCH_SCORE
             name.contains(normalizedQuery) -> score += CONTAINS_MATCH_SCORE
