@@ -253,7 +253,31 @@ class FoodRepository(
      */
     suspend fun getRecentlyUsedFoodsAsCustom(): List<CustomFood> {
         val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
-        return foodDao.getRecentlyUsedFoodsWithNutritionSince(sinceMillis).map { row ->
+        // Empty query → LIKE '%%' matches all names
+        return foodDao.searchRecentFoodEntriesWithNutrition(query = "", sinceMillis = sinceMillis)
+            .map { row ->
+                CustomFood(
+                    id = 0,
+                    name = row.name,
+                    barcode = row.barcode,
+                    caloriesPer100 = row.caloriesPer100,
+                    proteinPer100 = row.proteinPer100,
+                    carbsPer100 = row.carbsPer100,
+                    fatPer100 = row.fatPer100
+                )
+            }
+    }
+
+    /**
+     * Searches the history of logged food entries (food_entries table) for items whose
+     * name contains [query]. Returns distinct results (by barcode/name) sorted by most
+     * recently used. This ensures products previously scanned or logged – including
+     * OpenFoodFacts products like "Natural SKyr" – always appear when the user searches
+     * a matching keyword, regardless of what the API returns.
+     */
+    suspend fun searchRecentFoodEntries(query: String): List<CustomFood> {
+        val sinceMillis = System.currentTimeMillis() - (RECENT_USAGE_RETENTION_DAYS * MILLIS_PER_DAY)
+        return foodDao.searchRecentFoodEntriesWithNutrition(query, sinceMillis).map { row ->
             CustomFood(
                 id = 0,
                 name = row.name,
@@ -262,36 +286,6 @@ class FoodRepository(
                 proteinPer100 = row.proteinPer100,
                 carbsPer100 = row.carbsPer100,
                 fatPer100 = row.fatPer100
-            )
-        }
-    }
-
-    /**
-     * Saves an OpenFoodFacts product into the local custom_foods table so it is
-     * found by future keyword searches without requiring a network request.
-     * If a custom food with the same barcode already exists it is skipped to
-     * avoid duplicates.
-     */
-    suspend fun cacheProductAsCustomFood(
-        name: String,
-        barcode: String?,
-        caloriesPer100: Float,
-        proteinPer100: Float,
-        carbsPer100: Float,
-        fatPer100: Float
-    ) {
-        val trimmedBarcode = barcode?.trim()?.takeIf { it.isNotEmpty() }
-        if (trimmedBarcode != null && customFoodDao.findByBarcode(trimmedBarcode) != null) return
-        runCatching {
-            customFoodDao.insert(
-                CustomFood(
-                    name = name,
-                    barcode = trimmedBarcode,
-                    caloriesPer100 = caloriesPer100,
-                    proteinPer100 = proteinPer100,
-                    carbsPer100 = carbsPer100,
-                    fatPer100 = fatPer100
-                )
             )
         }
     }

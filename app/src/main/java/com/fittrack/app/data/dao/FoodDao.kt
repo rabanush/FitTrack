@@ -131,6 +131,7 @@ interface FoodDao {
             FROM food_entries fe
             INNER JOIN meals m ON m.id = fe.meal_id
             WHERE m.date_millis >= :sinceMillis
+              AND LOWER(TRIM(fe.name)) LIKE '%' || LOWER(TRIM(:query)) || '%'
               AND TRIM(fe.name) != ''
             GROUP BY NULLIF(TRIM(fe.barcode), ''), LOWER(TRIM(fe.name))
         ) r
@@ -138,7 +139,8 @@ interface FoodDao {
         ORDER BY r.last_used_date_millis DESC, r.last_entry_id DESC
         """
     )
-    suspend fun getRecentlyUsedFoodsWithNutritionSince(
+    suspend fun searchRecentFoodEntriesWithNutrition(
+        query: String,
         sinceMillis: Long
     ): List<RecentlyUsedFoodWithNutrition>
 }

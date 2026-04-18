@@ -170,6 +170,23 @@ fun FoodSearchScreen(
                 }
                 is SearchState.Success -> {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Previously logged foods matching the query (e.g. scanned "Natural SKyr")
+                        if (state.recentFoods.isNotEmpty()) {
+                            item {
+                                Text(
+                                    "Zuletzt verwendet",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
+                            items(state.recentFoods) { food ->
+                                CustomFoodSearchCard(
+                                    food = food,
+                                    onClick = { selectedCustomFood = food }
+                                )
+                            }
+                        }
                         if (state.customFoods.isNotEmpty()) {
                             item {
                                 Text(
@@ -202,7 +219,7 @@ fun FoodSearchScreen(
                                 )
                             }
                         }
-                        if (state.customFoods.isEmpty() && state.products.isEmpty()) {
+                        if (state.recentFoods.isEmpty() && state.customFoods.isEmpty() && state.products.isEmpty()) {
                             item {
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
@@ -219,7 +236,7 @@ fun FoodSearchScreen(
                             }
                         }
                         // Always offer "create" at the bottom of any result list
-                        if (state.customFoods.isNotEmpty() || state.products.isNotEmpty()) {
+                        if (state.recentFoods.isNotEmpty() || state.customFoods.isNotEmpty() || state.products.isNotEmpty()) {
                             item {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 OutlinedButton(
