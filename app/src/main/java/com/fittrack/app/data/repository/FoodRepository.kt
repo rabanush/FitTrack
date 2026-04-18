@@ -92,6 +92,11 @@ class FoodRepository(
         const val MIN_PREFIX_NAME_LENGTH = 4
         /** Require at least this many shared tokens for fuzzy name equality. */
         const val MIN_COMMON_TOKENS_FOR_SIMILARITY = 2
+        /**
+         * A single shared token of at least this length is considered distinctive enough
+         * to count as a recency match on its own (e.g. "skyr" in "Naturl Skyr" vs "Skyr Natur").
+         */
+        const val MIN_DISTINCTIVE_TOKEN_LENGTH = 4
         val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9 ]")
         val MULTI_SPACE_REGEX = Regex("\\s+")
     }
@@ -326,7 +331,9 @@ class FoodRepository(
             return true
         }
         if (thisTokens.isEmpty() || candidateTokens.isEmpty()) return false
-        val commonTokenCount = thisTokens.intersect(candidateTokens).size
-        return commonTokenCount >= MIN_COMMON_TOKENS_FOR_SIMILARITY
+        val sharedTokens = thisTokens.intersect(candidateTokens)
+        if (sharedTokens.size >= MIN_COMMON_TOKENS_FOR_SIMILARITY) return true
+        // A single long-enough token (e.g. "skyr") is distinctive enough on its own.
+        return sharedTokens.any { it.length >= MIN_DISTINCTIVE_TOKEN_LENGTH }
     }
 }
