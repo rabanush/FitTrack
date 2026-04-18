@@ -94,21 +94,19 @@ class ActiveWorkoutSessionPreferences(context: Context) {
     }
 
     fun restoreSession(session: ActiveWorkoutSession, exerciseSessionsState: String?) {
-        prefs.edit()
+        val editor = prefs.edit()
             .putLong(KEY_WORKOUT_ID, session.workoutId)
             .putLong(KEY_WORKOUT_START_TIME, session.workoutStartTimeMillis)
             .putLong(KEY_TIMER_END_TIME, session.timerEndTimeMillis)
             .putInt(KEY_TIMER_TOTAL_SECONDS, session.timerTotalSeconds)
             .putInt(KEY_TIMER_EXERCISE_INDEX, session.timerExerciseIndex)
             .putInt(KEY_TIMER_SET_NUMBER, session.timerSetNumber)
-            .apply {
-                if (exerciseSessionsState.isNullOrBlank()) {
-                    remove(KEY_EXERCISE_SESSIONS_STATE)
-                } else {
-                    putString(KEY_EXERCISE_SESSIONS_STATE, exerciseSessionsState)
-                }
-            }
-            .apply()
+        if (exerciseSessionsState.isNullOrBlank()) {
+            editor.remove(KEY_EXERCISE_SESSIONS_STATE)
+        } else {
+            editor.putString(KEY_EXERCISE_SESSIONS_STATE, exerciseSessionsState)
+        }
+        editor.apply()
         notifyChange()
     }
 

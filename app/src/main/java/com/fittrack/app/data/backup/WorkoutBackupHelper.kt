@@ -480,7 +480,10 @@ object WorkoutBackupHelper {
             val restoredWorkoutId = workoutIdMapping[session.workoutId] ?: session.workoutId
             val workoutExists = workoutDao.getWorkoutById(restoredWorkoutId) != null
             if (!workoutExists) {
-                Log.w(TAG, "Skipping active-workout session restore for unknown workoutId=$restoredWorkoutId")
+                Log.w(
+                    TAG,
+                    "Clearing active-workout session for non-existent workoutId=${session.workoutId} (remapped to $restoredWorkoutId)"
+                )
                 activeWorkoutSessionPreferences.clearSession()
             } else {
                 activeWorkoutSessionPreferences.restoreSession(

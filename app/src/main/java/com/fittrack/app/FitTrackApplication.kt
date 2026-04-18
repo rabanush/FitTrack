@@ -3,8 +3,18 @@ package com.fittrack.app
 import android.app.Application
 import com.fittrack.app.data.backup.WorkoutBackupHelper
 import com.fittrack.app.data.database.FitTrackDatabase
+import com.fittrack.app.data.model.CustomFood
+import com.fittrack.app.data.model.Exercise
+import com.fittrack.app.data.model.FoodEntry
+import com.fittrack.app.data.model.Meal
+import com.fittrack.app.data.model.RecipeWithItems
+import com.fittrack.app.data.model.Workout
+import com.fittrack.app.data.model.WorkoutCalories
+import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.network.RetrofitInstance
+import com.fittrack.app.data.preferences.ActiveWorkoutSession
 import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
+import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.data.repository.FoodRepository
@@ -12,11 +22,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 class FitTrackApplication : Application() {
+
+    private companion object {
+        const val BACKUP_DEBOUNCE_MILLIS = 300L
+    }
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -94,10 +107,10 @@ class FitTrackApplication : Application() {
                     activeWorkoutExerciseSessionsState = activeWorkoutSessionPreferences.getExerciseSessionsState()
                 )
             }
-            .debounce(300)
+            .debounce(BACKUP_DEBOUNCE_MILLIS)
             .collect { snapshot ->
                 WorkoutBackupHelper.exportData(
-                    context = this,
+                    context = this@FitTrackApplication,
                     workoutsWithExercises = snapshot.workouts,
                     userProfile = snapshot.userProfile,
                     customFoods = snapshot.customFoods,
@@ -113,15 +126,15 @@ class FitTrackApplication : Application() {
     }
 
     private data class BackupSnapshot(
-        val workouts: List<Pair<com.fittrack.app.data.model.Workout, List<com.fittrack.app.data.model.WorkoutExerciseWithExercise>>> = emptyList(),
-        val userProfile: com.fittrack.app.data.preferences.UserProfile = com.fittrack.app.data.preferences.UserProfile(),
-        val customFoods: List<com.fittrack.app.data.model.CustomFood> = emptyList(),
-        val recipes: List<com.fittrack.app.data.model.RecipeWithItems> = emptyList(),
-        val customExercises: List<com.fittrack.app.data.model.Exercise> = emptyList(),
-        val meals: List<com.fittrack.app.data.model.Meal> = emptyList(),
-        val foodEntries: List<com.fittrack.app.data.model.FoodEntry> = emptyList(),
-        val workoutCalories: List<com.fittrack.app.data.model.WorkoutCalories> = emptyList(),
-        val activeWorkoutSession: com.fittrack.app.data.preferences.ActiveWorkoutSession? = null,
+        val workouts: List<Pair<Workout, List<WorkoutExerciseWithExercise>>> = emptyList(),
+        val userProfile: UserProfile = UserProfile(),
+        val customFoods: List<CustomFood> = emptyList(),
+        val recipes: List<RecipeWithItems> = emptyList(),
+        val customExercises: List<Exercise> = emptyList(),
+        val meals: List<Meal> = emptyList(),
+        val foodEntries: List<FoodEntry> = emptyList(),
+        val workoutCalories: List<WorkoutCalories> = emptyList(),
+        val activeWorkoutSession: ActiveWorkoutSession? = null,
         val activeWorkoutExerciseSessionsState: String? = null
     )
 }
