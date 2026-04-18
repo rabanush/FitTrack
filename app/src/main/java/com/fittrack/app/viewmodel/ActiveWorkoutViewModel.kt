@@ -80,13 +80,19 @@ class ActiveWorkoutViewModel(
     private val _timerVolumePercent = MutableStateFlow(100)
     private val _workoutElapsedSeconds = MutableStateFlow(0)
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
-    private var restoredProgressByWorkoutExerciseId = restoreProgressByWorkoutExerciseId()
+    private var restoredProgressByWorkoutExerciseId = emptyMap<Long, PersistedExerciseSessionState>()
 
     init {
         val restoredSession = activeWorkoutSessionPreferences.getSession()
             ?.takeIf { it.workoutId == workoutId }
         workoutStartTimeMillis = restoredSession?.workoutStartTimeMillis ?: System.currentTimeMillis()
         activeWorkoutSessionPreferences.startSession(workoutId, workoutStartTimeMillis)
+        restoredProgressByWorkoutExerciseId = if (restoredSession != null) {
+            restoreProgressByWorkoutExerciseId()
+        } else {
+            activeWorkoutSessionPreferences.clearExerciseSessionsState()
+            emptyMap()
+        }
 
         viewModelScope.launch {
             userPreferences.userProfile.collect { profile ->
