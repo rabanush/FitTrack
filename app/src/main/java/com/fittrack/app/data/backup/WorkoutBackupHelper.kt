@@ -480,7 +480,7 @@ object WorkoutBackupHelper {
             }
         }
 
-        // After a successful import the backup file in Downloads already contains
+        // After a successful import the backup file in the SAF folder already contains
         // the current snapshot, so no further cleanup step is needed.
     }
 
