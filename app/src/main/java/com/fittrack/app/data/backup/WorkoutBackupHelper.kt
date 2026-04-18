@@ -33,6 +33,7 @@ private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
 private const val LEGACY_DIRECTORY = "FitTrackerBackup"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
+// v2 adds meals, food entries, and workout calories to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 2
 
 private data class BackupCustomExercise(
@@ -284,7 +285,11 @@ object WorkoutBackupHelper {
                 backupWorkout.id?.let { oldId -> workoutIdMapping[oldId] = newWorkoutId }
 
                 backupWorkout.exercises.forEach { ex ->
-                    val resolvedExercise = resolveExerciseForImport(exerciseDao, ex) ?: return@forEach
+                    val resolvedExercise = resolveExerciseForImport(exerciseDao, ex)
+                    if (resolvedExercise == null) {
+                        Log.w(TAG, "Skipping workout exercise restore: '${ex.exerciseName}' could not be resolved")
+                        return@forEach
+                    }
                     workoutDao.insertWorkoutExercise(
                         WorkoutExercise(
                             workoutId = newWorkoutId,
@@ -345,7 +350,11 @@ object WorkoutBackupHelper {
             }
 
             data.foodEntries.forEach { backupEntry ->
-                val mappedMealId = mealIdMap[backupEntry.mealId] ?: return@forEach
+                val mappedMealId = mealIdMap[backupEntry.mealId]
+                if (mappedMealId == null) {
+                    Log.w(TAG, "Skipping food-entry restore for unknown mealId=${backupEntry.mealId}")
+                    return@forEach
+                }
                 foodDao.insertFoodEntry(
                     FoodEntry(
                         mealId = mappedMealId,
