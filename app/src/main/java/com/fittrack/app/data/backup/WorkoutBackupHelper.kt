@@ -1,8 +1,9 @@
 package com.fittrack.app.data.backup
 
 import android.content.Context
-import android.os.Environment
+import android.net.Uri
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
@@ -28,22 +29,16 @@ import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import java.io.File
-import java.nio.file.Files
 import java.util.Locale
 
-private const val BACKUP_FILENAME = "auto_backup_snapshot.json"
-private const val LEGACY_BACKUP_FILENAME = "fittrack_workouts.json"
-private const val LEGACY_BACKUP_JSON_FILENAME = "backup.json"
-private const val LEGACY_DIRECTORY = "FitTrackerBackup"
-private const val LEGACY_DIRECTORY_ALT = "FitTrackBackup"
+// FitTrackBackup.json is stored in the user-chosen folder (default: Documents).
+// The folder is granted via ACTION_OPEN_DOCUMENT_TREE on first app start.
+private const val BACKUP_FILENAME = "FitTrackBackup.json"
+private const val BACKUP_MIME_TYPE = "application/json"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
 private const val FALLBACK_MUSCLE_GROUP = "Sonstiges"
 private const val FALLBACK_DESCRIPTION = "Aus Backup wiederhergestellt"
-// Safety guard for storage traversal to avoid long-running I/O on large devices.
-// Once the limit is reached, scanning stops and only already-discovered artifacts are deleted.
-private const val MAX_SCAN_DIRECTORIES = 15_000
 // v3 adds active workout session and timer state to the automatic backup payload.
 private const val BACKUP_SCHEMA_VERSION = 3
 
@@ -151,34 +146,14 @@ private data class BackupData(
 object WorkoutBackupHelper {
 
     private val gson = Gson()
-    private val knownBackupFiles = setOf(BACKUP_FILENAME, LEGACY_BACKUP_FILENAME, LEGACY_BACKUP_JSON_FILENAME)
-    private val knownBackupDirectories = setOf(LEGACY_DIRECTORY.lowercase(Locale.ROOT), LEGACY_DIRECTORY_ALT.lowercase(Locale.ROOT))
-
-    fun purgeAllBackupData(context: Context) {
-        val deleteCandidates = linkedSetOf<File>()
-        deleteCandidates += backupCandidates(context).map { it.file }
-        deleteCandidates += legacyBackupFiles(context)
-        deleteCandidates += discoverBackupArtifacts(context)
-        deleteCandidates.forEach { candidate ->
-            runCatching {
-                if (!candidate.exists()) return@runCatching
-                if (candidate.isDirectory) {
-                    candidate.deleteRecursively()
-                } else {
-                    candidate.delete()
-                }
-            }.onFailure {
-                Log.w(TAG, "Could not delete backup artifact: ${candidate.absolutePath}", it)
-            }
-        }
-    }
 
     /**
-     * Serialises all relevant app data to JSON and writes it to app-private storage.
-     * This file is intended to be restored automatically on reinstall via Android backup.
+     * Serialises all relevant app data to JSON and writes FitTrackBackup.json into the
+     * user-chosen SAF folder. No-op when [treeUriString] is null (folder not yet configured).
      */
     fun exportData(
         context: Context,
+        treeUriString: String?,
         workoutsWithExercises: List<Pair<Workout, List<WorkoutExerciseWithExercise>>>,
         userProfile: UserProfile,
         customFoods: List<CustomFood>,
@@ -190,6 +165,7 @@ object WorkoutBackupHelper {
         activeWorkoutSession: ActiveWorkoutSession?,
         activeWorkoutExerciseSessionsState: String?
     ) {
+        if (treeUriString == null) return
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -288,14 +264,18 @@ object WorkoutBackupHelper {
             }
         )
 
-        writeJson(context, gson.toJson(data))
+        writeJson(context, treeUriString, gson.toJson(data))
     }
 
     /**
-     * Reads the backup file from app storage and restores all data on a fresh install.
+     * Reads FitTrackBackup.json from the SAF folder and restores all data.
+     * Only restores each category if the corresponding DB table is empty (fresh install / data-clear).
+     * Restore order: custom exercises → workouts + exercises in workouts → custom foods →
+     * recipes → meals → food entries → workout calories → user profile → active session.
      */
     suspend fun importData(
         context: Context,
+        treeUriString: String?,
         exerciseDao: ExerciseDao,
         workoutDao: WorkoutDao,
         userPreferences: UserPreferences,
@@ -305,7 +285,7 @@ object WorkoutBackupHelper {
         workoutCaloriesDao: WorkoutCaloriesDao,
         activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences
     ) {
-        val json = readJson(context) ?: return
+        val json = readJson(context, treeUriString) ?: return
         val data = try {
             gson.fromJson(json, BackupData::class.java)
         } catch (e: Exception) {
@@ -500,10 +480,8 @@ object WorkoutBackupHelper {
             }
         }
 
-        // After a successful import, remove any legacy backup files so they can never be read
-        // again on a future reinstall.  The new backup system writes auto_backup_snapshot.json
-        // after every data change, so the legacy files are no longer needed.
-        cleanupLegacyFiles(context)
+        // After a successful import the backup file in the SAF folder already contains
+        // the current snapshot, so no further cleanup step is needed.
     }
 
     private suspend fun resolveExerciseForImport(
@@ -549,171 +527,50 @@ object WorkoutBackupHelper {
         return exerciseDao.getExerciseById(insertedId)
     }
 
-    private fun writeJson(context: Context, json: String) {
-        // Write to internal private storage first (covered by Android Auto Backup).
-        writeToFile(getInternalBackupFile(context), json)
-        // Also write to external app-specific storage, which is preserved across
-        // uninstalls on most Android versions, providing a local reinstall fallback.
-        getExternalBackupFile(context)?.let { writeToFile(it, json) }
-    }
-
-    private fun writeToFile(file: File, json: String) {
+    private fun writeJson(context: Context, treeUriString: String, json: String) {
         try {
-            val parent = file.parentFile
-            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                Log.w(TAG, "Failed to create backup directory: ${parent.absolutePath}")
+            val treeUri = Uri.parse(treeUriString)
+            val treeDoc = DocumentFile.fromTreeUri(context, treeUri)
+            if (treeDoc == null || !treeDoc.isDirectory) {
+                Log.w(TAG, "Backup folder is not accessible: $treeUriString")
                 return
             }
-            file.writeText(json)
+            // Re-use the existing file if it exists, otherwise create it.
+            val backupFile = treeDoc.findFile(BACKUP_FILENAME)
+                ?: treeDoc.createFile(BACKUP_MIME_TYPE, BACKUP_FILENAME)
+            if (backupFile == null) {
+                Log.w(TAG, "Could not create $BACKUP_FILENAME in backup folder")
+                return
+            }
+            context.contentResolver.openOutputStream(backupFile.uri, "wt")?.use { out ->
+                out.write(json.toByteArray(Charsets.UTF_8))
+            }
+            Log.i(TAG, "Backup written to ${backupFile.uri}")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to write backup to ${file.absolutePath}", e)
+            Log.w(TAG, "Failed to write backup to SAF folder", e)
         }
     }
 
-    private fun readJson(context: Context): String? {
-        val candidates = backupCandidates(context)
-        if (candidates.isEmpty()) return null
-
-        for (candidate in candidates) {
-            val json = readJsonFromFile(candidate.file)
-            if (!json.isNullOrBlank()) {
-                Log.i(
-                    TAG,
-                    "Using backup from ${candidate.source} (${candidate.file.absolutePath}, ts=${candidate.file.lastModified()})"
-                )
-                return json
+    private fun readJson(context: Context, treeUriString: String?): String? {
+        if (treeUriString == null) return null
+        return try {
+            val treeUri = Uri.parse(treeUriString)
+            val treeDoc = DocumentFile.fromTreeUri(context, treeUri)
+            if (treeDoc == null || !treeDoc.isDirectory) {
+                Log.w(TAG, "Backup folder is not accessible: $treeUriString")
+                return null
             }
-        }
-        return null
-    }
-
-    private fun readJsonFromFile(file: File?): String? {
-        if (file == null || !file.exists()) return null
-        return runCatching { file.readText() }
-            .onFailure { Log.w(TAG, "Failed to read backup from ${file.absolutePath}", it) }
-            .getOrNull()
-    }
-
-    /** Internal private storage – deleted on uninstall but covered by Android Auto Backup. */
-    private fun getInternalBackupFile(context: Context): File = File(context.filesDir, BACKUP_FILENAME)
-
-    /** External app-specific storage – survives uninstall on most Android devices.
-     *  Returns null when external storage is unavailable. */
-    private fun getExternalBackupFile(context: Context): File? {
-        val externalFilesDir = context.getExternalFilesDir(null) ?: return null
-        return File(externalFilesDir, BACKUP_FILENAME)
-    }
-
-    private data class BackupCandidate(
-        val file: File,
-        val source: String,
-        val priority: Int
-    )
-
-    private fun backupCandidates(context: Context): List<BackupCandidate> {
-        val currentCandidates = listOfNotNull(
-            BackupCandidate(getInternalBackupFile(context), "internal", priority = 2),
-            getExternalBackupFile(context)?.let { BackupCandidate(it, "external", priority = 2) }
-        )
-
-        val legacyCandidates = legacyBackupFiles(context).map { file ->
-            BackupCandidate(file, "legacy", priority = 1)
-        }
-
-        return (currentCandidates + legacyCandidates)
-            .filter { it.file.exists() }
-            .sortedWith(
-                compareByDescending<BackupCandidate> { it.priority }
-                    .thenByDescending { it.file.lastModified() }
-            )
-    }
-
-    private fun legacyBackupFiles(context: Context): List<File> {
-        return buildList {
-            val externalDocs = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-            if (externalDocs != null) {
-                val legacyDir = File(externalDocs, LEGACY_DIRECTORY)
-                add(File(legacyDir, LEGACY_BACKUP_JSON_FILENAME))
-                add(File(legacyDir, LEGACY_BACKUP_FILENAME))
-                add(legacyDir)
-                add(File(externalDocs, LEGACY_DIRECTORY_ALT))
+            val backupFile = treeDoc.findFile(BACKUP_FILENAME)
+            if (backupFile == null) {
+                Log.i(TAG, "No $BACKUP_FILENAME found in backup folder")
+                return null
             }
-            add(File(context.filesDir, LEGACY_BACKUP_FILENAME))
-            add(File(context.filesDir, BACKUP_FILENAME))
-            context.getExternalFilesDir(null)?.let { add(File(it, BACKUP_FILENAME)) }
-        }
-    }
-
-    private fun cleanupLegacyFiles(context: Context) {
-        legacyBackupFiles(context).forEach { file ->
-            if (file.exists()) {
-                runCatching {
-                    if (file.isDirectory) {
-                        file.deleteRecursively()
-                    } else {
-                        file.delete()
-                    }
-                }
-                    .onSuccess { Log.i(TAG, "Deleted legacy backup file: ${file.absolutePath}") }
-                    .onFailure { Log.w(TAG, "Could not delete legacy backup file: ${file.absolutePath}", it) }
+            context.contentResolver.openInputStream(backupFile.uri)?.use { stream ->
+                stream.bufferedReader(Charsets.UTF_8).readText()
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read backup from SAF folder", e)
+            null
         }
-    }
-
-    private fun discoverBackupArtifacts(context: Context): Set<File> {
-        val results = linkedSetOf<File>()
-        val queue = ArrayDeque<File>()
-        val visited = hashSetOf<String>()
-        var scannedDirectories = 0
-
-        scanRoots(context)
-            .filter { it.exists() }
-            .forEach { queue.add(it) }
-
-        while (queue.isNotEmpty() && scannedDirectories < MAX_SCAN_DIRECTORIES) {
-            val directory = queue.removeFirst()
-            if (!visited.add(directory.absolutePath)) continue
-            if (!directory.isDirectory) continue
-            if (runCatching { Files.isSymbolicLink(directory.toPath()) }.getOrDefault(false)) continue
-
-            scannedDirectories++
-            val children = runCatching { directory.listFiles()?.toList().orEmpty() }
-                .onFailure { Log.w(TAG, "Cannot scan directory for backup artifacts: ${directory.absolutePath}", it) }
-                .getOrDefault(emptyList())
-
-            for (child in children) {
-                val loweredName = child.name.lowercase(Locale.ROOT)
-                if (child.isDirectory) {
-                    val isNamedBackupDir = loweredName in knownBackupDirectories
-                    if (isNamedBackupDir) {
-                        results.add(child)
-                        continue
-                    }
-                    if (runCatching { Files.isSymbolicLink(child.toPath()) }.getOrDefault(false)) continue
-                    queue.add(child)
-                    continue
-                }
-
-                val isKnownBackupFile = loweredName in knownBackupFiles
-                if (isKnownBackupFile) {
-                    results.add(child)
-                }
-            }
-        }
-        return results
-    }
-
-    private fun scanRoots(context: Context): List<File> {
-        val roots = linkedSetOf<File>()
-        roots += context.filesDir
-        roots += context.noBackupFilesDir
-        roots += context.cacheDir
-        context.externalCacheDir?.let { roots += it }
-        context.getExternalFilesDir(null)?.let { roots += it }
-        context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { roots += it }
-        context.externalMediaDirs.forEach { if (it != null) roots += it }
-        context.getExternalFilesDirs(null).forEach { if (it != null) roots += it }
-        context.getExternalFilesDirs(Environment.DIRECTORY_DOCUMENTS).forEach { if (it != null) roots += it }
-        return roots.toList()
     }
 }
