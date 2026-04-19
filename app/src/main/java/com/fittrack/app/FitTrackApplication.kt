@@ -17,6 +17,7 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.data.repository.FoodRepository
+import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +30,8 @@ class FitTrackApplication : Application() {
 
     private companion object {
         const val BACKUP_DEBOUNCE_MILLIS = 300L
+        const val FOOD_ENTRY_RETENTION_DAYS = 90L
+        const val MILLIS_PER_DAY = 24L * 60L * 60L * 1_000L
     }
 
     // Internal so MainActivity can launch import after the user picks a backup folder.
@@ -62,6 +65,7 @@ class FitTrackApplication : Application() {
             // Restore from backup using whatever folder URI is already stored (may be null on
             // a truly fresh install before the user has picked a folder).
             runImport()
+            runDailyCleanupIfNeeded()
             observeAndPersistBackups()
         }
     }
@@ -88,6 +92,22 @@ class FitTrackApplication : Application() {
             foodDao = database.foodDao(),
             activeWorkoutSessionPreferences = activeWorkoutSessionPreferences
         )
+    }
+
+    private suspend fun runDailyCleanupIfNeeded() {
+        val today = todayMillis()
+        val lastCleanup = userPreferences.lastCleanupDateMillis.first()
+        if (lastCleanup < today) {
+            val retentionCutoff = today - FOOD_ENTRY_RETENTION_DAYS * MILLIS_PER_DAY
+            // Delete ALL past-day meals. Food entries survive via SET_NULL on meal_id
+            // and retain their date via the logged_date_millis column.
+            database.foodDao().deleteMealsOlderThan(today)
+            // Purge food entries older than the 90-day retention window.
+            database.foodDao().deleteFoodEntriesOlderThan(retentionCutoff)
+            // Workout-calorie history is only needed for the current day.
+            database.workoutCaloriesDao().deleteOlderThan(today)
+            userPreferences.saveLastCleanupDateMillis(today)
+        }
     }
 
     private suspend fun observeAndPersistBackups() {

@@ -72,7 +72,15 @@ class FoodRepository(
 
     fun observeAllFoodEntries(): Flow<List<FoodEntry>> = foodDao.getAllFoodEntries()
 
-    suspend fun insertFoodEntry(entry: FoodEntry): Long = foodDao.insertFoodEntry(entry)
+    suspend fun insertFoodEntry(entry: FoodEntry): Long {
+        // Populate loggedDateMillis from the parent meal so the entry retains its date
+        // even after old meals are cleaned up (meal_id becomes null via SET_NULL FK).
+        val dated = if (entry.loggedDateMillis == 0L && entry.mealId != null) {
+            val meal = foodDao.getMealById(entry.mealId)
+            if (meal != null) entry.copy(loggedDateMillis = meal.dateMillis) else entry
+        } else entry
+        return foodDao.insertFoodEntry(dated)
+    }
 
     suspend fun updateFoodEntry(entry: FoodEntry) = foodDao.updateFoodEntry(entry)
 

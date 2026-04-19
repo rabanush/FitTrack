@@ -53,6 +53,7 @@ class UserPreferences(private val context: Context) {
         val TIMER_VOLUME = intPreferencesKey("timer_volume_percent")
         val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
         val HAS_PROMPTED_BACKUP_FOLDER = booleanPreferencesKey("has_prompted_backup_folder")
+        val LAST_CLEANUP_DATE = longPreferencesKey("last_cleanup_date_millis")
     }
 
     val userProfile: Flow<UserProfile> = context.dataStore.data.map { prefs ->
@@ -76,6 +77,11 @@ class UserPreferences(private val context: Context) {
         prefs[Keys.HAS_PROMPTED_BACKUP_FOLDER] ?: false
     }
 
+    /** Midnight-normalised millis of the last day on which the daily cleanup ran (0 if never). */
+    val lastCleanupDateMillis: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[Keys.LAST_CLEANUP_DATE] ?: 0L
+    }
+
     suspend fun save(profile: UserProfile) {
         context.dataStore.edit { prefs ->
             prefs[Keys.WEIGHT] = profile.weightKg
@@ -96,5 +102,9 @@ class UserPreferences(private val context: Context) {
 
     suspend fun markBackupFolderPrompted() {
         context.dataStore.edit { prefs -> prefs[Keys.HAS_PROMPTED_BACKUP_FOLDER] = true }
+    }
+
+    suspend fun saveLastCleanupDateMillis(dateMillis: Long) {
+        context.dataStore.edit { prefs -> prefs[Keys.LAST_CLEANUP_DATE] = dateMillis }
     }
 }

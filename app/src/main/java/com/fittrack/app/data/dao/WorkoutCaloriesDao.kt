@@ -27,4 +27,8 @@ interface WorkoutCaloriesDao {
 
     @Query("SELECT COALESCE(SUM(calories_burned), 0) FROM workout_calories WHERE date_millis = :dateMillis")
     fun getTotalBurnedForDay(dateMillis: Long): Flow<Float>
+
+    /** Deletes all workout-calorie records from days before [beforeDateMillis]. */
+    @Query("DELETE FROM workout_calories WHERE date_millis < :beforeDateMillis")
+    suspend fun deleteOlderThan(beforeDateMillis: Long)
 }

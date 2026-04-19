@@ -25,6 +25,7 @@ import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
+import com.fittrack.app.util.todayMillis
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.util.Locale
@@ -101,14 +102,17 @@ private data class BackupMeal(
 )
 
 private data class BackupFoodEntry(
-    @SerializedName("mealId") val mealId: Long,
+    @SerializedName("mealId") val mealId: Long?,
     @SerializedName("name") val name: String,
     @SerializedName("barcode") val barcode: String?,
     @SerializedName("caloriesPer100") val caloriesPer100: Float,
     @SerializedName("proteinPer100") val proteinPer100: Float,
     @SerializedName("carbsPer100") val carbsPer100: Float,
     @SerializedName("fatPer100") val fatPer100: Float,
-    @SerializedName("amount") val amount: Float
+    @SerializedName("amount") val amount: Float,
+    /** Midnight-normalised epoch millis recorded when the entry was inserted (added in schema v7).
+     *  0 for entries restored from older backups that pre-date this field. */
+    @SerializedName("loggedDateMillis") val loggedDateMillis: Long = 0L
 )
 
 private data class BackupWorkoutCalories(
@@ -237,7 +241,8 @@ object WorkoutBackupHelper {
                     proteinPer100 = entry.proteinPer100,
                     carbsPer100 = entry.carbsPer100,
                     fatPer100 = entry.fatPer100,
-                    amount = entry.amount
+                    amount = entry.amount,
+                    loggedDateMillis = entry.loggedDateMillis
                 )
             },
             workoutCalories = emptyList(),
@@ -378,28 +383,40 @@ object WorkoutBackupHelper {
         }
 
         if (foodEntriesEmpty) {
-            if (mealIdMap.isEmpty() && data.foodEntries.isNotEmpty()) {
-                Log.w(TAG, "Skipping food-entry restore because no meal ID mapping is available")
-            } else {
-                data.foodEntries.forEach { backupEntry ->
-                    val mappedMealId = mealIdMap[backupEntry.mealId]
-                    if (mappedMealId == null) {
-                        Log.w(TAG, "Skipping food-entry restore for unknown mealId=${backupEntry.mealId}")
-                        return@forEach
-                    }
-                    foodDao.insertFoodEntry(
-                        FoodEntry(
-                            mealId = mappedMealId,
-                            name = backupEntry.name,
-                            barcode = backupEntry.barcode,
-                            caloriesPer100 = backupEntry.caloriesPer100,
-                            proteinPer100 = backupEntry.proteinPer100,
-                            carbsPer100 = backupEntry.carbsPer100,
-                            fatPer100 = backupEntry.fatPer100,
-                            amount = backupEntry.amount
-                        )
-                    )
+            data.foodEntries.forEach { backupEntry ->
+                // Entries from old meals (cleaned up, mealId null in backup) are restored
+                // as orphaned rows; their loggedDateMillis preserves the date for search.
+                val mappedMealId = backupEntry.mealId?.let { mealIdMap[it] }
+                if (backupEntry.mealId != null && mappedMealId == null) {
+                    // Backup entry references a meal that was not restored (old backup without
+                    // that meal or the meal was already cleaned up).  Keep the entry as orphaned.
+                    Log.d(TAG, "Restoring food-entry as orphan (mealId=${backupEntry.mealId} not in map)")
                 }
+                // Resolve loggedDateMillis: prefer value from backup; fall back to the restored
+                // meal's dateMillis for entries from older backups that lack this field.
+                // If neither is available (truly orphaned entry from an old backup), use today
+                // so the entry stays within the 90-day retention window instead of being
+                // immediately purged by the next daily cleanup.
+                val loggedDateMillis = if (backupEntry.loggedDateMillis != 0L) {
+                    backupEntry.loggedDateMillis
+                } else {
+                    mappedMealId?.let { id ->
+                        foodDao.getMealById(id)?.dateMillis
+                    } ?: todayMillis()
+                }
+                foodDao.insertFoodEntry(
+                    FoodEntry(
+                        mealId = mappedMealId,
+                        name = backupEntry.name,
+                        barcode = backupEntry.barcode,
+                        caloriesPer100 = backupEntry.caloriesPer100,
+                        proteinPer100 = backupEntry.proteinPer100,
+                        carbsPer100 = backupEntry.carbsPer100,
+                        fatPer100 = backupEntry.fatPer100,
+                        amount = backupEntry.amount,
+                        loggedDateMillis = loggedDateMillis
+                    )
+                )
             }
         }
 
