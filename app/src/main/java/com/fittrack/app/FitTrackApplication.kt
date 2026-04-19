@@ -9,7 +9,6 @@ import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
-import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.network.RetrofitInstance
 import com.fittrack.app.data.preferences.ActiveWorkoutSession
@@ -87,7 +86,6 @@ class FitTrackApplication : Application() {
             customFoodDao = database.customFoodDao(),
             recipeDao = database.recipeDao(),
             foodDao = database.foodDao(),
-            workoutCaloriesDao = database.workoutCaloriesDao(),
             activeWorkoutSessionPreferences = activeWorkoutSessionPreferences
         )
     }
@@ -117,9 +115,6 @@ class FitTrackApplication : Application() {
             .combine(foodRepository.observeAllFoodEntries()) { snapshot, foodEntries ->
                 snapshot.copy(foodEntries = foodEntries)
             }
-            .combine(foodRepository.observeAllWorkoutCalories()) { snapshot, workoutCalories ->
-                snapshot.copy(workoutCalories = workoutCalories)
-            }
             .combine(activeWorkoutSessionPreferences.changeEvents) { snapshot, _ ->
                 snapshot.copy(
                     activeWorkoutSession = activeWorkoutSessionPreferences.getSession(),
@@ -143,7 +138,6 @@ class FitTrackApplication : Application() {
                     customExercises = snapshot.customExercises,
                     meals = snapshot.meals,
                     foodEntries = snapshot.foodEntries,
-                    workoutCalories = snapshot.workoutCalories,
                     activeWorkoutSession = snapshot.activeWorkoutSession,
                     activeWorkoutExerciseSessionsState = snapshot.activeWorkoutExerciseSessionsState
                 )
@@ -158,7 +152,6 @@ class FitTrackApplication : Application() {
         val customExercises: List<Exercise> = emptyList(),
         val meals: List<Meal> = emptyList(),
         val foodEntries: List<FoodEntry> = emptyList(),
-        val workoutCalories: List<WorkoutCalories> = emptyList(),
         val activeWorkoutSession: ActiveWorkoutSession? = null,
         val activeWorkoutExerciseSessionsState: String? = null
     )

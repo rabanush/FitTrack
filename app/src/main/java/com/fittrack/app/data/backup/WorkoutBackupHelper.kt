@@ -8,7 +8,6 @@ import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.RecipeDao
-import com.fittrack.app.data.dao.WorkoutCaloriesDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
@@ -18,7 +17,6 @@ import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
-import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.preferences.ActiveWorkoutSession
@@ -161,7 +159,6 @@ object WorkoutBackupHelper {
         customExercises: List<Exercise>,
         meals: List<Meal>,
         foodEntries: List<FoodEntry>,
-        workoutCalories: List<WorkoutCalories>,
         activeWorkoutSession: ActiveWorkoutSession?,
         activeWorkoutExerciseSessionsState: String?
     ) {
@@ -243,14 +240,7 @@ object WorkoutBackupHelper {
                     amount = entry.amount
                 )
             },
-            workoutCalories = workoutCalories.map { entry ->
-                BackupWorkoutCalories(
-                    workoutId = entry.workoutId,
-                    dateMillis = entry.dateMillis,
-                    caloriesBurned = entry.caloriesBurned,
-                    durationMinutes = entry.durationMinutes
-                )
-            },
+            workoutCalories = emptyList(),
             activeWorkoutSession = activeWorkoutSession?.let { session ->
                 BackupActiveWorkoutSession(
                     workoutId = session.workoutId,
@@ -271,7 +261,7 @@ object WorkoutBackupHelper {
      * Reads FitTrackBackup.json from the SAF folder and restores all data.
      * Only restores each category if the corresponding DB table is empty (fresh install / data-clear).
      * Restore order: custom exercises → workouts + exercises in workouts → custom foods →
-     * recipes → meals → food entries → workout calories → user profile → active session.
+     * recipes → meals → food entries → user profile → active session.
      */
     suspend fun importData(
         context: Context,
@@ -282,7 +272,6 @@ object WorkoutBackupHelper {
         customFoodDao: CustomFoodDao,
         recipeDao: RecipeDao,
         foodDao: FoodDao,
-        workoutCaloriesDao: WorkoutCaloriesDao,
         activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences
     ) {
         val json = readJson(context, treeUriString) ?: return
@@ -298,7 +287,6 @@ object WorkoutBackupHelper {
         val recipesEmpty = recipeDao.getCount() == 0
         val mealsEmpty = foodDao.getMealCount() == 0
         val foodEntriesEmpty = foodDao.getFoodEntryCount() == 0
-        val caloriesEmpty = workoutCaloriesDao.getCount() == 0
 
         val workoutIdMapping = mutableMapOf<Long, Long>()
 
@@ -412,24 +400,6 @@ object WorkoutBackupHelper {
                         )
                     )
                 }
-            }
-        }
-
-        if (caloriesEmpty) {
-            data.workoutCalories.forEach { backupEntry ->
-                val mappedWorkoutId = workoutIdMapping[backupEntry.workoutId]
-                if (mappedWorkoutId == null) {
-                    Log.w(TAG, "Skipping workout-calorie restore for unknown workoutId=${backupEntry.workoutId}")
-                    return@forEach
-                }
-                workoutCaloriesDao.insert(
-                    WorkoutCalories(
-                        dateMillis = backupEntry.dateMillis,
-                        workoutId = mappedWorkoutId,
-                        caloriesBurned = backupEntry.caloriesBurned,
-                        durationMinutes = backupEntry.durationMinutes
-                    )
-                )
             }
         }
 

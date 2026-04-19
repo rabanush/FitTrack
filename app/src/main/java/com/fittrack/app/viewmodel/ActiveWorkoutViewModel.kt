@@ -239,17 +239,12 @@ class ActiveWorkoutViewModel(
     }
 
     private suspend fun tickTimer() {
-        // Start above the initial value so countdown tones are emitted exactly when 3/2/1 is crossed.
-        var previousRemaining = Int.MAX_VALUE
         while (true) {
             val state = _timerState.value
             val now = System.currentTimeMillis()
             val remaining = ((state.endTimeMillis - now) / 1000L)
                 .toInt().coerceAtLeast(0)
             _timerState.value = state.copy(remainingSeconds = remaining)
-            if (remaining in 1..3 && remaining < previousRemaining) {
-                playCountdownTone()
-            }
             if (remaining <= 0) {
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
                 timerNotificationHelper.cancelRunningTimer()
@@ -262,21 +257,11 @@ class ActiveWorkoutViewModel(
                 }
                 break
             }
-            previousRemaining = remaining
             delay(200L) // Poll frequently enough for a smooth countdown display
         }
     }
 
-    private fun playCountdownTone() {
-        val volume = _timerVolumePercent.value
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                timerAudioPlayer.playCountdownBeep(volume)
-            } catch (_: Exception) {}
-        }
-    }
-
-    /** Two-beep sequence used when the rest timer expires – distinct from the per-second countdown beeps. */
+    /** End-sequence alarm used when the rest timer expires. */
     private fun playEndTone() {
         val volume = _timerVolumePercent.value
         viewModelScope.launch(Dispatchers.IO) {
