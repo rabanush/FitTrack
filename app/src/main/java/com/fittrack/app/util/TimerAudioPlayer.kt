@@ -101,11 +101,7 @@ class TimerAudioPlayer(context: Context) {
 
     private fun preferredStream(): Int = AudioManager.STREAM_ALARM
 
-    /**
-     * Builds an [AudioFocusRequest] with [AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK], so
-     * any currently playing music is ducked (reduced volume) while the timer tone plays, rather
-     * than being paused entirely.
-     */
+    /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
     private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
         AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(

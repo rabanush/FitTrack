@@ -26,13 +26,14 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         val executor = Executors.newSingleThreadExecutor()
         executor.execute {
             try {
-                if (!isCurrentTimerAlarm(appContext, workoutId, timerEndTimeMillis)) return@execute
-                val preferences = ActiveWorkoutSessionPreferences(appContext)
-                val notifications = RestTimerNotificationHelper(appContext)
-                notifications.cancelRunningTimer()
-                runCatching { TimerAudioPlayer(appContext).playEndSequenceBlocking(volume) }
-                notifications.showFinishedNotification(workoutId)
-                preferences.clearTimerState()
+                if (isCurrentTimerAlarm(appContext, workoutId, timerEndTimeMillis)) {
+                    val preferences = ActiveWorkoutSessionPreferences(appContext)
+                    val notifications = RestTimerNotificationHelper(appContext)
+                    notifications.cancelRunningTimer()
+                    runCatching { TimerAudioPlayer(appContext).playEndSequenceBlocking(volume) }
+                    notifications.showFinishedNotification(workoutId)
+                    preferences.clearTimerState()
+                }
             } finally {
                 runCatching {
                     if (wakeLock.isHeld) {
