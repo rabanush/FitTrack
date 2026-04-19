@@ -53,10 +53,9 @@ fun FoodTrackerScreen(
             expandedMealIds = cleanedExpandedMealIds
             hasInitialSnapshot = true
         }
-        val targetMealId = pendingExpandMealId
-        if (targetMealId != null && currentEntryCounts.containsKey(targetMealId)) {
-            expandedMealIds = expandedMealIds + targetMealId
-            onPendingExpandHandled(targetMealId)
+        if (pendingExpandMealId != null && currentEntryCounts.containsKey(pendingExpandMealId)) {
+            expandedMealIds = expandedMealIds + pendingExpandMealId
+            onPendingExpandHandled(pendingExpandMealId)
         }
 
         previousEntryCounts = currentEntryCounts
