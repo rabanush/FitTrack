@@ -8,7 +8,6 @@ import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
 import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.RecipeDao
-import com.fittrack.app.data.dao.WorkoutCaloriesDao
 import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
@@ -18,7 +17,6 @@ import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
-import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.preferences.ActiveWorkoutSession
@@ -161,7 +159,6 @@ object WorkoutBackupHelper {
         customExercises: List<Exercise>,
         meals: List<Meal>,
         foodEntries: List<FoodEntry>,
-        _workoutCalories: List<WorkoutCalories>,
         activeWorkoutSession: ActiveWorkoutSession?,
         activeWorkoutExerciseSessionsState: String?
     ) {
@@ -275,7 +272,6 @@ object WorkoutBackupHelper {
         customFoodDao: CustomFoodDao,
         recipeDao: RecipeDao,
         foodDao: FoodDao,
-        _workoutCaloriesDao: WorkoutCaloriesDao,
         activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences
     ) {
         val json = readJson(context, treeUriString) ?: return
