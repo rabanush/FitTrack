@@ -52,6 +52,13 @@ interface FoodDao {
     @Query("SELECT COUNT(*) FROM meals")
     suspend fun getMealCount(): Int
 
+    /**
+     * Deletes meals from days before [beforeDateMillis] that have no food entries.
+     * Keeps any meal that still has at least one logged food entry.
+     */
+    @Query("DELETE FROM meals WHERE date_millis < :beforeDateMillis AND NOT EXISTS (SELECT 1 FROM food_entries WHERE food_entries.meal_id = meals.id)")
+    suspend fun deleteEmptyMealsOlderThan(beforeDateMillis: Long)
+
     // ---- FoodEntry ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

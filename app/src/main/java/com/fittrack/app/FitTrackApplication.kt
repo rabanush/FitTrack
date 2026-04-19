@@ -18,6 +18,7 @@ import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.repository.FitTrackRepository
 import com.fittrack.app.data.repository.FoodRepository
+import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -63,6 +64,7 @@ class FitTrackApplication : Application() {
             // Restore from backup using whatever folder URI is already stored (may be null on
             // a truly fresh install before the user has picked a folder).
             runImport()
+            runDailyCleanupIfNeeded()
             observeAndPersistBackups()
         }
     }
@@ -90,6 +92,18 @@ class FitTrackApplication : Application() {
             workoutCaloriesDao = database.workoutCaloriesDao(),
             activeWorkoutSessionPreferences = activeWorkoutSessionPreferences
         )
+    }
+
+    private suspend fun runDailyCleanupIfNeeded() {
+        val today = todayMillis()
+        val lastCleanup = userPreferences.lastCleanupDateMillis.first()
+        if (lastCleanup < today) {
+            // Remove past-day meals that were never used (no food entries logged).
+            database.foodDao().deleteEmptyMealsOlderThan(today)
+            // Workout-calorie history is only needed for the current day.
+            database.workoutCaloriesDao().deleteOlderThan(today)
+            userPreferences.saveLastCleanupDateMillis(today)
+        }
     }
 
     private suspend fun observeAndPersistBackups() {
