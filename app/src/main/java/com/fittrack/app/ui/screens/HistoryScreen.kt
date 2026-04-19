@@ -76,7 +76,7 @@ fun HistoryDateCard(
     val entriesFlow = remember(date) { viewModel.getLogEntriesForDate(date) }
     val entries by entriesFlow.collectAsState(initial = emptyList())
     val dateStr = remember(date) {
-        SimpleDateFormat("EEE, d. MMM yyyy", Locale.getDefault()).format(Date(date))
+        SimpleDateFormat("EEE, d. MMM yyyy", Locale.GERMAN).format(Date(date))
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {

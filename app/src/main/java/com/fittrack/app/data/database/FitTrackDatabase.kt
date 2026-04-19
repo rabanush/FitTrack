@@ -11,7 +11,8 @@ import com.fittrack.app.data.dao.FoodDao
 import com.fittrack.app.data.dao.LogEntryDao
 import com.fittrack.app.data.dao.RecipeDao
 import com.fittrack.app.data.dao.WorkoutCaloriesDao
-import com.fittrack.app.data.dao.WorkoutDaoimport com.fittrack.app.data.model.CustomFood
+import com.fittrack.app.data.dao.WorkoutDao
+import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.LogEntry
