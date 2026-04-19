@@ -21,6 +21,7 @@ class RestTimerNotificationHelper(context: Context) {
 
     fun showRunningTimer(endTimeMillis: Long, exerciseName: String?, setNumber: Int, workoutId: Long) {
         ensureChannel()
+        notificationManager.cancel(FINISHED_TIMER_NOTIFICATION_ID)
         val content = buildString {
             append(appContext.getString(R.string.timer_set_label, setNumber))
             exerciseName?.takeIf { it.isNotBlank() }?.let {
@@ -47,6 +48,7 @@ class RestTimerNotificationHelper(context: Context) {
 
     fun showFinishedNotification(workoutId: Long? = null) {
         ensureChannel()
+        notificationManager.cancel(RUNNING_TIMER_NOTIFICATION_ID)
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(appContext.getString(R.string.timer_finished_title))
@@ -64,7 +66,11 @@ class RestTimerNotificationHelper(context: Context) {
     }
 
     fun scheduleCompletionAlarm(endTimeMillis: Long, timerVolumePercent: Int, workoutId: Long) {
-        val pendingIntent = alarmPendingIntent(timerVolumePercent = timerVolumePercent, workoutId = workoutId)
+        val pendingIntent = alarmPendingIntent(
+            timerVolumePercent = timerVolumePercent,
+            workoutId = workoutId,
+            timerEndTimeMillis = endTimeMillis
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
             return
@@ -76,13 +82,20 @@ class RestTimerNotificationHelper(context: Context) {
         alarmManager.cancel(alarmPendingIntent())
     }
 
-    private fun alarmPendingIntent(timerVolumePercent: Int? = null, workoutId: Long? = null): PendingIntent {
+    private fun alarmPendingIntent(
+        timerVolumePercent: Int? = null,
+        workoutId: Long? = null,
+        timerEndTimeMillis: Long? = null
+    ): PendingIntent {
         val intent = Intent(appContext, RestTimerAlarmReceiver::class.java).apply {
             timerVolumePercent?.let {
                 putExtra(EXTRA_TIMER_VOLUME_PERCENT, it.coerceIn(0, 100))
             }
             workoutId?.let {
                 putExtra(EXTRA_WORKOUT_ID, it)
+            }
+            timerEndTimeMillis?.let {
+                putExtra(EXTRA_TIMER_END_TIME_MILLIS, it)
             }
         }
         return PendingIntent.getBroadcast(
@@ -140,6 +153,7 @@ class RestTimerNotificationHelper(context: Context) {
     companion object {
         const val EXTRA_TIMER_VOLUME_PERCENT = "extra_timer_volume_percent"
         const val EXTRA_WORKOUT_ID = "extra_workout_id"
+        const val EXTRA_TIMER_END_TIME_MILLIS = "extra_timer_end_time_millis"
         private const val CHANNEL_ID = "rest_timer_channel"
         private const val RUNNING_TIMER_NOTIFICATION_ID = 3001
         private const val FINISHED_TIMER_NOTIFICATION_ID = 3002

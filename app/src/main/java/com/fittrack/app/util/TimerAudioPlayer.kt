@@ -2,7 +2,6 @@ package com.fittrack.app.util
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -20,13 +19,13 @@ class TimerAudioPlayer(context: Context) {
     }
 
     suspend fun playEndSequence(volumePercent: Int) {
-        withAudioFocus {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 250)
-                delay(380L)
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                delay(560L)
+                repeat(4) {
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 450)
+                    delay(850L)
+                }
             } finally {
                 ctx.release()
             }
@@ -35,13 +34,13 @@ class TimerAudioPlayer(context: Context) {
 
     /** Blocking variant used from a plain thread (e.g. inside a BroadcastReceiver). */
     fun playEndSequenceBlocking(volumePercent: Int) {
-        withAudioFocusBlocking {
+        withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
             try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 250)
-                Thread.sleep(380L)
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                Thread.sleep(560L)
+                repeat(4) {
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 450)
+                    Thread.sleep(850L)
+                }
             } finally {
                 ctx.release()
             }
@@ -51,7 +50,7 @@ class TimerAudioPlayer(context: Context) {
     // ── Internals ────────────────────────────────────────────────────────────
 
     private suspend fun playTone(toneType: Int, durationMs: Int, volumePercent: Int) {
-        withAudioFocus {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
                 ctx.toneGenerator.startTone(toneType, durationMs)
@@ -100,26 +99,15 @@ class TimerAudioPlayer(context: Context) {
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
 
-    private fun preferredStream(): Int =
-        if (isBluetoothOutputConnected()) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
-
-    private fun isBluetoothOutputConnected(): Boolean {
-        val bluetoothTypes = setOf(
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-            AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_BLE_SPEAKER
-        )
-        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in bluetoothTypes }
-    }
+    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
 
     /**
      * Builds an [AudioFocusRequest] with [AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK], so
      * any currently playing music is ducked (reduced volume) while the timer tone plays, rather
      * than being paused entirely.
      */
-    private fun buildAudioFocusRequest(): AudioFocusRequest =
-        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+    private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
+        AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -129,8 +117,8 @@ class TimerAudioPlayer(context: Context) {
             .setAcceptsDelayedFocusGain(false)
             .build()
 
-    private suspend fun withAudioFocus(block: suspend () -> Unit) {
-        val focusRequest = buildAudioFocusRequest()
+    private suspend fun withAudioFocus(focusGain: Int, block: suspend () -> Unit) {
+        val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         try {
             block()
@@ -139,8 +127,8 @@ class TimerAudioPlayer(context: Context) {
         }
     }
 
-    private fun withAudioFocusBlocking(block: () -> Unit) {
-        val focusRequest = buildAudioFocusRequest()
+    private fun withAudioFocusBlocking(focusGain: Int, block: () -> Unit) {
+        val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         try {
             block()
