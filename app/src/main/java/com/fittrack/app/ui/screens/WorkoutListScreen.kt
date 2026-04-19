@@ -44,6 +44,7 @@ fun WorkoutListScreen(
     val coroutineScope = rememberCoroutineScope()
     var foodTabSessionKey by rememberSaveable { mutableIntStateOf(0) }
     var previousPage by rememberSaveable { mutableIntStateOf(currentPage) }
+    var pendingExpandMealId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(currentPage) {
         if (previousPage == 1 && currentPage != 1) {
@@ -126,8 +127,20 @@ fun WorkoutListScreen(
                     1 -> FoodTrackerScreen(
                         viewModel = foodTrackerViewModel,
                         sessionKey = foodTabSessionKey,
-                        onAddFood = onAddFood,
-                        onAddRecipeToMeal = onAddRecipeToMeal
+                        pendingExpandMealId = pendingExpandMealId,
+                        onPendingExpandHandled = { handledMealId ->
+                            if (pendingExpandMealId == handledMealId) {
+                                pendingExpandMealId = null
+                            }
+                        },
+                        onAddFood = { mealId, mealName ->
+                            pendingExpandMealId = mealId
+                            onAddFood(mealId, mealName)
+                        },
+                        onAddRecipeToMeal = { mealId, mealName ->
+                            pendingExpandMealId = mealId
+                            onAddRecipeToMeal(mealId, mealName)
+                        }
                     )
                 }
             }

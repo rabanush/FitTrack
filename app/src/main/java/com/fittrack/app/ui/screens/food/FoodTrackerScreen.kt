@@ -24,6 +24,8 @@ import com.fittrack.app.viewmodel.MealWithEntries
 fun FoodTrackerScreen(
     viewModel: FoodTrackerViewModel,
     sessionKey: Int,
+    pendingExpandMealId: Long?,
+    onPendingExpandHandled: (Long) -> Unit,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
     onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit
 ) {
@@ -36,7 +38,7 @@ fun FoodTrackerScreen(
     var previousEntryCounts by remember(sessionKey) { mutableStateOf(emptyMap<Long, Int>()) }
     var hasInitialSnapshot by remember(sessionKey) { mutableStateOf(false) }
 
-    LaunchedEffect(mealsWithEntries, sessionKey) {
+    LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
         val currentEntryCounts = mealsWithEntries.associate { it.meal.id to it.entries.size }
         val cleanedExpandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
             currentEntryCounts.containsKey(mealId)
@@ -51,6 +53,12 @@ fun FoodTrackerScreen(
             expandedMealIds = cleanedExpandedMealIds
             hasInitialSnapshot = true
         }
+        val targetMealId = pendingExpandMealId
+        if (targetMealId != null && currentEntryCounts.containsKey(targetMealId)) {
+            expandedMealIds = expandedMealIds + targetMealId
+            onPendingExpandHandled(targetMealId)
+        }
+
         previousEntryCounts = currentEntryCounts
     }
 
