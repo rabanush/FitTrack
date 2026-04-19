@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
-import android.util.Log
 import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
@@ -36,12 +35,8 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
                     preferences.clearTimerState()
                 }
             } finally {
-                runCatching {
-                    if (wakeLock.isHeld) {
-                        wakeLock.release()
-                    }
-                }.onFailure { error ->
-                    Log.w(TAG, "Failed to release rest-timer wake lock", error)
+                if (wakeLock.isHeld) {
+                    wakeLock.release()
                 }
                 pendingResult.finish()
                 executor.shutdown()
@@ -60,7 +55,10 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
     private fun isCurrentTimerAlarm(context: Context, workoutId: Long?, alarmEndTimeMillis: Long): Boolean {
         val session = ActiveWorkoutSessionPreferences(context).getSession() ?: return false
         if (workoutId != null && session.workoutId != workoutId) return false
-        if (alarmEndTimeMillis <= 0L) return false
+        if (alarmEndTimeMillis <= 0L) {
+            return session.timerEndTimeMillis > 0L &&
+                abs(session.timerEndTimeMillis - System.currentTimeMillis()) <= LEGACY_ALARM_TOLERANCE_MS
+        }
         return abs(session.timerEndTimeMillis - alarmEndTimeMillis) <= END_TIME_TOLERANCE_MS
     }
 
@@ -69,9 +67,10 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         private const val END_TONE_TOTAL_DURATION_MS =
             (TimerAudioPlayer.END_SEQUENCE_REPEAT_COUNT - 1L) * TimerAudioPlayer.END_SEQUENCE_STEP_DURATION_MS +
                 TimerAudioPlayer.END_SEQUENCE_TONE_DURATION_MS.toLong()
+        // ~7 seconds keeps CPU awake for the ~3 second ring plus scheduling/dispatch overhead.
         private const val WAKE_LOCK_TIMEOUT_MS = END_TONE_TOTAL_DURATION_MS + 4_000L
         // 1.5 s covers AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
         private const val END_TIME_TOLERANCE_MS = 1_500L
-        private const val TAG = "RestTimerAlarmReceiver"
+        private const val LEGACY_ALARM_TOLERANCE_MS = 5_000L
     }
 }
