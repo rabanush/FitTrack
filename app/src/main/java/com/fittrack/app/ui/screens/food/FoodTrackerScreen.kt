@@ -39,12 +39,13 @@ fun FoodTrackerScreen(
     var hasInitialSnapshot by remember(sessionKey) { mutableStateOf(false) }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
+        val hadInitialSnapshot = hasInitialSnapshot
         val currentEntryCounts = mealsWithEntries.associate { it.meal.id to it.entries.size }
         val cleanedExpandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
             currentEntryCounts.containsKey(mealId)
         }
 
-        if (hasInitialSnapshot) {
+        if (hadInitialSnapshot) {
             val newlyExpandedMealIds = currentEntryCounts
                 .filter { (mealId, count) -> count > (previousEntryCounts[mealId] ?: 0) }
                 .keys
@@ -54,8 +55,15 @@ fun FoodTrackerScreen(
             hasInitialSnapshot = true
         }
         if (pendingExpandMealId != null && currentEntryCounts.containsKey(pendingExpandMealId)) {
-            expandedMealIds = expandedMealIds + pendingExpandMealId
-            onPendingExpandHandled(pendingExpandMealId)
+            val previousPendingCount = previousEntryCounts[pendingExpandMealId]
+            val currentPendingCount = currentEntryCounts.getValue(pendingExpandMealId)
+            val shouldApplyPendingExpand = !hadInitialSnapshot ||
+                (previousPendingCount != null && currentPendingCount > previousPendingCount)
+
+            if (shouldApplyPendingExpand) {
+                expandedMealIds = expandedMealIds + pendingExpandMealId
+                onPendingExpandHandled(pendingExpandMealId)
+            }
         }
 
         previousEntryCounts = currentEntryCounts
