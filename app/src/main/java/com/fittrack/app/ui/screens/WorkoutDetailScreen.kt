@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -28,8 +27,8 @@ fun WorkoutDetailScreen(
     onStartWorkout: () -> Unit
 ) {
     val workout by viewModel.workout.collectAsState()
-    val exercises by viewModel.workoutExercises.observeAsState(emptyList())
-    val allExercises by viewModel.allExercises.observeAsState(emptyList())
+    val exercises by viewModel.workoutExercises.collectAsState()
+    val allExercises by viewModel.allExercises.collectAsState()
 
     var isEditingName by remember { mutableStateOf(false) }
     var workoutName by remember(workout?.name) { mutableStateOf(workout?.name ?: "") }

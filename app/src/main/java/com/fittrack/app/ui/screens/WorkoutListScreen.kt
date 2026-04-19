@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +43,7 @@ fun WorkoutListScreen(
     val coroutineScope = rememberCoroutineScope()
     var foodTabSessionKey by rememberSaveable { mutableIntStateOf(0) }
     var previousPage by rememberSaveable { mutableIntStateOf(currentPage) }
+    var pendingExpandMealId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(currentPage) {
         if (previousPage == 1 && currentPage != 1) {
@@ -58,7 +58,7 @@ fun WorkoutListScreen(
     // Dialog state for "Create Workout" (workout page FAB)
     var showCreateWorkoutDialog by remember { mutableStateOf(false) }
 
-    val workouts by viewModel.workouts.observeAsState(emptyList())
+    val workouts by viewModel.workouts.collectAsState()
 
     Scaffold(
         topBar = {
@@ -126,8 +126,20 @@ fun WorkoutListScreen(
                     1 -> FoodTrackerScreen(
                         viewModel = foodTrackerViewModel,
                         sessionKey = foodTabSessionKey,
-                        onAddFood = onAddFood,
-                        onAddRecipeToMeal = onAddRecipeToMeal
+                        pendingExpandMealId = pendingExpandMealId,
+                        onPendingExpandHandled = { handledMealId ->
+                            if (pendingExpandMealId == handledMealId) {
+                                pendingExpandMealId = null
+                            }
+                        },
+                        onAddFood = { mealId, mealName ->
+                            pendingExpandMealId = mealId
+                            onAddFood(mealId, mealName)
+                        },
+                        onAddRecipeToMeal = { mealId, mealName ->
+                            pendingExpandMealId = mealId
+                            onAddRecipeToMeal(mealId, mealName)
+                        }
                     )
                 }
             }

@@ -40,7 +40,7 @@ fun ExerciseListScreen(
             CenterAlignedTopAppBar(
                 title = { 
                     Text(
-                        "Exercise Library", 
+                        "Übungsbibliothek", 
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     ) 
                 },
@@ -67,7 +67,7 @@ fun ExerciseListScreen(
                 contentColor = Color.White,
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Exercise")
+                Icon(Icons.Default.Add, contentDescription = "Übung hinzufügen")
             }
         }
     ) { padding ->
@@ -80,7 +80,7 @@ fun ExerciseListScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search exercises...", color = Color.Gray) },
+                placeholder = { Text("Übungen suchen…", color = Color.Gray) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -222,7 +222,7 @@ fun ExerciseItem(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        if (exercise.isCustom) "Custom Exercise" else "Standard",
+                        if (exercise.isCustom) "Eigene Übung" else "Standard",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
                     )
@@ -233,7 +233,7 @@ fun ExerciseItem(
                 IconButton(onClick = onEdit) {
                     Icon(
                         Icons.Default.Edit, 
-                        contentDescription = "Edit", 
+                        contentDescription = "Bearbeiten", 
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -242,7 +242,7 @@ fun ExerciseItem(
                     IconButton(onClick = onDelete) {
                         Icon(
                             Icons.Default.Delete, 
-                            contentDescription = "Delete", 
+                            contentDescription = "Löschen", 
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                             modifier = Modifier.size(20.dp)
                         )
@@ -276,7 +276,7 @@ fun ExerciseDialog(
         containerColor = MaterialTheme.colorScheme.surface,
         title = { 
             Text(
-                if (exercise == null) "New Exercise" else "Edit Exercise",
+                if (exercise == null) "Neue Übung" else "Übung bearbeiten",
                 color = Color.White,
                 fontWeight = FontWeight.Bold
             ) 
@@ -295,7 +295,7 @@ fun ExerciseDialog(
                 OutlinedTextField(
                     value = germanName,
                     onValueChange = { germanName = it },
-                    label = { Text("German Name (optional)") },
+                    label = { Text("Deutscher Name (optional)") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = textFieldColors,
@@ -304,7 +304,7 @@ fun ExerciseDialog(
                 OutlinedTextField(
                     value = muscleGroup,
                     onValueChange = { muscleGroup = it },
-                    label = { Text("Muscle Group") },
+                    label = { Text("Muskelgruppe") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = textFieldColors,
@@ -313,7 +313,7 @@ fun ExerciseDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description (optional)") },
+                    label = { Text("Beschreibung (optional)") },
                     minLines = 2,
                     maxLines = 4,
                     shape = RoundedCornerShape(12.dp),
@@ -328,11 +328,11 @@ fun ExerciseDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(12.dp),
                 enabled = name.isNotBlank() && muscleGroup.isNotBlank()
-            ) { Text("Save", color = Color.White) }
+            ) { Text("Speichern", color = Color.White) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { 
-                Text("Cancel", color = MaterialTheme.colorScheme.primary) 
+                Text("Abbrechen", color = MaterialTheme.colorScheme.primary) 
             }
         }
     )

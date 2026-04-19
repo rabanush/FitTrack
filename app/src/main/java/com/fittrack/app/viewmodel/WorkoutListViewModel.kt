@@ -3,10 +3,14 @@ package com.fittrack.app.viewmodel
 import androidx.lifecycle.*
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.repository.FitTrackRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class WorkoutListViewModel(private val repository: FitTrackRepository) : ViewModel() {
-    val workouts = repository.allWorkouts.asLiveData()
+    val workouts: StateFlow<List<Workout>> = repository.allWorkouts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun createWorkout(name: String, onCreated: (Long) -> Unit) {
         viewModelScope.launch {

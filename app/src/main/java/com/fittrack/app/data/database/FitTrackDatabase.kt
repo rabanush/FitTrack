@@ -22,7 +22,6 @@ import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.model.WorkoutExercise
-import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.seed.ExerciseSeedLoader
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -54,7 +53,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FitTrackDatabase? = null
 
-        fun getDatabase(context: Context, userPreferences: UserPreferences): FitTrackDatabase {
+        fun getDatabase(context: Context): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
                 val appContext = context.applicationContext
                 val instance = Room.databaseBuilder(
