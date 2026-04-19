@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class,
                 Meal::class, FoodEntry::class, WorkoutCalories::class,
                 CustomFood::class, Recipe::class, RecipeItem::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {

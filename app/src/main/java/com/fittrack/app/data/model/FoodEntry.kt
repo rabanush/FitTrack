@@ -13,16 +13,20 @@ import androidx.room.PrimaryKey
             entity = Meal::class,
             parentColumns = ["id"],
             childColumns = ["meal_id"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [Index("meal_id")]
 )
 data class FoodEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(name = "meal_id") val mealId: Long,
+    /** Null when the parent meal has been cleaned up (past-day meal deleted by daily cleanup). */
+    @ColumnInfo(name = "meal_id") val mealId: Long?,
     val name: String,
     val barcode: String? = null,
+    /** Midnight-normalised epoch millis for the day this entry was logged.
+     *  Populated automatically from the parent meal on insert; survives meal deletion. */
+    @ColumnInfo(name = "logged_date_millis") val loggedDateMillis: Long = 0L,
     /** Calories per 100 g (from API or manual entry). */
     @ColumnInfo(name = "calories_per100") val caloriesPer100: Float,
     @ColumnInfo(name = "protein_per100") val proteinPer100: Float,

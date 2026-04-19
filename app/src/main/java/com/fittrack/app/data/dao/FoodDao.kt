@@ -53,11 +53,19 @@ interface FoodDao {
     suspend fun getMealCount(): Int
 
     /**
-     * Deletes meals from days before [beforeDateMillis] that have no food entries.
-     * Keeps any meal that still has at least one logged food entry.
+     * Deletes ALL meals from days before [beforeDateMillis], regardless of whether they have
+     * food entries. The FK is SET_NULL so food entries survive (with meal_id = null) and remain
+     * available for "recently used" lookups via their [logged_date_millis] column.
      */
-    @Query("DELETE FROM meals WHERE date_millis < :beforeDateMillis AND NOT EXISTS (SELECT 1 FROM food_entries WHERE food_entries.meal_id = meals.id)")
-    suspend fun deleteEmptyMealsOlderThan(beforeDateMillis: Long)
+    @Query("DELETE FROM meals WHERE date_millis < :beforeDateMillis")
+    suspend fun deleteMealsOlderThan(beforeDateMillis: Long)
+
+    /**
+     * Deletes food entries whose [logged_date_millis] is before [beforeDateMillis].
+     * Used to enforce the 90-day retention window for the "recently used" history.
+     */
+    @Query("DELETE FROM food_entries WHERE logged_date_millis > 0 AND logged_date_millis < :beforeDateMillis")
+    suspend fun deleteFoodEntriesOlderThan(beforeDateMillis: Long)
 
     // ---- FoodEntry ----
 
@@ -82,12 +90,8 @@ interface FoodDao {
     @Query("SELECT COUNT(*) FROM food_entries")
     suspend fun getFoodEntryCount(): Int
 
-    /** Returns all food entries logged on a given day (joined via meals). */
-    @Query("""
-        SELECT fe.* FROM food_entries fe
-        INNER JOIN meals m ON fe.meal_id = m.id
-        WHERE m.date_millis = :dateMillis
-    """)
+    /** Returns all food entries logged on a given day via the stored date column. */
+    @Query("SELECT * FROM food_entries WHERE logged_date_millis = :dateMillis ORDER BY id ASC")
     fun getFoodEntriesForDay(dateMillis: Long): Flow<List<FoodEntry>>
 
     @Query(
@@ -106,11 +110,10 @@ interface FoodDao {
         SELECT
             NULLIF(TRIM(fe.barcode), '') AS barcode,
             TRIM(fe.name) AS name,
-            MAX(m.date_millis) AS last_used_date_millis,
+            MAX(fe.logged_date_millis) AS last_used_date_millis,
             MAX(fe.id) AS last_entry_id
         FROM food_entries fe
-        INNER JOIN meals m ON m.id = fe.meal_id
-        WHERE m.date_millis >= :sinceMillis
+        WHERE fe.logged_date_millis >= :sinceMillis
           AND TRIM(fe.name) != ''
         GROUP BY NULLIF(TRIM(fe.barcode), ''), LOWER(TRIM(fe.name))
         ORDER BY last_used_date_millis DESC, last_entry_id DESC
@@ -133,11 +136,10 @@ interface FoodDao {
             SELECT
                 NULLIF(TRIM(fe.barcode), '') AS barcode,
                 TRIM(fe.name) AS name,
-                MAX(m.date_millis) AS last_used_date_millis,
+                MAX(fe.logged_date_millis) AS last_used_date_millis,
                 MAX(fe.id) AS last_entry_id
             FROM food_entries fe
-            INNER JOIN meals m ON m.id = fe.meal_id
-            WHERE m.date_millis >= :sinceMillis
+            WHERE fe.logged_date_millis >= :sinceMillis
               AND LOWER(TRIM(fe.name)) LIKE '%' || LOWER(TRIM(:query)) || '%'
               AND TRIM(fe.name) != ''
             GROUP BY NULLIF(TRIM(fe.barcode), ''), LOWER(TRIM(fe.name))
