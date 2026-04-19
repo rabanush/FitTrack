@@ -22,9 +22,12 @@ class TimerAudioPlayer(context: Context) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
-                repeat(END_SEQUENCE_REPEAT_COUNT) {
+                repeat(END_SEQUENCE_REPEAT_COUNT) { index ->
                     ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
-                    delay(END_SEQUENCE_STEP_DURATION_MS)
+                    delay(
+                        if (index == END_SEQUENCE_REPEAT_COUNT - 1) END_SEQUENCE_TONE_DURATION_MS.toLong()
+                        else END_SEQUENCE_STEP_DURATION_MS
+                    )
                 }
             } finally {
                 ctx.release()
@@ -37,9 +40,12 @@ class TimerAudioPlayer(context: Context) {
         withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
             try {
-                repeat(END_SEQUENCE_REPEAT_COUNT) {
+                repeat(END_SEQUENCE_REPEAT_COUNT) { index ->
                     ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
-                    Thread.sleep(END_SEQUENCE_STEP_DURATION_MS)
+                    Thread.sleep(
+                        if (index == END_SEQUENCE_REPEAT_COUNT - 1) END_SEQUENCE_TONE_DURATION_MS.toLong()
+                        else END_SEQUENCE_STEP_DURATION_MS
+                    )
                 }
             } finally {
                 ctx.release()

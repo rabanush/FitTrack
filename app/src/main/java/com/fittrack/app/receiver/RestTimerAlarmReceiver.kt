@@ -57,14 +57,15 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
     private fun isCurrentTimerAlarm(context: Context, workoutId: Long?, alarmEndTimeMillis: Long): Boolean {
         val session = ActiveWorkoutSessionPreferences(context).getSession() ?: return false
         if (workoutId != null && session.workoutId != workoutId) return false
-        if (alarmEndTimeMillis <= 0L) return session.timerEndTimeMillis > 0L
+        if (alarmEndTimeMillis <= 0L) return false
         return abs(session.timerEndTimeMillis - alarmEndTimeMillis) <= END_TIME_TOLERANCE_MS
     }
 
     companion object {
         private const val WAKE_LOCK_TAG = "fittrack:rest_timer_alarm"
         private const val END_TONE_TOTAL_DURATION_MS =
-            TimerAudioPlayer.END_SEQUENCE_REPEAT_COUNT * TimerAudioPlayer.END_SEQUENCE_STEP_DURATION_MS
+            (TimerAudioPlayer.END_SEQUENCE_REPEAT_COUNT - 1L) * TimerAudioPlayer.END_SEQUENCE_STEP_DURATION_MS +
+                TimerAudioPlayer.END_SEQUENCE_TONE_DURATION_MS.toLong()
         private const val WAKE_LOCK_TIMEOUT_MS = END_TONE_TOTAL_DURATION_MS + 4_000L
         // Absorbs AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
         private const val END_TIME_TOLERANCE_MS = 1_500L
