@@ -148,5 +148,8 @@ class TimerAudioPlayer(context: Context) {
         const val END_SEQUENCE_REPEAT_COUNT = 4
         const val END_SEQUENCE_TONE_DURATION_MS = 450
         const val END_SEQUENCE_STEP_DURATION_MS = 850L
+        const val END_SEQUENCE_TOTAL_DURATION_MS =
+            ((END_SEQUENCE_REPEAT_COUNT - 1L) * END_SEQUENCE_STEP_DURATION_MS) +
+                END_SEQUENCE_TONE_DURATION_MS.toLong()
     }
 }
