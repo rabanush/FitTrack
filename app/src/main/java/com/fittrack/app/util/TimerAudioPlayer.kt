@@ -22,9 +22,9 @@ class TimerAudioPlayer(context: Context) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
-                repeat(4) {
-                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 450)
-                    delay(850L)
+                repeat(END_SEQUENCE_REPEAT_COUNT) {
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
+                    delay(END_SEQUENCE_STEP_DURATION_MS)
                 }
             } finally {
                 ctx.release()
@@ -37,9 +37,9 @@ class TimerAudioPlayer(context: Context) {
         withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
             try {
-                repeat(4) {
-                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 450)
-                    Thread.sleep(850L)
+                repeat(END_SEQUENCE_REPEAT_COUNT) {
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
+                    Thread.sleep(END_SEQUENCE_STEP_DURATION_MS)
                 }
             } finally {
                 ctx.release()
@@ -136,4 +136,10 @@ class TimerAudioPlayer(context: Context) {
     private fun toEffectiveAudioPercent(displayPercent: Int): Int =
         // Keep the same perceived loudness when the default slider position moves from 100% to 50%.
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
+
+    companion object {
+        const val END_SEQUENCE_REPEAT_COUNT = 4
+        const val END_SEQUENCE_TONE_DURATION_MS = 450
+        const val END_SEQUENCE_STEP_DURATION_MS = 850L
+    }
 }

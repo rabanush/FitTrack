@@ -63,10 +63,10 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
 
     companion object {
         private const val WAKE_LOCK_TAG = "fittrack:rest_timer_alarm"
-        private const val END_TONE_REPEAT_COUNT = 4L
-        private const val END_TONE_STEP_DURATION_MS = 850L
-        private const val END_TONE_TOTAL_DURATION_MS = END_TONE_REPEAT_COUNT * END_TONE_STEP_DURATION_MS
+        private const val END_TONE_TOTAL_DURATION_MS =
+            TimerAudioPlayer.END_SEQUENCE_REPEAT_COUNT * TimerAudioPlayer.END_SEQUENCE_STEP_DURATION_MS
         private const val WAKE_LOCK_TIMEOUT_MS = END_TONE_TOTAL_DURATION_MS + 4_000L
-        private const val END_TIME_TOLERANCE_MS = 1_500L // Absorbs small scheduling drift between alarm and persisted timer state.
+        // Absorbs AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
+        private const val END_TIME_TOLERANCE_MS = 1_500L
     }
 }
