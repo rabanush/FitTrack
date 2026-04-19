@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +58,7 @@ fun WorkoutListScreen(
     // Dialog state for "Create Workout" (workout page FAB)
     var showCreateWorkoutDialog by remember { mutableStateOf(false) }
 
-    val workouts by viewModel.workouts.observeAsState(emptyList())
+    val workouts by viewModel.workouts.collectAsState()
 
     Scaffold(
         topBar = {

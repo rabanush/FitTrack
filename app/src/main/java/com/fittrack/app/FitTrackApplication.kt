@@ -37,7 +37,7 @@ class FitTrackApplication : Application() {
 
     val userPreferences by lazy { UserPreferences(this) }
     val activeWorkoutSessionPreferences by lazy { ActiveWorkoutSessionPreferences(this) }
-    val database by lazy { FitTrackDatabase.getDatabase(this, userPreferences) }
+    val database by lazy { FitTrackDatabase.getDatabase(this) }
     val repository by lazy {
         FitTrackRepository(
             database.exerciseDao(),

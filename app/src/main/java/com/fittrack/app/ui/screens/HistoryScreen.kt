@@ -7,12 +7,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.LogEntry
 import com.fittrack.app.viewmodel.HistoryViewModel
+import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -22,15 +22,16 @@ fun HistoryScreen(
     viewModel: HistoryViewModel,
     onBack: () -> Unit
 ) {
-    val dates by viewModel.allWorkoutDates.observeAsState(emptyList())
+    val dates by viewModel.allWorkoutDates.collectAsState()
+    val exerciseNames by viewModel.exerciseNames.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Workout History") },
+                title = { Text("Trainingshistorie") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                     }
                 }
             )
@@ -43,7 +44,7 @@ fun HistoryScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No workout history yet.")
+                Text("Noch keine Trainingseinträge.")
             }
         } else {
             LazyColumn(
@@ -54,7 +55,11 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(dates) { date ->
-                    HistoryDateCard(date = date, viewModel = viewModel)
+                    HistoryDateCard(
+                        date = date,
+                        viewModel = viewModel,
+                        exerciseNames = exerciseNames
+                    )
                 }
             }
         }
@@ -62,12 +67,16 @@ fun HistoryScreen(
 }
 
 @Composable
-fun HistoryDateCard(date: Long, viewModel: HistoryViewModel) {
+fun HistoryDateCard(
+    date: Long,
+    viewModel: HistoryViewModel,
+    exerciseNames: Map<Long, String>
+) {
     var expanded by remember { mutableStateOf(false) }
-    val entriesLive = remember(date) { viewModel.getLogEntriesForDate(date) }
-    val entries by entriesLive.observeAsState(emptyList())
+    val entriesFlow = remember(date) { viewModel.getLogEntriesForDate(date) }
+    val entries by entriesFlow.collectAsState(initial = emptyList())
     val dateStr = remember(date) {
-        SimpleDateFormat("EEE, MMM d yyyy HH:mm", Locale.getDefault()).format(Date(date))
+        SimpleDateFormat("EEE, d. MMM yyyy", Locale.getDefault()).format(Date(date))
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -82,12 +91,15 @@ fun HistoryDateCard(date: Long, viewModel: HistoryViewModel) {
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Hide" else "Show")
+                    Text(if (expanded) "Ausblenden" else "Einblenden")
                 }
             }
             if (expanded) {
-                entries.groupBy { it.exerciseId }.forEach { (_, exerciseEntries) ->
-                    ExerciseHistorySection(exerciseEntries)
+                entries.groupBy { it.exerciseId }.forEach { (exerciseId, exerciseEntries) ->
+                    ExerciseHistorySection(
+                        entries = exerciseEntries,
+                        exerciseName = exerciseNames[exerciseId] ?: "Übung #$exerciseId"
+                    )
                 }
             }
         }
@@ -95,11 +107,9 @@ fun HistoryDateCard(date: Long, viewModel: HistoryViewModel) {
 }
 
 @Composable
-fun ExerciseHistorySection(entries: List<LogEntry>) {
+fun ExerciseHistorySection(entries: List<LogEntry>, exerciseName: String) {
     Column(modifier = Modifier.padding(top = 8.dp)) {
-        entries.firstOrNull()?.let {
-            Text("Exercise #${it.exerciseId}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-        }
+        Text(exerciseName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         entries.forEach { entry ->
             Row(
                 modifier = Modifier
@@ -107,8 +117,11 @@ fun ExerciseHistorySection(entries: List<LogEntry>) {
                     .padding(vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Set ${entry.setNumber}", style = MaterialTheme.typography.bodySmall)
-                Text("${entry.weight}kg × ${entry.reps} reps, RIR: ${entry.rir}", style = MaterialTheme.typography.bodySmall)
+                Text("Satz ${entry.setNumber}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "${entry.weight} kg × ${entry.reps} Wdh., RIR: ${entry.rir}",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }

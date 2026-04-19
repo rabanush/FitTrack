@@ -4,7 +4,9 @@ import androidx.lifecycle.*
 import com.fittrack.app.data.model.*
 import com.fittrack.app.data.repository.FitTrackRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class WorkoutDetailViewModel(
@@ -15,8 +17,12 @@ class WorkoutDetailViewModel(
     private val _workout = MutableStateFlow<Workout?>(null)
     val workout: StateFlow<Workout?> = _workout
 
-    val workoutExercises = repository.getWorkoutExercisesWithExercise(workoutId).asLiveData()
-    val allExercises = repository.allExercises.asLiveData()
+    val workoutExercises: StateFlow<List<WorkoutExerciseWithExercise>> =
+        repository.getWorkoutExercisesWithExercise(workoutId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val allExercises: StateFlow<List<Exercise>> = repository.allExercises
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         viewModelScope.launch {
@@ -35,7 +41,7 @@ class WorkoutDetailViewModel(
 
     fun addExerciseToWorkout(exerciseId: Long, restTimerSeconds: Int = 90) {
         viewModelScope.launch {
-            val currentCount = workoutExercises.value?.size ?: 0
+            val currentCount = workoutExercises.value.size
             repository.insertWorkoutExercise(
                 WorkoutExercise(
                     workoutId = workoutId,
@@ -61,7 +67,7 @@ class WorkoutDetailViewModel(
 
     fun reorderExercises(from: Int, to: Int) {
         viewModelScope.launch {
-            val exercises = workoutExercises.value?.toMutableList() ?: return@launch
+            val exercises = workoutExercises.value.toMutableList()
             if (from < 0 || to < 0 || from >= exercises.size || to >= exercises.size) return@launch
             val moved = exercises.removeAt(from)
             exercises.add(to, moved)
