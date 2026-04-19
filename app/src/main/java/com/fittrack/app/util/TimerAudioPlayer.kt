@@ -14,10 +14,6 @@ class TimerAudioPlayer(context: Context) {
 
     // ── Public API ──────────────────────────────────────────────────────────
 
-    suspend fun playCountdownBeep(volumePercent: Int) {
-        playTone(ToneGenerator.TONE_PROP_BEEP, 150, volumePercent)
-    }
-
     suspend fun playEndSequence(volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
@@ -54,18 +50,6 @@ class TimerAudioPlayer(context: Context) {
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
-
-    private suspend fun playTone(toneType: Int, durationMs: Int, volumePercent: Int) {
-        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) {
-            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
-            try {
-                ctx.toneGenerator.startTone(toneType, durationMs)
-                delay((durationMs + 80).toLong())
-            } finally {
-                ctx.release()
-            }
-        }
-    }
 
     /**
      * Captures everything needed to play a tone at the desired volume and restore
