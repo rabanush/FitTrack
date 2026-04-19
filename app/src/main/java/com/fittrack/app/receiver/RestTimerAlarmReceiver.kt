@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
+import android.util.Log
 import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.util.RestTimerNotificationHelper
 import com.fittrack.app.util.TimerAudioPlayer
@@ -39,6 +40,8 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
                     if (wakeLock.isHeld) {
                         wakeLock.release()
                     }
+                }.onFailure { error ->
+                    Log.w(TAG, "Failed to release rest-timer wake lock", error)
                 }
                 pendingResult.finish()
                 executor.shutdown()
@@ -67,7 +70,8 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
             (TimerAudioPlayer.END_SEQUENCE_REPEAT_COUNT - 1L) * TimerAudioPlayer.END_SEQUENCE_STEP_DURATION_MS +
                 TimerAudioPlayer.END_SEQUENCE_TONE_DURATION_MS.toLong()
         private const val WAKE_LOCK_TIMEOUT_MS = END_TONE_TOTAL_DURATION_MS + 4_000L
-        // Absorbs AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
+        // 1.5 s covers AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
         private const val END_TIME_TOLERANCE_MS = 1_500L
+        private const val TAG = "RestTimerAlarmReceiver"
     }
 }

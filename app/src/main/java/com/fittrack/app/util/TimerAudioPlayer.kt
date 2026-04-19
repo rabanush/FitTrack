@@ -144,6 +144,7 @@ class TimerAudioPlayer(context: Context) {
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 
     companion object {
+        // 4 beeps with 850 ms spacing and 450 ms tone length produce an audible ~3.0 s end sequence.
         const val END_SEQUENCE_REPEAT_COUNT = 4
         const val END_SEQUENCE_TONE_DURATION_MS = 450
         const val END_SEQUENCE_STEP_DURATION_MS = 850L
