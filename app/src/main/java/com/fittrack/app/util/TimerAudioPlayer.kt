@@ -2,7 +2,6 @@ package com.fittrack.app.util
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -20,13 +19,16 @@ class TimerAudioPlayer(context: Context) {
     }
 
     suspend fun playEndSequence(volumePercent: Int) {
-        withAudioFocus {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 250)
-                delay(380L)
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                delay(560L)
+                repeat(END_SEQUENCE_REPEAT_COUNT) { index ->
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
+                    delay(
+                        if (index == END_SEQUENCE_REPEAT_COUNT - 1) END_SEQUENCE_TONE_DURATION_MS.toLong()
+                        else END_SEQUENCE_STEP_DURATION_MS
+                    )
+                }
             } finally {
                 ctx.release()
             }
@@ -35,13 +37,16 @@ class TimerAudioPlayer(context: Context) {
 
     /** Blocking variant used from a plain thread (e.g. inside a BroadcastReceiver). */
     fun playEndSequenceBlocking(volumePercent: Int) {
-        withAudioFocusBlocking {
+        withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
             try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 250)
-                Thread.sleep(380L)
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 500)
-                Thread.sleep(560L)
+                repeat(END_SEQUENCE_REPEAT_COUNT) { index ->
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, END_SEQUENCE_TONE_DURATION_MS)
+                    Thread.sleep(
+                        if (index == END_SEQUENCE_REPEAT_COUNT - 1) END_SEQUENCE_TONE_DURATION_MS.toLong()
+                        else END_SEQUENCE_STEP_DURATION_MS
+                    )
+                }
             } finally {
                 ctx.release()
             }
@@ -51,7 +56,7 @@ class TimerAudioPlayer(context: Context) {
     // ── Internals ────────────────────────────────────────────────────────────
 
     private suspend fun playTone(toneType: Int, durationMs: Int, volumePercent: Int) {
-        withAudioFocus {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
                 ctx.toneGenerator.startTone(toneType, durationMs)
@@ -100,26 +105,11 @@ class TimerAudioPlayer(context: Context) {
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
 
-    private fun preferredStream(): Int =
-        if (isBluetoothOutputConnected()) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
+    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
 
-    private fun isBluetoothOutputConnected(): Boolean {
-        val bluetoothTypes = setOf(
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-            AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_BLE_SPEAKER
-        )
-        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in bluetoothTypes }
-    }
-
-    /**
-     * Builds an [AudioFocusRequest] with [AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK], so
-     * any currently playing music is ducked (reduced volume) while the timer tone plays, rather
-     * than being paused entirely.
-     */
-    private fun buildAudioFocusRequest(): AudioFocusRequest =
-        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+    /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
+    private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
+        AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -129,8 +119,8 @@ class TimerAudioPlayer(context: Context) {
             .setAcceptsDelayedFocusGain(false)
             .build()
 
-    private suspend fun withAudioFocus(block: suspend () -> Unit) {
-        val focusRequest = buildAudioFocusRequest()
+    private suspend fun withAudioFocus(focusGain: Int, block: suspend () -> Unit) {
+        val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         try {
             block()
@@ -139,8 +129,8 @@ class TimerAudioPlayer(context: Context) {
         }
     }
 
-    private fun withAudioFocusBlocking(block: () -> Unit) {
-        val focusRequest = buildAudioFocusRequest()
+    private fun withAudioFocusBlocking(focusGain: Int, block: () -> Unit) {
+        val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         try {
             block()
@@ -152,4 +142,14 @@ class TimerAudioPlayer(context: Context) {
     private fun toEffectiveAudioPercent(displayPercent: Int): Int =
         // Keep the same perceived loudness when the default slider position moves from 100% to 50%.
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
+
+    companion object {
+        // 4 beeps with 850 ms spacing and 450 ms tone length produce a 3.0 s end sequence.
+        const val END_SEQUENCE_REPEAT_COUNT = 4
+        const val END_SEQUENCE_TONE_DURATION_MS = 450
+        const val END_SEQUENCE_STEP_DURATION_MS = 850L
+        const val END_SEQUENCE_TOTAL_DURATION_MS =
+            ((END_SEQUENCE_REPEAT_COUNT - 1L) * END_SEQUENCE_STEP_DURATION_MS) +
+                END_SEQUENCE_TONE_DURATION_MS.toLong()
+    }
 }
