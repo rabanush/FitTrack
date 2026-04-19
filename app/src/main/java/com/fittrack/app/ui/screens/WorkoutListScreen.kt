@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +42,15 @@ fun WorkoutListScreen(
     val pagerState = rememberPagerState(pageCount = { 2 })
     val currentPage = pagerState.currentPage
     val coroutineScope = rememberCoroutineScope()
+    var foodTabSessionKey by rememberSaveable { mutableIntStateOf(0) }
+    var previousPage by rememberSaveable { mutableIntStateOf(currentPage) }
+
+    LaunchedEffect(currentPage) {
+        if (previousPage == 1 && currentPage != 1) {
+            foodTabSessionKey++
+        }
+        previousPage = currentPage
+    }
 
     // Dialog state for "Create Recipe" (food page FAB)
     var showCreateRecipeDialog by remember { mutableStateOf(false) }
@@ -115,6 +125,7 @@ fun WorkoutListScreen(
                     )
                     1 -> FoodTrackerScreen(
                         viewModel = foodTrackerViewModel,
+                        sessionKey = foodTabSessionKey,
                         onAddFood = onAddFood,
                         onAddRecipeToMeal = onAddRecipeToMeal
                     )

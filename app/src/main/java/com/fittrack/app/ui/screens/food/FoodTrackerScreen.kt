@@ -23,6 +23,7 @@ import com.fittrack.app.viewmodel.MealWithEntries
 @Composable
 fun FoodTrackerScreen(
     viewModel: FoodTrackerViewModel,
+    sessionKey: Int,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
     onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit
 ) {
@@ -31,6 +32,27 @@ fun FoodTrackerScreen(
     val totalBurned by viewModel.totalBurnedToday.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    var expandedMealIds by remember(sessionKey) { mutableStateOf(setOf<Long>()) }
+    var previousEntryCounts by remember(sessionKey) { mutableStateOf(emptyMap<Long, Int>()) }
+    var hasInitialSnapshot by remember(sessionKey) { mutableStateOf(false) }
+
+    LaunchedEffect(mealsWithEntries, sessionKey) {
+        val currentEntryCounts = mealsWithEntries.associate { it.meal.id to it.entries.size }
+        val cleanedExpandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
+            currentEntryCounts.containsKey(mealId)
+        }
+
+        if (hasInitialSnapshot) {
+            val newlyExpandedMealIds = currentEntryCounts
+                .filter { (mealId, count) -> count > (previousEntryCounts[mealId] ?: 0) }
+                .keys
+            expandedMealIds = cleanedExpandedMealIds + newlyExpandedMealIds
+        } else {
+            expandedMealIds = cleanedExpandedMealIds
+            hasInitialSnapshot = true
+        }
+        previousEntryCounts = currentEntryCounts
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -75,6 +97,14 @@ fun FoodTrackerScreen(
                 items(mealsWithEntries) { mealWithEntries ->
                     MealCard(
                         mealWithEntries = mealWithEntries,
+                        expanded = mealWithEntries.meal.id in expandedMealIds,
+                        onToggleExpanded = {
+                            expandedMealIds = if (it in expandedMealIds) {
+                                expandedMealIds - it
+                            } else {
+                                expandedMealIds + it
+                            }
+                        },
                         onAddFood = { onAddFood(mealWithEntries.meal.id, mealWithEntries.meal.name) },
                         onAddRecipe = { onAddRecipeToMeal(mealWithEntries.meal.id, mealWithEntries.meal.name) },
                         onDeleteEntry = { viewModel.deleteFoodEntry(it) }
@@ -159,11 +189,12 @@ private fun MacroItem(label: String, grams: Float) {
 @Composable
 private fun MealCard(
     mealWithEntries: MealWithEntries,
+    expanded: Boolean,
+    onToggleExpanded: (Long) -> Unit,
     onAddFood: () -> Unit,
     onAddRecipe: () -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(true) }
     val totalKcal = mealWithEntries.entries.sumOf { it.calories.toDouble() }.toFloat()
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -182,7 +213,7 @@ private fun MealCard(
                 IconButton(onClick = onAddRecipe) {
                     Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "Rezept hinzufügen", tint = MaterialTheme.colorScheme.secondary)
                 }
-                IconButton(onClick = { expanded = !expanded }) {
+                IconButton(onClick = { onToggleExpanded(mealWithEntries.meal.id) }) {
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (expanded) "Einklappen" else "Ausklappen"
