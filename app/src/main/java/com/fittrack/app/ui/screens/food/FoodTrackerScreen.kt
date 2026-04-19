@@ -38,20 +38,18 @@ fun FoodTrackerScreen(
 
     LaunchedEffect(mealsWithEntries, sessionKey) {
         val currentEntryCounts = mealsWithEntries.associate { it.meal.id to it.entries.size }
+        val cleanedExpandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
+            currentEntryCounts.containsKey(mealId)
+        }
 
         if (hasInitialSnapshot) {
             val newlyExpandedMealIds = currentEntryCounts
                 .filter { (mealId, count) -> count > (previousEntryCounts[mealId] ?: 0) }
                 .keys
-            if (newlyExpandedMealIds.isNotEmpty()) {
-                expandedMealIds = expandedMealIds + newlyExpandedMealIds
-            }
+            expandedMealIds = cleanedExpandedMealIds + newlyExpandedMealIds
         } else {
+            expandedMealIds = cleanedExpandedMealIds
             hasInitialSnapshot = true
-        }
-
-        expandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
-            currentEntryCounts.containsKey(mealId)
         }
         previousEntryCounts = currentEntryCounts
     }

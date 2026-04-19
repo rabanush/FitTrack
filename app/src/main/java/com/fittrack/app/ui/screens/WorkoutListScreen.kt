@@ -43,11 +43,13 @@ fun WorkoutListScreen(
     val currentPage = pagerState.currentPage
     val coroutineScope = rememberCoroutineScope()
     var foodTabSessionKey by rememberSaveable { mutableIntStateOf(0) }
+    var previousPage by rememberSaveable { mutableIntStateOf(currentPage) }
 
     LaunchedEffect(currentPage) {
-        if (currentPage != 1) {
+        if (previousPage == 1 && currentPage != 1) {
             foodTabSessionKey++
         }
+        previousPage = currentPage
     }
 
     // Dialog state for "Create Recipe" (food page FAB)
