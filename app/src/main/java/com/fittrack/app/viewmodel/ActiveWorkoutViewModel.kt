@@ -3,7 +3,6 @@ package com.fittrack.app.viewmodel
 import android.util.Log
 import android.content.Context
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import androidx.lifecycle.*
 import androidx.compose.runtime.Immutable
 import com.fittrack.app.data.model.*
@@ -78,8 +77,6 @@ class ActiveWorkoutViewModel(
     private var workoutStartTimeMillis = System.currentTimeMillis()
     private var timerJob: Job? = null
     private var workoutElapsedJob: Job? = null
-    private var pendingRestTimerJob: Job? = null
-    private val pendingRestTimerToken = AtomicLong(0L)
     private val timerAudioPlayer = TimerAudioPlayer(appContext)
     private val timerNotificationHelper = RestTimerNotificationHelper(appContext)
     private val _timerVolumePercent = MutableStateFlow(100)
@@ -242,45 +239,18 @@ class ActiveWorkoutViewModel(
     }
 
     fun completeSet(exerciseIndex: Int, setIndex: Int) {
-        var restSecondsToSchedule = 0
+        var restSecondsToStart = 0
         updateSessionAt(exerciseIndex) { session ->
             if (setIndex >= session.sets.size) return@updateSessionAt session
             val currentSet = session.sets[setIndex]
             val updatedSet = if (currentSet.isCompleted) currentSet.copy(isCompleted = false) else currentSet.toCompleted()
             val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
             if (!currentSet.isCompleted && restSeconds > 0) {
-                restSecondsToSchedule = restSeconds
+                restSecondsToStart = restSeconds
             }
             session.copy(sets = session.sets.mapIndexed { i, s -> if (i == setIndex) updatedSet else s })
         }
-        if (restSecondsToSchedule > 0) {
-            scheduleRestTimerStart(restSecondsToSchedule, exerciseIndex, setIndex + 1)
-        } else {
-            cancelPendingRestTimerStart()
-        }
-    }
-
-    private fun scheduleRestTimerStart(seconds: Int, exerciseIndex: Int, setNumber: Int) {
-        cancelPendingRestTimerStart()
-        val token = pendingRestTimerToken.incrementAndGet()
-        pendingRestTimerJob = viewModelScope.launch {
-            try {
-                delay(REST_TIMER_START_DELAY_MS)
-                if (token == pendingRestTimerToken.get()) {
-                    startTimer(seconds, exerciseIndex, setNumber)
-                }
-            } finally {
-                if (token == pendingRestTimerToken.get()) {
-                    pendingRestTimerJob = null
-                }
-            }
-        }
-    }
-
-    private fun cancelPendingRestTimerStart() {
-        pendingRestTimerJob?.cancel()
-        pendingRestTimerJob = null
-        pendingRestTimerToken.incrementAndGet()
+        if (restSecondsToStart > 0) startTimer(restSecondsToStart, exerciseIndex, setIndex + 1)
     }
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
@@ -361,7 +331,6 @@ class ActiveWorkoutViewModel(
     }
 
     fun skipTimer() {
-        cancelPendingRestTimerStart()
         timerJob?.cancel()
         lastCountdownTickSecond = -1
         timerNotificationHelper.cancelRunningTimer()
@@ -399,7 +368,6 @@ class ActiveWorkoutViewModel(
                 session.sets.mapNotNull { set -> buildLogEntry(session, set) }
             }
             if (entries.isNotEmpty()) repository.insertLogEntries(entries)
-            cancelPendingRestTimerStart()
             timerJob?.cancel()
             timerNotificationHelper.cancelRunningTimer()
             timerNotificationHelper.cancelCompletionAlarm()
@@ -449,7 +417,6 @@ class ActiveWorkoutViewModel(
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
         private const val INITIAL_EXERCISE_BATCH_SIZE = 2
         private const val DEFERRED_EXERCISE_BATCH_DELAY_MS = 100L
-        private const val REST_TIMER_START_DELAY_MS = 350L
         /** Number of seconds before end at which tick beeps start (3, 2, 1). */
         private const val COUNTDOWN_TICK_SECONDS = 3
         private val GSON = Gson()
@@ -457,7 +424,6 @@ class ActiveWorkoutViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        cancelPendingRestTimerStart()
         timerJob?.cancel()
         workoutElapsedJob?.cancel()
     }
