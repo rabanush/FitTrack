@@ -228,7 +228,7 @@ private fun ThemeHueWheel(
             style = Stroke(width = strokeWidth)
         )
 
-        val angleRadians = ((normalizeHueDegrees(hue) - 90f) * PI / 180f).toFloat()
+        val angleRadians = (normalizeHueDegrees(hue) * PI / 180f).toFloat()
         val indicatorCenter = Offset(
             x = center.x + cos(angleRadians) * radius,
             y = center.y + sin(angleRadians) * radius
@@ -252,6 +252,6 @@ private fun offsetToHue(offset: Offset, size: IntSize): Float {
     val centerY = size.height / 2f
     val dx = offset.x - centerX
     val dy = offset.y - centerY
-    val angle = (atan2(dy, dx) * 180f / PI.toFloat()) + 90f
+    val angle = atan2(dy, dx) * 180f / PI.toFloat()
     return normalizeHueDegrees(angle)
 }
