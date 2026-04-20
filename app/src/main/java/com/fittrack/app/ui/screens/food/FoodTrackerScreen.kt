@@ -42,7 +42,7 @@ fun FoodTrackerScreen(
     val netCalories by viewModel.netCalories.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     var expandedMealIds by rememberSaveable(sessionKey, stateSaver = ExpandedMealIdsStateSaver) {
-        mutableStateOf(emptySet())
+        mutableStateOf(emptySet<Long>())
     }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
