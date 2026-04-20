@@ -1,6 +1,7 @@
 package com.fittrack.app.data.preferences
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
@@ -49,6 +50,7 @@ data class UserProfile(
 
 class UserPreferences(private val context: Context) {
     private companion object {
+        const val TAG = "UserPreferences"
         const val THEME_CACHE_PREFERENCES = "theme_cache"
         const val THEME_HUE_CACHE_KEY = "theme_hue_degrees"
     }
@@ -115,8 +117,9 @@ class UserPreferences(private val context: Context) {
         val cacheWriteSucceeded = withContext(Dispatchers.IO) {
             themeCache.edit().putFloat(THEME_HUE_CACHE_KEY, normalizedThemeHue).commit()
         }
-        if (cacheWriteSucceeded) {
-            cachedThemeHueDegrees = normalizedThemeHue
+        cachedThemeHueDegrees = normalizedThemeHue
+        if (!cacheWriteSucceeded) {
+            Log.w(TAG, "Failed to persist theme hue cache to SharedPreferences")
         }
     }
 
