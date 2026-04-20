@@ -1,6 +1,10 @@
 package com.fittrack.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import android.graphics.Color.HSVToColor
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -9,13 +13,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.viewmodel.SettingsViewModel
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +45,7 @@ fun SettingsScreen(
     var gender by remember(profile.gender) { mutableStateOf(profile.gender) }
     var activityLevel by remember(profile.activityLevel) { mutableStateOf(profile.activityLevel) }
     var timerVolumePercent by remember(profile.timerVolumePercent) { mutableIntStateOf(profile.timerVolumePercent) }
+    var themeHueDegrees by remember(profile.themeHueDegrees) { mutableFloatStateOf(profile.themeHueDegrees) }
 
     fun saveAndBack() {
         viewModel.save(
@@ -39,7 +54,8 @@ fun SettingsScreen(
             ageYears = ageText.toIntOrNull() ?: profile.ageYears,
             gender = gender,
             activityLevel = activityLevel,
-            timerVolumePercent = timerVolumePercent
+            timerVolumePercent = timerVolumePercent,
+            themeHueDegrees = themeHueDegrees
         )
         onBack()
     }
@@ -151,6 +167,92 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("App-Designfarbe", style = MaterialTheme.typography.titleSmall)
+                    Text("Hue: ${themeHueDegrees.toInt()}°", style = MaterialTheme.typography.bodyMedium)
+                    ThemeHueWheel(
+                        hue = themeHueDegrees,
+                        onHueChange = { themeHueDegrees = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ThemeHueWheel(
+    hue: Float,
+    onHueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val wheelColors = remember {
+        listOf(
+            0f, 60f, 120f, 180f, 240f, 300f, 360f
+        ).map { wheelHue -> Color(HSVToColor(floatArrayOf(wheelHue, 1f, 1f))) }
+    }
+    val indicatorColor = remember(hue) { Color(HSVToColor(floatArrayOf(normalizeHue(hue), 1f, 1f))) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
+    Canvas(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onHueChange(offsetToHue(offset, canvasSize))
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, _ ->
+                    onHueChange(offsetToHue(change.position, canvasSize))
+                }
+            }
+    ) {
+        canvasSize = IntSize(size.width.toInt(), size.height.toInt())
+        val diameter = size.minDimension
+        val strokeWidth = diameter * 0.17f
+        val radius = diameter / 2f - strokeWidth / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        drawCircle(
+            brush = Brush.sweepGradient(wheelColors, center = center),
+            radius = radius,
+            center = center,
+            style = Stroke(width = strokeWidth)
+        )
+
+        val angleRadians = ((normalizeHue(hue) - 90f) * PI / 180f).toFloat()
+        val indicatorCenter = Offset(
+            x = center.x + cos(angleRadians) * radius,
+            y = center.y + sin(angleRadians) * radius
+        )
+        drawCircle(
+            color = Color.White,
+            radius = strokeWidth * 0.36f,
+            center = indicatorCenter
+        )
+        drawCircle(
+            color = indicatorColor,
+            radius = strokeWidth * 0.24f,
+            center = indicatorCenter
+        )
+    }
+}
+
+private fun normalizeHue(value: Float): Float {
+    val mod = value % 360f
+    return if (mod < 0f) mod + 360f else mod
+}
+
+private fun offsetToHue(offset: Offset, size: IntSize): Float {
+    if (size.width == 0 || size.height == 0) return 0f
+    val centerX = size.width / 2f
+    val centerY = size.height / 2f
+    val dx = offset.x - centerX
+    val dy = offset.y - centerY
+    val angle = Math.toDegrees(atan2(dy, dx).toDouble()).toFloat() + 90f
+    return normalizeHue(angle)
 }

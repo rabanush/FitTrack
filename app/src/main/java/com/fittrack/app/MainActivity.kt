@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -82,7 +83,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            FitTrackTheme {
+            val userProfile by app.userPreferences.userProfile.collectAsState(initial = com.fittrack.app.data.preferences.UserProfile())
+            FitTrackTheme(primaryHueDegrees = userProfile.themeHueDegrees) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
