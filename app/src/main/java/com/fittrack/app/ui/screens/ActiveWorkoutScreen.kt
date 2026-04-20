@@ -43,8 +43,12 @@ fun ActiveWorkoutScreen(
     
     var showFinishConfirm by remember { mutableStateOf(false) }
     var didAutoFinish by remember(workout?.id) { mutableStateOf(false) }
-    val allSessionsCompleted = sessions.isNotEmpty() && sessions.all { session ->
-        session.sets.all { it.isCompleted }
+    val allSessionsCompleted by remember(sessions) {
+        derivedStateOf {
+            sessions.isNotEmpty() && sessions.all { session ->
+                session.sets.all { it.isCompleted }
+            }
+        }
     }
 
     LaunchedEffect(workout?.id, allSessionsCompleted, didAutoFinish) {

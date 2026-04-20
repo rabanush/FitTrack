@@ -400,6 +400,7 @@ class ActiveWorkoutViewModel(
         )
     }
 
+    // Add 999 ms before integer division so the countdown rounds up and displays the full starting second.
     private fun remainingSecondsUntil(endTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): Int =
         (((endTimeMillis - nowMillis) + 999L) / 1000L).toInt().coerceAtLeast(0)
 
