@@ -44,7 +44,4 @@ interface WorkoutDao {
 
     @Query("SELECT COUNT(*) FROM workouts")
     suspend fun getWorkoutCount(): Int
-
-    @Query("SELECT * FROM workouts ORDER BY name ASC")
-    suspend fun getAllWorkoutsSync(): List<Workout>
 }

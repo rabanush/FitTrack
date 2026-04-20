@@ -55,7 +55,7 @@ class ActiveWorkoutViewModel(
     private val appContext: Context,
     private val activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences,
     private val userPreferences: UserPreferences,
-    private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
+    private val foodRepository: com.fittrack.app.data.repository.FoodRepository
 ) : ViewModel() {
 
     private val _workout = MutableStateFlow<Workout?>(null)
@@ -322,15 +322,14 @@ class ActiveWorkoutViewModel(
     }
 
     private suspend fun recordWorkoutCalories(durationMinutes: Int) {
-        val repo = foodRepository ?: return
-        val userProfile = repo.userPreferences.userProfile.first()
+        val userProfile = foodRepository.userPreferences.userProfile.first()
         val sessions = _exerciseSessions.value
         val avgMet = if (sessions.isEmpty()) DEFAULT_MET
         else sessions.map { muscleGroupToMet(it.workoutExercise.exercise.muscleGroup) }
             .average().toFloat()
         // calories = MET × weight_kg × duration_hours
         val caloriesBurned = avgMet * userProfile.weightKg * (durationMinutes / 60f)
-        repo.insertWorkoutCalories(
+        foodRepository.insertWorkoutCalories(
             WorkoutCalories(
                 dateMillis = todayMillis(),
                 workoutId = workoutId,
@@ -342,11 +341,13 @@ class ActiveWorkoutViewModel(
 
     /** Returns a MET (Metabolic Equivalent of Task) value for the given muscle group.
      *  Leg exercises involve the body's largest muscle groups and therefore have a
-     *  higher energy cost than upper-body isolation work. */
+     *  higher energy cost than upper-body isolation work.
+     *  Matches both English seed names and German custom-exercise names. */
     private fun muscleGroupToMet(muscleGroup: String): Float = when (muscleGroup.lowercase()) {
-        "quads", "hamstrings", "glutes", "calves" -> 6.0f
-        "back" -> 5.5f
-        "chest", "shoulders" -> 4.5f
+        "quads", "hamstrings", "glutes", "calves",
+        "beine", "quadrizeps", "oberschenkel", "gesäß", "waden" -> 6.0f
+        "back", "rücken" -> 5.5f
+        "chest", "shoulders", "brust", "schultern" -> 4.5f
         else -> DEFAULT_MET // biceps, triceps, core, etc.
     }
 
@@ -502,7 +503,7 @@ class ActiveWorkoutViewModelFactory(
     private val appContext: Context,
     private val activeWorkoutSessionPreferences: ActiveWorkoutSessionPreferences,
     private val userPreferences: UserPreferences,
-    private val foodRepository: com.fittrack.app.data.repository.FoodRepository? = null
+    private val foodRepository: com.fittrack.app.data.repository.FoodRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =

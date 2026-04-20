@@ -27,18 +27,6 @@ interface LogEntryDao {
     suspend fun getPreviousLogEntries(exerciseId: Long, workoutId: Long, beforeDate: Long): List<LogEntry>
 
     @Query("""
-        SELECT * FROM log_entries 
-        WHERE exercise_id = :exerciseId
-        AND date = (
-            SELECT MAX(date) FROM log_entries 
-            WHERE exercise_id = :exerciseId
-            AND date < :beforeDate
-        )
-        ORDER BY set_number ASC
-    """)
-    suspend fun getPreviousLogEntriesForExercise(exerciseId: Long, beforeDate: Long): List<LogEntry>
-
-    @Query("""
         WITH latest AS (
             SELECT exercise_id, MAX(date) AS max_date
             FROM log_entries
@@ -66,12 +54,6 @@ interface LogEntryDao {
     @Delete
     suspend fun deleteLogEntry(logEntry: LogEntry)
 
-    @Query("DELETE FROM log_entries WHERE exercise_id = :exerciseId AND workout_id = :workoutId AND date = :date")
-    suspend fun deleteLogEntriesForSession(exerciseId: Long, workoutId: Long, date: Long)
-
     @Query("SELECT COUNT(*) FROM log_entries")
     suspend fun getCount(): Int
-
-    @Query("SELECT * FROM log_entries ORDER BY date ASC")
-    suspend fun getAllLogEntriesSync(): List<LogEntry>
 }

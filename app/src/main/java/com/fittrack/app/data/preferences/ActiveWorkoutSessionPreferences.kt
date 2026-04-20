@@ -81,7 +81,11 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         prefs.edit()
             .putString(KEY_EXERCISE_SESSIONS_STATE, stateJson)
             .apply()
-        notifyChange()
+        // Intentionally no notifyChange() here: exercise-state is persisted to
+        // SharedPreferences on every keystroke for crash-recovery, but it does not
+        // need to trigger a full file-backup write each time. Session start/stop and
+        // timer events (which do call notifyChange) will carry the latest state
+        // along when the next backup write is triggered.
     }
 
     fun getExerciseSessionsState(): String? = prefs.getString(KEY_EXERCISE_SESSIONS_STATE, null)
@@ -90,7 +94,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         prefs.edit()
             .remove(KEY_EXERCISE_SESSIONS_STATE)
             .apply()
-        notifyChange()
+        // No notifyChange(): clearing is a side-effect of startSession (which notifies itself).
     }
 
     fun restoreSession(session: ActiveWorkoutSession, exerciseSessionsState: String?) {

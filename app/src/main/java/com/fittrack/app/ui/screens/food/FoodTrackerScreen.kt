@@ -35,38 +35,14 @@ fun FoodTrackerScreen(
     val netCalories by viewModel.netCalories.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     var expandedMealIds by remember(sessionKey) { mutableStateOf(setOf<Long>()) }
-    var previousEntryCounts by remember(sessionKey) { mutableStateOf(emptyMap<Long, Int>()) }
-    var hasInitialSnapshot by remember(sessionKey) { mutableStateOf(false) }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
-        val hadInitialSnapshot = hasInitialSnapshot
-        val currentEntryCounts = mealsWithEntries.associate { it.meal.id to it.entries.size }
-        val cleanedExpandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { mealId ->
-            currentEntryCounts.containsKey(mealId)
+        val existingMealIds = mealsWithEntries.map { it.meal.id }.toSet()
+        expandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { it in existingMealIds }
+        if (pendingExpandMealId != null && pendingExpandMealId in existingMealIds) {
+            expandedMealIds = expandedMealIds + pendingExpandMealId
+            onPendingExpandHandled(pendingExpandMealId)
         }
-
-        if (hadInitialSnapshot) {
-            val newlyExpandedMealIds = currentEntryCounts
-                .filter { (mealId, count) -> count > (previousEntryCounts[mealId] ?: 0) }
-                .keys
-            expandedMealIds = cleanedExpandedMealIds + newlyExpandedMealIds
-        } else {
-            expandedMealIds = cleanedExpandedMealIds
-            hasInitialSnapshot = true
-        }
-        if (pendingExpandMealId != null && currentEntryCounts.containsKey(pendingExpandMealId)) {
-            val previousPendingCount = previousEntryCounts[pendingExpandMealId]
-            val currentPendingCount = currentEntryCounts.getValue(pendingExpandMealId)
-            val shouldApplyPendingExpand = !hadInitialSnapshot ||
-                (previousPendingCount != null && currentPendingCount > previousPendingCount)
-
-            if (shouldApplyPendingExpand) {
-                expandedMealIds = expandedMealIds + pendingExpandMealId
-                onPendingExpandHandled(pendingExpandMealId)
-            }
-        }
-
-        previousEntryCounts = currentEntryCounts
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

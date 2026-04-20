@@ -17,9 +17,6 @@ interface RecipeDao {
     @Delete
     suspend fun deleteRecipe(recipe: Recipe)
 
-    @Query("SELECT * FROM recipes ORDER BY name ASC")
-    fun getAllRecipes(): Flow<List<Recipe>>
-
     /** Returns all recipes with their items, kept up-to-date reactively. */
     @Transaction
     @Query("SELECT * FROM recipes ORDER BY name ASC")

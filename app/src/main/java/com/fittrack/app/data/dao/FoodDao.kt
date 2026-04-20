@@ -46,9 +46,6 @@ interface FoodDao {
     @Query("SELECT * FROM meals ORDER BY date_millis ASC, id ASC")
     fun getAllMeals(): Flow<List<Meal>>
 
-    @Query("SELECT * FROM meals ORDER BY date_millis ASC, id ASC")
-    suspend fun getAllMealsSync(): List<Meal>
-
     @Query("SELECT COUNT(*) FROM meals")
     suspend fun getMealCount(): Int
 
@@ -84,26 +81,12 @@ interface FoodDao {
     @Query("SELECT * FROM food_entries ORDER BY id ASC")
     fun getAllFoodEntries(): Flow<List<FoodEntry>>
 
-    @Query("SELECT * FROM food_entries ORDER BY id ASC")
-    suspend fun getAllFoodEntriesSync(): List<FoodEntry>
-
     @Query("SELECT COUNT(*) FROM food_entries")
     suspend fun getFoodEntryCount(): Int
 
     /** Returns all food entries logged on a given day via the stored date column. */
     @Query("SELECT * FROM food_entries WHERE logged_date_millis = :dateMillis ORDER BY id ASC")
     fun getFoodEntriesForDay(dateMillis: Long): Flow<List<FoodEntry>>
-
-    @Query(
-        """
-        SELECT barcode
-        FROM food_entries
-        WHERE barcode IS NOT NULL AND TRIM(barcode) != ''
-        GROUP BY barcode
-        ORDER BY MAX(id) DESC
-    """
-    )
-    suspend fun getRecentlyUsedBarcodes(): List<String>
 
     @Query(
         """

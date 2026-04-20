@@ -88,13 +88,8 @@ class FoodRepository(
 
     // ---- Workout Calories ----
 
-    fun getWorkoutCaloriesForDay(dateMillis: Long): Flow<List<WorkoutCalories>> =
-        workoutCaloriesDao.getForDay(dateMillis)
-
     fun getTotalBurnedForDay(dateMillis: Long): Flow<Float> =
         workoutCaloriesDao.getTotalBurnedForDay(dateMillis)
-
-    fun observeAllWorkoutCalories(): Flow<List<WorkoutCalories>> = workoutCaloriesDao.getAll()
 
     suspend fun insertWorkoutCalories(entry: WorkoutCalories): Long =
         workoutCaloriesDao.insert(entry)
@@ -106,7 +101,7 @@ class FoodRepository(
         if (trimmedQuery.isBlank()) return emptyList()
         val normalizedQuery = trimmedQuery.normalizedForSearch()
         val queryTokens = normalizedQuery.split(" ")
-        return runCatching { api.searchProducts(trimmedQuery, pageSize = 100).products }
+        return runCatching { api.searchProducts(trimmedQuery, pageSize = 50).products }
             .getOrElse { emptyList() }
             .asSequence()
             .filter { it.displayName != "Unbekanntes Produkt" }
@@ -179,9 +174,6 @@ class FoodRepository(
 
     fun observeAllRecipesWithItems(): Flow<List<RecipeWithItems>> =
         recipeDao.getAllRecipesWithItems()
-
-    suspend fun getAllRecipesWithItemsOnce(): List<RecipeWithItems> =
-        recipeDao.getAllRecipesWithItemsOnce()
 
     suspend fun insertRecipe(recipe: Recipe): Long = recipeDao.insertRecipe(recipe)
 
