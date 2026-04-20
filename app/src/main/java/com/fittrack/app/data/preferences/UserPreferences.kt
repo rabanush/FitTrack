@@ -56,6 +56,10 @@ class UserPreferences(private val context: Context) {
     private val themeCache by lazy {
         context.getSharedPreferences(THEME_CACHE_PREFERENCES, Context.MODE_PRIVATE)
     }
+    @Volatile
+    private var cachedThemeHueDegrees = normalizeHueDegrees(
+        themeCache.getFloat(THEME_HUE_CACHE_KEY, DEFAULT_THEME_HUE_DEGREES)
+    )
 
     private object Keys {
         val WEIGHT = floatPreferencesKey("weight_kg")
@@ -108,13 +112,15 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
             prefs[Keys.THEME_HUE_DEGREES] = normalizedThemeHue
         }
-        withContext(Dispatchers.IO) {
+        val cacheWriteSucceeded = withContext(Dispatchers.IO) {
             themeCache.edit().putFloat(THEME_HUE_CACHE_KEY, normalizedThemeHue).commit()
+        }
+        if (cacheWriteSucceeded) {
+            cachedThemeHueDegrees = normalizedThemeHue
         }
     }
 
-    fun getCachedThemeHueDegrees(): Float =
-        normalizeHueDegrees(themeCache.getFloat(THEME_HUE_CACHE_KEY, DEFAULT_THEME_HUE_DEGREES))
+    fun getCachedThemeHueDegrees(): Float = cachedThemeHueDegrees
 
     suspend fun saveBackupFolderUri(uri: String?) {
         context.dataStore.edit { prefs ->
