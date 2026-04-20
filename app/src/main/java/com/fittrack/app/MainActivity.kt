@@ -83,7 +83,11 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val userProfile by app.userPreferences.userProfile.collectAsState(initial = com.fittrack.app.data.preferences.UserProfile())
+            val userProfile by app.userPreferences.userProfile.collectAsState(
+                initial = com.fittrack.app.data.preferences.UserProfile(
+                    themeHueDegrees = app.userPreferences.getCachedThemeHueDegrees()
+                )
+            )
             FitTrackTheme(primaryHueDegrees = userProfile.themeHueDegrees) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
