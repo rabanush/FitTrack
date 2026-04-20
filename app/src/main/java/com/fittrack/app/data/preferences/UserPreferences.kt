@@ -5,8 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.fittrack.app.util.normalizeHueDegrees
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
 const val DEFAULT_THEME_HUE_DEGREES = 340f
@@ -106,7 +108,9 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
             prefs[Keys.THEME_HUE_DEGREES] = normalizedThemeHue
         }
-        themeCache.edit().putFloat(THEME_HUE_CACHE_KEY, normalizedThemeHue).apply()
+        withContext(Dispatchers.IO) {
+            themeCache.edit().putFloat(THEME_HUE_CACHE_KEY, normalizedThemeHue).commit()
+        }
     }
 
     fun getCachedThemeHueDegrees(): Float =
