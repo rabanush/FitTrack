@@ -1,10 +1,7 @@
 package com.fittrack.app.ui.screens
 
 import androidx.activity.compose.BackHandler
-import android.graphics.Color.HSVToColor
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,6 +14,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.awaitEachGesture
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -195,21 +195,25 @@ private fun ThemeHueWheel(
     val wheelColors = remember {
         listOf(
             0f, 60f, 120f, 180f, 240f, 300f, 360f
-        ).map { wheelHue -> Color(HSVToColor(floatArrayOf(wheelHue, 1f, 1f))) }
+        ).map { wheelHue -> Color.hsv(wheelHue, 1f, 1f) }
     }
-    val indicatorColor = remember(hue) { Color(HSVToColor(floatArrayOf(normalizeHueDegrees(hue), 1f, 1f))) }
+    val indicatorColor = remember(hue) { Color.hsv(normalizeHueDegrees(hue), 1f, 1f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     Canvas(
         modifier = modifier
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onHueChange(offsetToHue(offset, canvasSize))
-                }
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, _ ->
-                    onHueChange(offsetToHue(change.position, canvasSize))
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    onHueChange(offsetToHue(down.position, canvasSize))
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (change.pressed) {
+                            onHueChange(offsetToHue(change.position, canvasSize))
+                            change.consume()
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
     ) {

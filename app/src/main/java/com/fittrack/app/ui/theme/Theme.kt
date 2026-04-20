@@ -1,15 +1,13 @@
 package com.fittrack.app.ui.theme
 
-import android.graphics.Color.HSVToColor
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import com.fittrack.app.data.preferences.DEFAULT_THEME_HUE_DEGREES
 import com.fittrack.app.util.normalizeHueDegrees
 
-private fun hsv(hue: Float, saturation: Float, value: Float): Color = Color(
-    HSVToColor(floatArrayOf(normalizeHueDegrees(hue), saturation.coerceIn(0f, 1f), value.coerceIn(0f, 1f)))
-)
+private fun hsv(hue: Float, saturation: Float, value: Float): Color =
+    Color.hsv(normalizeHueDegrees(hue), saturation.coerceIn(0f, 1f), value.coerceIn(0f, 1f))
 
 private fun darkColorSchemeForHue(hue: Float) = darkColorScheme(
     primary = hsv(hue, 0.74f, 0.96f),
