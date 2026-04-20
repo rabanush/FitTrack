@@ -107,7 +107,7 @@ class ActiveWorkoutViewModel(
         viewModelScope.launch {
             // Fetch the workout name and exercise list in parallel so the screen is
             // populated as fast as possible – the two queries are independent.
-            val workoutDeferred = async(Dispatchers.IO) { repository.getWorkoutById(workoutId) }
+            val workoutDeferred = async { repository.getWorkoutById(workoutId) }
             launch {
                 repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
                     if (exercises.isEmpty()) {
@@ -417,9 +417,14 @@ class ActiveWorkoutViewModel(
 
     /**
      * Returns the whole seconds remaining until [endTimeMillis] using ceiling division.
-     * Adding 999 ms before dividing by 1000 implements ceiling (round toward +∞), so a timer
-     * with exactly 3.0 s left shows "3" until fewer than 2.001 s remain rather than jumping
-     * to "2" immediately.
+     *
+     * With 999 ms added before integer division the boundary is:
+     * - 3000 ms remaining → (3000+999)/1000 = 3 → displays "3"
+     * - 2001 ms remaining → (2001+999)/1000 = 3 → still displays "3"
+     * - 2000 ms remaining → (2000+999)/1000 = 2 → displays "2"
+     *
+     * This keeps each whole-second label visible for its full second rather than
+     * jumping one step early.
      *
      * @param endTimeMillis Target epoch-millisecond when the timer expires.
      * @param nowMillis     Current epoch milliseconds; defaults to [System.currentTimeMillis].
