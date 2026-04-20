@@ -1,12 +1,15 @@
 package com.fittrack.app.data.preferences
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.fittrack.app.util.normalizeHueDegrees
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
 const val DEFAULT_THEME_HUE_DEGREES = 340f
@@ -46,6 +49,19 @@ data class UserProfile(
 }
 
 class UserPreferences(private val context: Context) {
+    private companion object {
+        const val TAG = "UserPreferences"
+        const val THEME_CACHE_PREFERENCES = "theme_cache"
+        const val THEME_HUE_CACHE_KEY = "theme_hue_degrees"
+    }
+
+    private val themeCache by lazy {
+        context.getSharedPreferences(THEME_CACHE_PREFERENCES, Context.MODE_PRIVATE)
+    }
+    @Volatile
+    private var cachedThemeHueDegrees = normalizeHueDegrees(
+        themeCache.getFloat(THEME_HUE_CACHE_KEY, DEFAULT_THEME_HUE_DEGREES)
+    )
 
     private object Keys {
         val WEIGHT = floatPreferencesKey("weight_kg")
@@ -88,6 +104,7 @@ class UserPreferences(private val context: Context) {
     }
 
     suspend fun save(profile: UserProfile) {
+        val normalizedThemeHue = normalizeHueDegrees(profile.themeHueDegrees)
         context.dataStore.edit { prefs ->
             prefs[Keys.WEIGHT] = profile.weightKg
             prefs[Keys.HEIGHT] = profile.heightCm
@@ -95,9 +112,18 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.GENDER] = profile.gender.name
             prefs[Keys.ACTIVITY] = profile.activityLevel.name
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
-            prefs[Keys.THEME_HUE_DEGREES] = normalizeHueDegrees(profile.themeHueDegrees)
+            prefs[Keys.THEME_HUE_DEGREES] = normalizedThemeHue
+        }
+        val cacheWriteSucceeded = withContext(Dispatchers.IO) {
+            themeCache.edit().putFloat(THEME_HUE_CACHE_KEY, normalizedThemeHue).commit()
+        }
+        cachedThemeHueDegrees = normalizedThemeHue
+        if (!cacheWriteSucceeded) {
+            Log.w(TAG, "Failed to persist theme hue cache to SharedPreferences")
         }
     }
+
+    fun getCachedThemeHueDegrees(): Float = cachedThemeHueDegrees
 
     suspend fun saveBackupFolderUri(uri: String?) {
         context.dataStore.edit { prefs ->
