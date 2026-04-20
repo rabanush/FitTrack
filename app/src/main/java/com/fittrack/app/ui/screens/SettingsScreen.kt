@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.preferences.ActivityLevel
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserProfile
+import com.fittrack.app.util.normalizeHueDegrees
 import com.fittrack.app.viewmodel.SettingsViewModel
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -196,7 +197,7 @@ private fun ThemeHueWheel(
             0f, 60f, 120f, 180f, 240f, 300f, 360f
         ).map { wheelHue -> Color(HSVToColor(floatArrayOf(wheelHue, 1f, 1f))) }
     }
-    val indicatorColor = remember(hue) { Color(HSVToColor(floatArrayOf(normalizeHue(hue), 1f, 1f))) }
+    val indicatorColor = remember(hue) { Color(HSVToColor(floatArrayOf(normalizeHueDegrees(hue), 1f, 1f))) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     Canvas(
@@ -224,7 +225,7 @@ private fun ThemeHueWheel(
             style = Stroke(width = strokeWidth)
         )
 
-        val angleRadians = ((normalizeHue(hue) - 90f) * PI / 180f).toFloat()
+        val angleRadians = ((normalizeHueDegrees(hue) - 90f) * PI / 180f).toFloat()
         val indicatorCenter = Offset(
             x = center.x + cos(angleRadians) * radius,
             y = center.y + sin(angleRadians) * radius
@@ -242,17 +243,12 @@ private fun ThemeHueWheel(
     }
 }
 
-private fun normalizeHue(value: Float): Float {
-    val mod = value % 360f
-    return if (mod < 0f) mod + 360f else mod
-}
-
 private fun offsetToHue(offset: Offset, size: IntSize): Float {
     if (size.width == 0 || size.height == 0) return 0f
     val centerX = size.width / 2f
     val centerY = size.height / 2f
     val dx = offset.x - centerX
     val dy = offset.y - centerY
-    val angle = Math.toDegrees(atan2(dy, dx).toDouble()).toFloat() + 90f
-    return normalizeHue(angle)
+    val angle = (atan2(dy, dx) * 180f / PI.toFloat()) + 90f
+    return normalizeHueDegrees(angle)
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.fittrack.app.util.normalizeHueDegrees
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -67,7 +68,7 @@ class UserPreferences(private val context: Context) {
             gender = prefs[Keys.GENDER]?.let { runCatching { Gender.valueOf(it) }.getOrNull() } ?: Gender.MALE,
             activityLevel = prefs[Keys.ACTIVITY]?.let { runCatching { ActivityLevel.valueOf(it) }.getOrNull() } ?: ActivityLevel.MODERATE,
             timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 50).coerceIn(0, 100),
-            themeHueDegrees = normalizeHue(prefs[Keys.THEME_HUE_DEGREES] ?: DEFAULT_THEME_HUE_DEGREES)
+            themeHueDegrees = normalizeHueDegrees(prefs[Keys.THEME_HUE_DEGREES] ?: DEFAULT_THEME_HUE_DEGREES)
         )
     }
 
@@ -94,13 +95,8 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.GENDER] = profile.gender.name
             prefs[Keys.ACTIVITY] = profile.activityLevel.name
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
-            prefs[Keys.THEME_HUE_DEGREES] = normalizeHue(profile.themeHueDegrees)
+            prefs[Keys.THEME_HUE_DEGREES] = normalizeHueDegrees(profile.themeHueDegrees)
         }
-    }
-
-    private fun normalizeHue(value: Float): Float {
-        val mod = value % 360f
-        return if (mod < 0f) mod + 360f else mod
     }
 
     suspend fun saveBackupFolderUri(uri: String?) {
