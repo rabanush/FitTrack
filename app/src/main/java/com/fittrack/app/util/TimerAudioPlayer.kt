@@ -15,26 +15,30 @@ class TimerAudioPlayer(context: Context) {
     // ── Public API ──────────────────────────────────────────────────────────
 
     /** Single short tick played during the last-seconds countdown (3, 2, 1).
-     *  No audio focus is requested so that background music is never ducked. */
+     *  Requests exclusive transient focus so background music is paused for the duration. */
     suspend fun playTickBeep(volumePercent: Int) {
-        val ctx = setupToneContext(volumePercent) ?: return
-        try {
-            ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
-            delay(TICK_TONE_DURATION_MS.toLong())
-        } finally {
-            ctx.release()
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
+            try {
+                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
+                delay(TICK_TONE_DURATION_MS.toLong())
+            } finally {
+                ctx.release()
+            }
         }
     }
 
     /** Blocking variant of [playTickBeep] used from plain threads (e.g. BroadcastReceiver).
-     *  No audio focus is requested so that background music is never ducked. */
+     *  Requests exclusive transient focus so background music is paused for the duration. */
     fun playTickBeepBlocking(volumePercent: Int) {
-        val ctx = setupToneContext(volumePercent) ?: return
-        try {
-            ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
-            Thread.sleep(TICK_TONE_DURATION_MS.toLong())
-        } finally {
-            ctx.release()
+        withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
+            try {
+                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
+                Thread.sleep(TICK_TONE_DURATION_MS.toLong())
+            } finally {
+                ctx.release()
+            }
         }
     }
 
