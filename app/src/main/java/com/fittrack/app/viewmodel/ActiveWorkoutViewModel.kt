@@ -1,5 +1,6 @@
 package com.fittrack.app.viewmodel
 
+import android.util.Log
 import android.content.Context
 import androidx.lifecycle.*
 import androidx.compose.runtime.Immutable
@@ -16,6 +17,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
@@ -101,27 +103,32 @@ class ActiveWorkoutViewModel(
         }
 
         viewModelScope.launch {
-            _workout.value = repository.getWorkoutById(workoutId)
-            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                if (exercises.isEmpty()) {
-                    _exerciseSessions.value = emptyList()
-                    return@collect
-                }
-                // Render immediately without waiting for previous-log lookup to finish.
-                _exerciseSessions.value = exercises
-                    .map { buildSessionForExercise(it, emptyList()) }
-                    .let(::applyPersistedProgress)
+            // Fetch the workout name and exercise list in parallel so the screen is
+            // populated as fast as possible – the two queries are independent.
+            val workoutDeferred = async(Dispatchers.IO) { repository.getWorkoutById(workoutId) }
+            launch {
+                repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
+                    if (exercises.isEmpty()) {
+                        _exerciseSessions.value = emptyList()
+                        return@collect
+                    }
+                    // Render immediately without waiting for previous-log lookup to finish.
+                    _exerciseSessions.value = exercises
+                        .map { buildSessionForExercise(it, emptyList()) }
+                        .let(::applyPersistedProgress)
 
-                val exerciseIds = exercises.map { it.exercise.id }
+                    val exerciseIds = exercises.map { it.exercise.id }
 
-                val previousLogsMap = withContext(Dispatchers.IO) {
-                    repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
-                        .groupBy { it.exerciseId }
+                    val previousLogsMap = withContext(Dispatchers.IO) {
+                        repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
+                            .groupBy { it.exerciseId }
+                    }
+                    _exerciseSessions.value = exercises
+                        .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
+                        .let(::applyPersistedProgress)
                 }
-                _exerciseSessions.value = exercises
-                    .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
-                    .let(::applyPersistedProgress)
             }
+            _workout.value = workoutDeferred.await()
         }
 
         restoredSession?.let { restoreTimerFromSession(it) }
@@ -234,7 +241,11 @@ class ActiveWorkoutViewModel(
             ?.exercise
             ?.displayName()
         timerNotificationHelper.showRunningTimer(endTimeMillis, exerciseName, setNumber, workoutId)
-        timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
+        runCatching {
+            timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
+        }.onFailure { e ->
+            Log.w(TAG, "Could not schedule exact alarm; background ring may be skipped", e)
+        }
         timerJob = viewModelScope.launch { tickTimer() }
     }
 
@@ -350,6 +361,7 @@ class ActiveWorkoutViewModel(
     }
 
     companion object {
+        private const val TAG = "ActiveWorkoutVM"
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
         private val GSON = Gson()
@@ -402,6 +414,15 @@ class ActiveWorkoutViewModel(
 
     // Add 999 ms before integer division so the countdown rounds up:
     // with a 3-second timer it shows "3" until <2.0 s remain, instead of immediately jumping to "2".
+    /**
+     * Returns the number of whole seconds left until [endTimeMillis], rounded up.
+     * The +999 ms bias ensures the display shows the full starting second (e.g. a 3 s timer
+     * shows "3" from 3.0 s down to 2.001 s) instead of jumping to "2" immediately.
+     *
+     * @param endTimeMillis Target epoch-millisecond when the timer expires.
+     * @param nowMillis     Current epoch milliseconds; defaults to [System.currentTimeMillis].
+     * @return Remaining seconds ≥ 0.
+     */
     private fun remainingSecondsUntil(endTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): Int =
         (((endTimeMillis - nowMillis) + 999L) / 1000L).toInt().coerceAtLeast(0)
 

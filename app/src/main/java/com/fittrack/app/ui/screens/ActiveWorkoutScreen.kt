@@ -42,7 +42,7 @@ fun ActiveWorkoutScreen(
     val isTimerVisible by viewModel.isTimerVisible.collectAsState()
     
     var showFinishConfirm by remember { mutableStateOf(false) }
-    var didAutoFinish by remember(workout?.id) { mutableStateOf(false) }
+    var autoFinishTriggered by remember(workout?.id) { mutableStateOf(false) }
     val allSessionsCompleted by remember(sessions) {
         derivedStateOf {
             sessions.isNotEmpty() && sessions.all { session ->
@@ -52,8 +52,8 @@ fun ActiveWorkoutScreen(
     }
 
     LaunchedEffect(workout?.id, allSessionsCompleted) {
-        if (!didAutoFinish && workout != null && allSessionsCompleted) {
-            didAutoFinish = true
+        if (!autoFinishTriggered && workout != null && allSessionsCompleted) {
+            autoFinishTriggered = true
             viewModel.finishWorkout { onFinish() }
         }
     }
