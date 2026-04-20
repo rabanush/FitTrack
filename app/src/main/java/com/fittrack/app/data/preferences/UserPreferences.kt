@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
 
 enum class ActivityLevel(val multiplier: Float, val label: String) {
-    SEDENTARY(1.2f, "Sitzend (wenig/keine Bewegung)"),
-    LIGHT(1.375f, "Leicht aktiv (1–3 Tage/Woche)"),
-    MODERATE(1.55f, "Mäßig aktiv (3–5 Tage/Woche)"),
-    ACTIVE(1.725f, "Sehr aktiv (6–7 Tage/Woche)"),
-    VERY_ACTIVE(1.9f, "Extrem aktiv (körperliche Arbeit)")
+    SEDENTARY(1.2f, "Keine Bewegung (fast nur Sitzen)"),
+    LIGHT(1.375f, "Wenig aktiv (ein bisschen Bewegung im Alltag)"),
+    MODERATE(1.55f, "Alltag aktiv (viel Gehen/Stehen)"),
+    ACTIVE(1.725f, "Sehr aktiv (regelmäßig Sport + aktiver Alltag)"),
+    VERY_ACTIVE(1.9f, "Aktive körperliche Arbeit (sehr anstrengend)")
 }
 
 enum class Gender { MALE, FEMALE }
