@@ -272,23 +272,24 @@ class ActiveWorkoutViewModel(
                 }
                 break
             }
-            // Play a single tick beep the first time each countdown second (3, 2, 1) is seen.
-            if (remaining in 1..COUNTDOWN_TICK_SECONDS && remaining != lastCountdownTickSecond) {
-                lastCountdownTickSecond = remaining
-                playTickBeep()
+            // Launch the full 3-2-1 countdown sequence once (single audio-focus window so
+            // music stays silent for the entire countdown, not just per-beep).
+            if (remaining == COUNTDOWN_TICK_SECONDS && lastCountdownTickSecond != COUNTDOWN_TICK_SECONDS) {
+                lastCountdownTickSecond = COUNTDOWN_TICK_SECONDS
+                playCountdownSequence()
             }
             delay(200L) // Poll frequently enough for a smooth countdown display
         }
     }
 
-    /** Short tick beep played at each of the last countdown seconds (3, 2, 1). */
-    private fun playTickBeep() {
+    /** Plays the full N-2-1 countdown beep sequence with a single audio-focus window. */
+    private fun playCountdownSequence() {
         val volume = _timerVolumePercent.value
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                timerAudioPlayer.playTickBeep(volume)
+                timerAudioPlayer.playTickSequence(COUNTDOWN_TICK_SECONDS, volume)
             } catch (e: Exception) {
-                Log.w(TAG, "Could not play countdown tick beep", e)
+                Log.w(TAG, "Could not play countdown tick sequence", e)
             }
         }
     }

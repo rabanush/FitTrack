@@ -14,28 +14,23 @@ class TimerAudioPlayer(context: Context) {
 
     // ── Public API ──────────────────────────────────────────────────────────
 
-    /** Single short tick played during the last-seconds countdown (3, 2, 1).
-     *  Requests exclusive transient focus so background music is paused for the duration. */
-    suspend fun playTickBeep(volumePercent: Int) {
+    /**
+     * Plays [count] short countdown ticks (3-2-1) with a 1-second cadence, holding
+     * `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` for the **entire** sequence so that
+     * background music stays silent between ticks.  Works over Bluetooth because the
+     * tone is rendered on [STREAM_MUSIC].
+     */
+    suspend fun playTickSequence(count: Int, volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
-                delay(TICK_TONE_DURATION_MS.toLong())
-            } finally {
-                ctx.release()
-            }
-        }
-    }
-
-    /** Blocking variant of [playTickBeep] used from plain threads (e.g. BroadcastReceiver).
-     *  Requests exclusive transient focus so background music is paused for the duration. */
-    fun playTickBeepBlocking(volumePercent: Int) {
-        withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
-            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
-            try {
-                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
-                Thread.sleep(TICK_TONE_DURATION_MS.toLong())
+                repeat(count) { index ->
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
+                    delay(
+                        if (index == count - 1) TICK_TONE_DURATION_MS.toLong()
+                        else TICK_SEQUENCE_STEP_MS
+                    )
+                }
             } finally {
                 ctx.release()
             }
@@ -166,5 +161,7 @@ class TimerAudioPlayer(context: Context) {
 
         // Short pip played at 3, 2, 1 seconds remaining.
         const val TICK_TONE_DURATION_MS = 120
+        // Gap between the start of each pip — matches the 1-second countdown cadence.
+        const val TICK_SEQUENCE_STEP_MS = 1_000L
     }
 }
