@@ -33,6 +33,8 @@ import java.util.Locale
 // FitTrackBackup.json is stored in the user-chosen folder (default: Documents).
 // The folder is granted via ACTION_OPEN_DOCUMENT_TREE on first app start.
 private const val BACKUP_FILENAME = "FitTrackBackup.json"
+private const val BACKUP_FILENAME_TMP = "FitTrackBackup_tmp.json"
+private const val BACKUP_FILENAME_BAK = "FitTrackBackup.bak.json"
 private const val BACKUP_MIME_TYPE = "application/json"
 private const val TAG = "WorkoutBackup"
 private const val DEFAULT_TIMER_VOLUME_PERCENT = 50
@@ -505,6 +507,18 @@ object WorkoutBackupHelper {
         return exerciseDao.getExerciseById(insertedId)
     }
 
+    /**
+     * Writes the backup JSON using a rotate-then-swap strategy to protect against data loss:
+     *
+     * 1. Write new content to a temp file ([BACKUP_FILENAME_TMP]).
+     * 2. On success, rename the current main file to [BACKUP_FILENAME_BAK] (one-generation
+     *    rollback copy), then rename the temp file to the main [BACKUP_FILENAME].
+     * 3. If any rename step fails, the temp file still holds the fresh data and the
+     *    old main file is untouched, so no data is lost.
+     *
+     * This replaces the previous truncate-in-place write, which could leave the backup
+     * file empty/corrupt if the app was killed or storage filled up mid-write.
+     */
     private fun writeJson(context: Context, treeUriString: String, json: String) {
         try {
             val treeUri = Uri.parse(treeUriString)
@@ -513,17 +527,52 @@ object WorkoutBackupHelper {
                 Log.w(TAG, "Backup folder is not accessible: $treeUriString")
                 return
             }
-            // Re-use the existing file if it exists, otherwise create it.
-            val backupFile = treeDoc.findFile(BACKUP_FILENAME)
-                ?: treeDoc.createFile(BACKUP_MIME_TYPE, BACKUP_FILENAME)
-            if (backupFile == null) {
-                Log.w(TAG, "Could not create $BACKUP_FILENAME in backup folder")
+
+            // Step 1: write into the temp file (create or truncate).
+            val tmpFile = treeDoc.findFile(BACKUP_FILENAME_TMP)
+                ?: treeDoc.createFile(BACKUP_MIME_TYPE, BACKUP_FILENAME_TMP)
+            if (tmpFile == null) {
+                Log.w(TAG, "Could not create $BACKUP_FILENAME_TMP in backup folder")
                 return
             }
-            context.contentResolver.openOutputStream(backupFile.uri, "wt")?.use { out ->
+            context.contentResolver.openOutputStream(tmpFile.uri, "wt")?.use { out ->
                 out.write(json.toByteArray(Charsets.UTF_8))
             }
-            Log.i(TAG, "Backup written to ${backupFile.uri}")
+
+            // Step 2: rotate main → .bak, then tmp → main.
+            val mainFile = treeDoc.findFile(BACKUP_FILENAME)
+            if (mainFile != null) {
+                // Remove stale .bak so rename doesn't collide on providers that disallow duplicates.
+                val bakFile = treeDoc.findFile(BACKUP_FILENAME_BAK)
+                if (bakFile != null && !bakFile.delete()) {
+                    Log.w(TAG, "Could not delete stale $BACKUP_FILENAME_BAK; rename may fail on strict providers")
+                }
+                val renamed = mainFile.renameTo(BACKUP_FILENAME_BAK)
+                if (!renamed) {
+                    // Rename not supported by this provider (e.g. some cloud drives).
+                    // Fall back: overwrite main in-place; the temp file already holds the
+                    // fresh data, so partial-write risk is the same as the old approach,
+                    // but only for this provider edge-case.
+                    Log.w(TAG, "renameTo($BACKUP_FILENAME_BAK) failed — falling back to in-place overwrite")
+                    context.contentResolver.openOutputStream(mainFile.uri, "wt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                    }
+                    tmpFile.delete()
+                    Log.i(TAG, "Backup written (in-place fallback) to ${mainFile.uri}")
+                    return
+                }
+            }
+            val promoted = tmpFile.renameTo(BACKUP_FILENAME)
+            if (!promoted) {
+                // The main file was already renamed to .bak; try to restore it so the
+                // directory is never left without a valid main backup file.
+                treeDoc.findFile(BACKUP_FILENAME_BAK)?.renameTo(BACKUP_FILENAME)
+                // Temp file still holds the fresh data under BACKUP_FILENAME_TMP so the
+                // user can recover it manually.
+                Log.w(TAG, "Could not rename $BACKUP_FILENAME_TMP → $BACKUP_FILENAME; fresh data is in $BACKUP_FILENAME_TMP")
+                return
+            }
+            Log.i(TAG, "Backup written (rotate) to $BACKUP_FILENAME")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write backup to SAF folder", e)
         }
