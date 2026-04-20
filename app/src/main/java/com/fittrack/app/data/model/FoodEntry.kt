@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index("meal_id")]
+    indices = [Index("meal_id"), Index("logged_date_millis")]
 )
 data class FoodEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

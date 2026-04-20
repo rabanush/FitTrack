@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fittrack.app.data.dao.CustomFoodDao
 import com.fittrack.app.data.dao.ExerciseDao
@@ -32,7 +33,7 @@ import kotlinx.coroutines.launch
     entities = [Exercise::class, Workout::class, WorkoutExercise::class, LogEntry::class,
                 Meal::class, FoodEntry::class, WorkoutCalories::class,
                 CustomFood::class, Recipe::class, RecipeItem::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class FitTrackDatabase : RoomDatabase() {
@@ -53,6 +54,16 @@ abstract class FitTrackDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FitTrackDatabase? = null
 
+        /** Adds an index on food_entries.logged_date_millis to speed up per-day queries. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_food_entries_logged_date_millis` " +
+                        "ON `food_entries` (`logged_date_millis`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): FitTrackDatabase {
             return INSTANCE ?: synchronized(this) {
                 val appContext = context.applicationContext
@@ -61,6 +72,7 @@ abstract class FitTrackDatabase : RoomDatabase() {
                     FitTrackDatabase::class.java,
                     "fittrack_database"
                 )
+                    .addMigrations(MIGRATION_7_8)
                     .fallbackToDestructiveMigration(true)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {

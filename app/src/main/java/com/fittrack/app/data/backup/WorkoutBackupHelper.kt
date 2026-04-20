@@ -115,13 +115,6 @@ private data class BackupFoodEntry(
     @SerializedName("loggedDateMillis") val loggedDateMillis: Long = 0L
 )
 
-private data class BackupWorkoutCalories(
-    @SerializedName("workoutId") val workoutId: Long,
-    @SerializedName("dateMillis") val dateMillis: Long,
-    @SerializedName("caloriesBurned") val caloriesBurned: Float,
-    @SerializedName("durationMinutes") val durationMinutes: Int
-)
-
 private data class BackupActiveWorkoutSession(
     @SerializedName("workoutId") val workoutId: Long,
     @SerializedName("workoutStartTimeMillis") val workoutStartTimeMillis: Long,
@@ -141,7 +134,6 @@ private data class BackupData(
     @SerializedName("customExercises") val customExercises: List<BackupCustomExercise> = emptyList(),
     @SerializedName("meals") val meals: List<BackupMeal> = emptyList(),
     @SerializedName("foodEntries") val foodEntries: List<BackupFoodEntry> = emptyList(),
-    @SerializedName("workoutCalories") val workoutCalories: List<BackupWorkoutCalories> = emptyList(),
     @SerializedName("activeWorkoutSession") val activeWorkoutSession: BackupActiveWorkoutSession? = null
 )
 
@@ -245,7 +237,6 @@ object WorkoutBackupHelper {
                     loggedDateMillis = entry.loggedDateMillis
                 )
             },
-            workoutCalories = emptyList(),
             activeWorkoutSession = activeWorkoutSession?.let { session ->
                 BackupActiveWorkoutSession(
                     workoutId = session.workoutId,
