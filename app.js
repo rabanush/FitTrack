@@ -5,12 +5,20 @@
 (function () {
   "use strict";
 
+  if (!Array.isArray(window.exercises)) return;
+
   /* ---------- State ---------- */
   const state = {
     filter: "all",
     search: "",
     difficulty: "all",
   };
+  const indexedExercises = window.exercises.map((ex) => ({
+    ...ex,
+    searchBlob: [ex.name, ...ex.muscles, ex.description].join(" ").toLowerCase(),
+    descriptionPreview:
+      ex.description.length > 110 ? `${ex.description.slice(0, 110)}…` : ex.description,
+  }));
 
   /* ---------- DOM refs ---------- */
   const grid = document.getElementById("exerciseGrid");
@@ -25,20 +33,17 @@
   const videoFrame = document.getElementById("videoFrame");
   const closeModalBtn = document.getElementById("closeModal");
   const exerciseCount = document.getElementById("exerciseCount");
+  let lastFocusedElement = null;
 
   /* ---------- Render ---------- */
   function render() {
-    const filtered = exercises.filter((ex) => {
+    const q = state.search.trim().toLowerCase();
+    const filtered = indexedExercises.filter((ex) => {
       const matchCategory =
         state.filter === "all" || ex.category === state.filter;
       const matchDifficulty =
         state.difficulty === "all" || ex.difficulty === state.difficulty;
-      const q = state.search.toLowerCase();
-      const matchSearch =
-        !q ||
-        ex.name.toLowerCase().includes(q) ||
-        ex.muscles.some((m) => m.toLowerCase().includes(q)) ||
-        ex.description.toLowerCase().includes(q);
+      const matchSearch = !q || ex.searchBlob.includes(q);
       return matchCategory && matchDifficulty && matchSearch;
     });
 
@@ -49,7 +54,9 @@
       emptyState.hidden = false;
     } else {
       emptyState.hidden = true;
-      filtered.forEach((ex) => grid.appendChild(createCard(ex)));
+      const cardsFragment = document.createDocumentFragment();
+      filtered.forEach((ex) => cardsFragment.appendChild(createCard(ex)));
+      grid.appendChild(cardsFragment);
     }
   }
 
@@ -57,7 +64,6 @@
   function createCard(ex) {
     const card = document.createElement("article");
     card.className = "exercise-card";
-    card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
     card.setAttribute("aria-label", `Open details for ${ex.name}`);
 
@@ -73,7 +79,7 @@
         <span class="difficulty-badge difficulty-${ex.difficulty}">${diffLabel}</span>
       </div>
       <h3 class="card-title">${ex.name}</h3>
-      <p class="card-description">${ex.description.slice(0, 110)}…</p>
+      <p class="card-description">${ex.descriptionPreview}</p>
       <ul class="muscle-list">
         ${ex.muscles.map((m) => `<li>${m}</li>`).join("")}
       </ul>
@@ -93,8 +99,10 @@
       if (!e.target.closest(".watch-btn")) openModal(ex);
     });
     card.addEventListener("keydown", (e) => {
-      if ((e.key === "Enter" || e.key === " ") && !e.target.closest(".watch-btn"))
+      if ((e.key === "Enter" || e.key === " ") && e.target === card) {
+        if (e.key === " ") e.preventDefault();
         openModal(ex);
+      }
     });
     card.querySelector(".watch-btn").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -106,6 +114,7 @@
 
   /* ---------- Modal ---------- */
   function openModal(ex) {
+    lastFocusedElement = document.activeElement;
     modalTitle.textContent = ex.name;
     modalDescription.textContent = ex.description;
     modalMuscles.innerHTML = ex.muscles
@@ -123,6 +132,8 @@
     modal.setAttribute("aria-hidden", "true");
     videoFrame.src = "";
     document.body.classList.remove("modal-open");
+    if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
+    lastFocusedElement = null;
   }
 
   closeModalBtn.addEventListener("click", closeModal);
