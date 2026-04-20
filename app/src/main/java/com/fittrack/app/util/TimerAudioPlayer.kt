@@ -20,38 +20,27 @@ class TimerAudioPlayer(context: Context) {
      * background music stays silent between ticks.  Works over Bluetooth because the
      * tone is rendered on [STREAM_MUSIC].
      *
-     * A fresh [ToneGenerator] is created for each tick to avoid playback issues that
-     * arise when calling [ToneGenerator.startTone] repeatedly on a single instance.
+     * A single [ToneGenerator] is reused for all ticks in the sequence. Opening and
+     * closing an audio stream per tick causes an audible click/pop on many devices;
+     * reuse eliminates this artifact. Because each tick lasts only [TICK_TONE_DURATION_MS]
+     * and the inter-tick gap is [TICK_SEQUENCE_STEP_MS], the previous tone is always
+     * finished before [ToneGenerator.startTone] is called again.
      */
     suspend fun playTickSequence(count: Int, volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
-            val stream = preferredStream()
-            val toneVolume = toEffectiveAudioPercent(volumePercent)
-            val originalVolume = audioManager.getStreamVolume(stream)
-            val maxVolume = audioManager.getStreamMaxVolume(stream).coerceAtLeast(1)
-            val targetVolume = ((maxVolume * (toneVolume / 100f)).roundToInt()).coerceIn(1, maxVolume)
-            if (targetVolume > originalVolume) {
-                audioManager.setStreamVolume(stream, targetVolume, 0)
-            }
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
             try {
                 repeat(count) { index ->
-                    val toneGen = runCatching { ToneGenerator(stream, toneVolume) }.getOrNull()
-                    try {
-                        toneGen?.startTone(ToneGenerator.TONE_PROP_BEEP, TICK_TONE_DURATION_MS)
-                        // After the last tick, keep focus a little longer so the tone fully
-                        // rings out before music is allowed to resume.
-                        delay(
-                            if (index == count - 1) TICK_TONE_DURATION_MS.toLong() + TICK_POST_SEQUENCE_BUFFER_MS
-                            else TICK_SEQUENCE_STEP_MS
-                        )
-                    } finally {
-                        runCatching { toneGen?.release() }
-                    }
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, TICK_TONE_DURATION_MS)
+                    // After the last tick, keep focus a little longer so the tone fully
+                    // rings out before music is allowed to resume.
+                    delay(
+                        if (index == count - 1) TICK_TONE_DURATION_MS.toLong() + TICK_POST_SEQUENCE_BUFFER_MS
+                        else TICK_SEQUENCE_STEP_MS
+                    )
                 }
             } finally {
-                if (targetVolume > originalVolume) {
-                    audioManager.setStreamVolume(stream, originalVolume, 0)
-                }
+                ctx.release()
             }
         }
     }
