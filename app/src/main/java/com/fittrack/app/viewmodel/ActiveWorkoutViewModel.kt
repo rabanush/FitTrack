@@ -18,7 +18,6 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
@@ -106,34 +105,8 @@ class ActiveWorkoutViewModel(
             }
         }
 
-        viewModelScope.launch {
-            // Fetch the workout name and exercise list in parallel so the screen is
-            // populated as fast as possible – the two queries are independent.
-            val workoutDeferred = async { repository.getWorkoutById(workoutId) }
-            launch {
-                repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                    if (exercises.isEmpty()) {
-                        _exerciseSessions.value = emptyList()
-                        return@collect
-                    }
-                    // Render immediately without waiting for previous-log lookup to finish.
-                    _exerciseSessions.value = exercises
-                        .map { buildSessionForExercise(it, emptyList()) }
-                        .let(::applyPersistedProgress)
-
-                    val exerciseIds = exercises.map { it.exercise.id }
-
-                    val previousLogsMap = withContext(Dispatchers.IO) {
-                        repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
-                            .groupBy { it.exerciseId }
-                    }
-                    _exerciseSessions.value = exercises
-                        .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
-                        .let(::applyPersistedProgress)
-                }
-            }
-            _workout.value = workoutDeferred.await()
-        }
+        observeWorkoutName()
+        observeWorkoutExercises()
 
         restoredSession?.let { restoreTimerFromSession(it) }
         startWorkoutElapsedTicker()
@@ -172,6 +145,55 @@ class ActiveWorkoutViewModel(
         val initialSets = (1..weWithEx.workoutExercise.setCount).map { buildInitialSet(it, sortedLogs) }
         return ExerciseSessionData(workoutExercise = weWithEx, sets = initialSets)
     }
+
+    private fun observeWorkoutName() {
+        viewModelScope.launch {
+            _workout.value = repository.getWorkoutById(workoutId)
+        }
+    }
+
+    private fun observeWorkoutExercises() {
+        viewModelScope.launch {
+            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
+                refreshExerciseSessions(exercises)
+            }
+        }
+    }
+
+    private suspend fun refreshExerciseSessions(exercises: List<WorkoutExerciseWithExercise>) {
+        if (exercises.isEmpty()) {
+            _exerciseSessions.value = emptyList()
+            return
+        }
+
+        val initialBatch = exercises.take(INITIAL_EXERCISE_BATCH_SIZE)
+        val initialSessions = buildExerciseSessions(initialBatch)
+        _exerciseSessions.value = initialSessions
+
+        if (exercises.size > INITIAL_EXERCISE_BATCH_SIZE) {
+            delay(DEFERRED_EXERCISE_BATCH_DELAY_MS)
+            val deferredSessions = buildExerciseSessions(exercises.drop(INITIAL_EXERCISE_BATCH_SIZE))
+            _exerciseSessions.value = initialSessions + deferredSessions
+        }
+
+        val previousLogsMap = loadPreviousLogsByExerciseId(exercises)
+        _exerciseSessions.value = buildExerciseSessions(exercises, previousLogsMap)
+    }
+
+    private suspend fun loadPreviousLogsByExerciseId(
+        exercises: List<WorkoutExerciseWithExercise>
+    ): Map<Long, List<LogEntry>> = withContext(Dispatchers.IO) {
+        val exerciseIds = exercises.map { it.exercise.id }
+        repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
+            .groupBy { it.exerciseId }
+    }
+
+    private fun buildExerciseSessions(
+        exercises: List<WorkoutExerciseWithExercise>,
+        previousLogsByExerciseId: Map<Long, List<LogEntry>> = emptyMap()
+    ): List<ExerciseSessionData> = exercises
+        .map { buildSessionForExercise(it, previousLogsByExerciseId[it.exercise.id] ?: emptyList()) }
+        .let(::applyPersistedProgress)
 
     private fun buildLogEntry(session: ExerciseSessionData, set: SetData): LogEntry? {
         if (!set.isCompleted && set.weight.isEmpty() && set.reps.isEmpty()) return null
@@ -217,14 +239,18 @@ class ActiveWorkoutViewModel(
     }
 
     fun completeSet(exerciseIndex: Int, setIndex: Int) {
+        var restSecondsToStart = 0
         updateSessionAt(exerciseIndex) { session ->
             if (setIndex >= session.sets.size) return@updateSessionAt session
             val currentSet = session.sets[setIndex]
             val updatedSet = if (currentSet.isCompleted) currentSet.copy(isCompleted = false) else currentSet.toCompleted()
             val restSeconds = session.workoutExercise.workoutExercise.restTimerSeconds
-            if (!currentSet.isCompleted && restSeconds > 0) startTimer(restSeconds, exerciseIndex, setIndex + 1)
+            if (!currentSet.isCompleted && restSeconds > 0) {
+                restSecondsToStart = restSeconds
+            }
             session.copy(sets = session.sets.mapIndexed { i, s -> if (i == setIndex) updatedSet else s })
         }
+        if (restSecondsToStart > 0) startTimer(restSecondsToStart, exerciseIndex, setIndex + 1)
     }
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
@@ -389,6 +415,8 @@ class ActiveWorkoutViewModel(
         private const val TAG = "ActiveWorkoutVM"
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
+        private const val INITIAL_EXERCISE_BATCH_SIZE = 2
+        private const val DEFERRED_EXERCISE_BATCH_DELAY_MS = 100L
         /** Number of seconds before end at which tick beeps start (3, 2, 1). */
         private const val COUNTDOWN_TICK_SECONDS = 3
         private val GSON = Gson()
