@@ -46,7 +46,7 @@ fun WorkoutListScreen(
     var pendingExpandMealId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(currentPage) {
-        if (previousPage == 1 && currentPage != 1) {
+        if (previousPage != 1 && currentPage == 1) {
             foodTabSessionKey++
         }
         previousPage = currentPage
