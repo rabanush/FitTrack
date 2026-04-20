@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +17,11 @@ import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.MealWithEntries
+
+private val ExpandedMealIdsStateSaver: Saver<MutableState<Set<Long>>, Any> = Saver(
+    save = { it.value.toList() },
+    restore = { mutableStateOf((it as List<*>).filterIsInstance<Long>().toSet()) }
+)
 
 /**
  * Content of the Food Tracker tab. Does NOT include a Scaffold — it is
@@ -35,13 +41,15 @@ fun FoodTrackerScreen(
     val totalBurned by viewModel.totalBurnedToday.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
-    var expandedMealIds by rememberSaveable(sessionKey) { mutableStateOf(emptyList<Long>()) }
+    var expandedMealIds by rememberSaveable(sessionKey, stateSaver = ExpandedMealIdsStateSaver) {
+        mutableStateOf(emptySet())
+    }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
         val existingMealIds = mealsWithEntries.map { it.meal.id }.toSet()
-        expandedMealIds = expandedMealIds.filter { it in existingMealIds }
+        expandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { it in existingMealIds }
         if (pendingExpandMealId != null && pendingExpandMealId in existingMealIds) {
-            expandedMealIds = (expandedMealIds + pendingExpandMealId).distinct()
+            expandedMealIds = expandedMealIds + pendingExpandMealId
             onPendingExpandHandled(pendingExpandMealId)
         }
     }
