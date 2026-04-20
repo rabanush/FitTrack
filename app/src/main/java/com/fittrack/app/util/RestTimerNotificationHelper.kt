@@ -72,6 +72,7 @@ class RestTimerNotificationHelper(context: Context) {
             timerEndTimeMillis = endTimeMillis
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            // Exact-alarm permission not granted; use a best-effort inexact wakeup instead.
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
             return
         }

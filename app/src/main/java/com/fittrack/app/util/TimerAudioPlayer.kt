@@ -14,6 +14,37 @@ class TimerAudioPlayer(context: Context) {
 
     // ── Public API ──────────────────────────────────────────────────────────
 
+    /**
+     * Plays [count] short countdown ticks (3-2-1) with a 1-second cadence, holding
+     * `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` for the **entire** sequence so that
+     * background music stays silent between ticks.  Works over Bluetooth because the
+     * tone is rendered on [STREAM_MUSIC].
+     *
+     * A single [ToneGenerator] is reused for all ticks in the sequence. Opening and
+     * closing an audio stream per tick causes an audible click/pop on many devices;
+     * reuse eliminates this artifact. Because each tick lasts only [TICK_TONE_DURATION_MS]
+     * and the inter-tick gap is [TICK_SEQUENCE_STEP_MS], the previous tone is always
+     * finished before [ToneGenerator.startTone] is called again.
+     */
+    suspend fun playTickSequence(count: Int, volumePercent: Int) {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
+            try {
+                repeat(count) { index ->
+                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, TICK_TONE_DURATION_MS)
+                    // After the last tick, keep focus a little longer so the tone fully
+                    // rings out before music is allowed to resume.
+                    delay(
+                        if (index == count - 1) TICK_TONE_DURATION_MS.toLong() + TICK_POST_SEQUENCE_BUFFER_MS
+                        else TICK_SEQUENCE_STEP_MS
+                    )
+                }
+            } finally {
+                ctx.release()
+            }
+        }
+    }
+
     suspend fun playEndSequence(volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
@@ -89,14 +120,14 @@ class TimerAudioPlayer(context: Context) {
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
 
-    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
+    private fun preferredStream(): Int = AudioManager.STREAM_MUSIC
 
     /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
     private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
         AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
@@ -128,12 +159,23 @@ class TimerAudioPlayer(context: Context) {
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 
     companion object {
-        // 4 beeps with 850 ms spacing and 450 ms tone length produce a 3.0 s end sequence.
-        const val END_SEQUENCE_REPEAT_COUNT = 4
-        const val END_SEQUENCE_TONE_DURATION_MS = 450
-        const val END_SEQUENCE_STEP_DURATION_MS = 850L
+        // 2 prominent beeps at the end of the rest timer ("2 mal").
+        const val END_SEQUENCE_REPEAT_COUNT = 2
+        const val END_SEQUENCE_TONE_DURATION_MS = 600
+        const val END_SEQUENCE_STEP_DURATION_MS = 900L
         const val END_SEQUENCE_TOTAL_DURATION_MS =
             ((END_SEQUENCE_REPEAT_COUNT - 1L) * END_SEQUENCE_STEP_DURATION_MS) +
                 END_SEQUENCE_TONE_DURATION_MS.toLong()
+
+        // Short pip played at 3, 2, 1 seconds remaining.
+        const val TICK_TONE_DURATION_MS = 120
+        // Gap between the start of each pip — matches the 1-second countdown cadence.
+        const val TICK_SEQUENCE_STEP_MS = 1_000L
+        // Extra time held after the last tick. Set to (TICK_SEQUENCE_STEP_MS - TICK_TONE_DURATION_MS)
+        // so that the total delay after the final tick equals TICK_SEQUENCE_STEP_MS (1 000 ms) —
+        // matching every other inter-tick gap. This means audio focus is held for exactly
+        // count × TICK_SEQUENCE_STEP_MS (= 3 s), which covers the full countdown window and
+        // prevents music from resuming in the ~630 ms gap before the end sequence acquires focus.
+        const val TICK_POST_SEQUENCE_BUFFER_MS = 880L // = TICK_SEQUENCE_STEP_MS - TICK_TONE_DURATION_MS
     }
 }

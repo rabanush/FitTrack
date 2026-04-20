@@ -1,6 +1,8 @@
 package com.fittrack.app.viewmodel
 
+import android.util.Log
 import android.content.Context
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.lifecycle.*
 import androidx.compose.runtime.Immutable
 import com.fittrack.app.data.model.*
@@ -16,6 +18,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
@@ -81,6 +84,9 @@ class ActiveWorkoutViewModel(
     private val _workoutElapsedSeconds = MutableStateFlow(0)
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
     private var restoredProgressByWorkoutExerciseId = emptyMap<Long, PersistedExerciseSessionState>()
+    private val isFinishing = AtomicBoolean(false)
+    /** Tracks the last countdown second for which a tick beep was played (3, 2, 1). */
+    @Volatile private var lastCountdownTickSecond = -1
 
     init {
         val restoredSession = activeWorkoutSessionPreferences.getSession()
@@ -101,27 +107,32 @@ class ActiveWorkoutViewModel(
         }
 
         viewModelScope.launch {
-            _workout.value = repository.getWorkoutById(workoutId)
-            repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
-                if (exercises.isEmpty()) {
-                    _exerciseSessions.value = emptyList()
-                    return@collect
-                }
-                // Render immediately without waiting for previous-log lookup to finish.
-                _exerciseSessions.value = exercises
-                    .map { buildSessionForExercise(it, emptyList()) }
-                    .let(::applyPersistedProgress)
+            // Fetch the workout name and exercise list in parallel so the screen is
+            // populated as fast as possible – the two queries are independent.
+            val workoutDeferred = async { repository.getWorkoutById(workoutId) }
+            launch {
+                repository.getWorkoutExercisesWithExercise(workoutId).collect { exercises ->
+                    if (exercises.isEmpty()) {
+                        _exerciseSessions.value = emptyList()
+                        return@collect
+                    }
+                    // Render immediately without waiting for previous-log lookup to finish.
+                    _exerciseSessions.value = exercises
+                        .map { buildSessionForExercise(it, emptyList()) }
+                        .let(::applyPersistedProgress)
 
-                val exerciseIds = exercises.map { it.exercise.id }
+                    val exerciseIds = exercises.map { it.exercise.id }
 
-                val previousLogsMap = withContext(Dispatchers.IO) {
-                    repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
-                        .groupBy { it.exerciseId }
+                    val previousLogsMap = withContext(Dispatchers.IO) {
+                        repository.getPreviousLogEntriesForExercises(exerciseIds, workoutStartTimeMillis)
+                            .groupBy { it.exerciseId }
+                    }
+                    _exerciseSessions.value = exercises
+                        .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
+                        .let(::applyPersistedProgress)
                 }
-                _exerciseSessions.value = exercises
-                    .map { buildSessionForExercise(it, previousLogsMap[it.exercise.id] ?: emptyList()) }
-                    .let(::applyPersistedProgress)
             }
+            _workout.value = workoutDeferred.await()
         }
 
         restoredSession?.let { restoreTimerFromSession(it) }
@@ -218,6 +229,7 @@ class ActiveWorkoutViewModel(
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
         timerJob?.cancel()
+        lastCountdownTickSecond = -1
         val endTimeMillis = System.currentTimeMillis() + (seconds * 1000L)
         _timerState.value = TimerState(
             isRunning = true,
@@ -234,7 +246,11 @@ class ActiveWorkoutViewModel(
             ?.exercise
             ?.displayName()
         timerNotificationHelper.showRunningTimer(endTimeMillis, exerciseName, setNumber, workoutId)
-        timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
+        runCatching {
+            timerNotificationHelper.scheduleCompletionAlarm(endTimeMillis, _timerVolumePercent.value, workoutId)
+        }.onFailure { e ->
+            Log.w(TAG, "Could not schedule exact alarm; background ring may be skipped", e)
+        }
         timerJob = viewModelScope.launch { tickTimer() }
     }
 
@@ -242,8 +258,7 @@ class ActiveWorkoutViewModel(
         while (true) {
             val state = _timerState.value
             val now = System.currentTimeMillis()
-            val remaining = ((state.endTimeMillis - now) / 1000L)
-                .toInt().coerceAtLeast(0)
+            val remaining = remainingSecondsUntil(state.endTimeMillis, now)
             _timerState.value = state.copy(remainingSeconds = remaining)
             if (remaining <= 0) {
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
@@ -257,7 +272,25 @@ class ActiveWorkoutViewModel(
                 }
                 break
             }
+            // Launch the full 3-2-1 countdown sequence once (single audio-focus window so
+            // music stays silent for the entire countdown, not just per-beep).
+            if (remaining == COUNTDOWN_TICK_SECONDS && lastCountdownTickSecond != COUNTDOWN_TICK_SECONDS) {
+                lastCountdownTickSecond = COUNTDOWN_TICK_SECONDS
+                playCountdownSequence()
+            }
             delay(200L) // Poll frequently enough for a smooth countdown display
+        }
+    }
+
+    /** Plays the full N-2-1 countdown beep sequence with a single audio-focus window. */
+    private fun playCountdownSequence() {
+        val volume = _timerVolumePercent.value
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                timerAudioPlayer.playTickSequence(COUNTDOWN_TICK_SECONDS, volume)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not play countdown tick sequence", e)
+            }
         }
     }
 
@@ -273,6 +306,7 @@ class ActiveWorkoutViewModel(
 
     fun skipTimer() {
         timerJob?.cancel()
+        lastCountdownTickSecond = -1
         timerNotificationHelper.cancelRunningTimer()
         timerNotificationHelper.cancelCompletionAlarm()
         activeWorkoutSessionPreferences.clearTimerState()
@@ -284,8 +318,7 @@ class ActiveWorkoutViewModel(
         if (!current.isRunning) return
 
         val newEndTime = current.endTimeMillis + (deltaSecs * 1000L)
-        val now = System.currentTimeMillis()
-        val newRemaining = ((newEndTime - now) / 1000L).toInt().coerceAtLeast(0)
+        val newRemaining = remainingSecondsUntil(newEndTime)
 
         if (newRemaining <= 0) {
             skipTimer()
@@ -303,6 +336,7 @@ class ActiveWorkoutViewModel(
     }
 
     fun finishWorkout(onFinished: () -> Unit) {
+        if (!isFinishing.compareAndSet(false, true)) return
         viewModelScope.launch {
             val entries = _exerciseSessions.value.flatMap { session ->
                 session.sets.mapNotNull { set -> buildLogEntry(session, set) }
@@ -352,8 +386,11 @@ class ActiveWorkoutViewModel(
     }
 
     companion object {
+        private const val TAG = "ActiveWorkoutVM"
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
+        /** Number of seconds before end at which tick beeps start (3, 2, 1). */
+        private const val COUNTDOWN_TICK_SECONDS = 3
         private val GSON = Gson()
     }
 
@@ -365,8 +402,7 @@ class ActiveWorkoutViewModel(
 
     private fun restoreTimerFromSession(session: ActiveWorkoutSession) {
         if (session.timerEndTimeMillis <= 0L || session.timerTotalSeconds <= 0) return
-        val now = System.currentTimeMillis()
-        val remainingSeconds = ((session.timerEndTimeMillis - now) / 1000L).toInt().coerceAtLeast(0)
+        val remainingSeconds = remainingSecondsUntil(session.timerEndTimeMillis)
         if (remainingSeconds <= 0) {
             activeWorkoutSessionPreferences.clearTimerState()
             return
@@ -402,6 +438,24 @@ class ActiveWorkoutViewModel(
             setNumber = state.setNumber
         )
     }
+
+    /**
+     * Returns the whole seconds remaining until [endTimeMillis] using ceiling division.
+     *
+     * With 999 ms added before integer division the boundary is:
+     * - 3000 ms remaining → (3000+999)/1000 = 3 → displays "3"
+     * - 2001 ms remaining → (2001+999)/1000 = 3 → still displays "3"
+     * - 2000 ms remaining → (2000+999)/1000 = 2 → displays "2"
+     *
+     * This keeps each whole-second label visible for its full second rather than
+     * jumping one step early.
+     *
+     * @param endTimeMillis Target epoch-millisecond when the timer expires.
+     * @param nowMillis     Current epoch milliseconds; defaults to [System.currentTimeMillis].
+     * @return Remaining whole seconds ≥ 0.
+     */
+    private fun remainingSecondsUntil(endTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): Int =
+        (((endTimeMillis - nowMillis) + 999L) / 1000L).toInt().coerceAtLeast(0)
 
     private fun startWorkoutElapsedTicker() {
         workoutElapsedJob?.cancel()

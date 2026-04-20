@@ -42,6 +42,21 @@ fun ActiveWorkoutScreen(
     val isTimerVisible by viewModel.isTimerVisible.collectAsState()
     
     var showFinishConfirm by remember { mutableStateOf(false) }
+    var autoFinishTriggered by remember(workout?.id) { mutableStateOf(false) }
+    val allSessionsCompleted by remember(sessions) {
+        derivedStateOf {
+            sessions.isNotEmpty() && sessions.all { session ->
+                session.sets.all { it.isCompleted }
+            }
+        }
+    }
+
+    LaunchedEffect(workout?.id, allSessionsCompleted) {
+        if (!autoFinishTriggered && workout != null && allSessionsCompleted) {
+            autoFinishTriggered = true
+            viewModel.finishWorkout { onFinish() }
+        }
+    }
 
     // Intercept system back press
     BackHandler { showFinishConfirm = true }
