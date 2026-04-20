@@ -14,6 +14,32 @@ class TimerAudioPlayer(context: Context) {
 
     // ── Public API ──────────────────────────────────────────────────────────
 
+    /** Single short tick played during the last-seconds countdown (3, 2, 1). */
+    suspend fun playTickBeep(volumePercent: Int) {
+        withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) {
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
+            try {
+                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
+                delay(TICK_TONE_DURATION_MS.toLong())
+            } finally {
+                ctx.release()
+            }
+        }
+    }
+
+    /** Blocking variant of [playTickBeep] used from plain threads (e.g. BroadcastReceiver). */
+    fun playTickBeepBlocking(volumePercent: Int) {
+        withAudioFocusBlocking(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) {
+            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocusBlocking
+            try {
+                ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
+                Thread.sleep(TICK_TONE_DURATION_MS.toLong())
+            } finally {
+                ctx.release()
+            }
+        }
+    }
+
     suspend fun playEndSequence(volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
             val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
@@ -128,12 +154,15 @@ class TimerAudioPlayer(context: Context) {
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 
     companion object {
-        // 4 beeps with 850 ms spacing and 450 ms tone length produce a 3.0 s end sequence.
-        const val END_SEQUENCE_REPEAT_COUNT = 4
-        const val END_SEQUENCE_TONE_DURATION_MS = 450
-        const val END_SEQUENCE_STEP_DURATION_MS = 850L
+        // 2 prominent beeps at the end of the rest timer ("2 mal").
+        const val END_SEQUENCE_REPEAT_COUNT = 2
+        const val END_SEQUENCE_TONE_DURATION_MS = 600
+        const val END_SEQUENCE_STEP_DURATION_MS = 900L
         const val END_SEQUENCE_TOTAL_DURATION_MS =
             ((END_SEQUENCE_REPEAT_COUNT - 1L) * END_SEQUENCE_STEP_DURATION_MS) +
                 END_SEQUENCE_TONE_DURATION_MS.toLong()
+
+        // Short pip played at 3, 2, 1 seconds remaining.
+        const val TICK_TONE_DURATION_MS = 120
     }
 }

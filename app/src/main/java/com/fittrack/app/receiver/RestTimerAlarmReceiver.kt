@@ -65,7 +65,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
 
     companion object {
         private const val WAKE_LOCK_TAG = "fittrack:rest_timer_alarm"
-        // 7 seconds keeps CPU awake for the 3 second ring plus scheduling/dispatch overhead.
+        // Keeps CPU awake for the 2-beep end sequence plus scheduling/dispatch overhead.
         private const val WAKE_LOCK_TIMEOUT_MS = TimerAudioPlayer.END_SEQUENCE_TOTAL_DURATION_MS + 4_000L
         // 1.5 s covers AlarmManager dispatch drift, background scheduling jitter, and second-based countdown rounding.
         private const val END_TIME_TOLERANCE_MS = 1_500L

@@ -85,6 +85,8 @@ class ActiveWorkoutViewModel(
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
     private var restoredProgressByWorkoutExerciseId = emptyMap<Long, PersistedExerciseSessionState>()
     private val isFinishing = AtomicBoolean(false)
+    /** Tracks the last countdown second for which a tick beep was played (3, 2, 1). */
+    @Volatile private var lastCountdownTickSecond = -1
 
     init {
         val restoredSession = activeWorkoutSessionPreferences.getSession()
@@ -227,6 +229,7 @@ class ActiveWorkoutViewModel(
 
     fun startTimer(seconds: Int, exerciseIndex: Int, setNumber: Int) {
         timerJob?.cancel()
+        lastCountdownTickSecond = -1
         val endTimeMillis = System.currentTimeMillis() + (seconds * 1000L)
         _timerState.value = TimerState(
             isRunning = true,
@@ -269,7 +272,24 @@ class ActiveWorkoutViewModel(
                 }
                 break
             }
+            // Play a single tick beep the first time each countdown second (3, 2, 1) is seen.
+            if (remaining in 1..COUNTDOWN_TICK_SECONDS && remaining != lastCountdownTickSecond) {
+                lastCountdownTickSecond = remaining
+                playTickBeep()
+            }
             delay(200L) // Poll frequently enough for a smooth countdown display
+        }
+    }
+
+    /** Short tick beep played at each of the last countdown seconds (3, 2, 1). */
+    private fun playTickBeep() {
+        val volume = _timerVolumePercent.value
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                timerAudioPlayer.playTickBeep(volume)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not play countdown tick beep", e)
+            }
         }
     }
 
@@ -285,6 +305,7 @@ class ActiveWorkoutViewModel(
 
     fun skipTimer() {
         timerJob?.cancel()
+        lastCountdownTickSecond = -1
         timerNotificationHelper.cancelRunningTimer()
         timerNotificationHelper.cancelCompletionAlarm()
         activeWorkoutSessionPreferences.clearTimerState()
@@ -367,6 +388,8 @@ class ActiveWorkoutViewModel(
         private const val TAG = "ActiveWorkoutVM"
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
+        /** Number of seconds before end at which tick beeps start (3, 2, 1). */
+        private const val COUNTDOWN_TICK_SECONDS = 3
         private val GSON = Gson()
     }
 
