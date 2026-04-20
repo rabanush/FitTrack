@@ -51,7 +51,7 @@ fun ActiveWorkoutScreen(
         }
     }
 
-    LaunchedEffect(workout?.id, allSessionsCompleted, didAutoFinish) {
+    LaunchedEffect(workout?.id, allSessionsCompleted) {
         if (!didAutoFinish && workout != null && allSessionsCompleted) {
             didAutoFinish = true
             viewModel.finishWorkout { onFinish() }
