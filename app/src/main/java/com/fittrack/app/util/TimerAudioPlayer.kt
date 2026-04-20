@@ -89,14 +89,14 @@ class TimerAudioPlayer(context: Context) {
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
 
-    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
+    private fun preferredStream(): Int = AudioManager.STREAM_MUSIC
 
     /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
     private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
         AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )

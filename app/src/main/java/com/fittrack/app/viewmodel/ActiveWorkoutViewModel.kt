@@ -242,8 +242,7 @@ class ActiveWorkoutViewModel(
         while (true) {
             val state = _timerState.value
             val now = System.currentTimeMillis()
-            val remaining = ((state.endTimeMillis - now) / 1000L)
-                .toInt().coerceAtLeast(0)
+            val remaining = remainingSecondsUntil(state.endTimeMillis, now)
             _timerState.value = state.copy(remainingSeconds = remaining)
             if (remaining <= 0) {
                 _timerState.value = state.copy(isRunning = false, remainingSeconds = 0)
@@ -284,8 +283,7 @@ class ActiveWorkoutViewModel(
         if (!current.isRunning) return
 
         val newEndTime = current.endTimeMillis + (deltaSecs * 1000L)
-        val now = System.currentTimeMillis()
-        val newRemaining = ((newEndTime - now) / 1000L).toInt().coerceAtLeast(0)
+        val newRemaining = remainingSecondsUntil(newEndTime)
 
         if (newRemaining <= 0) {
             skipTimer()
@@ -365,8 +363,7 @@ class ActiveWorkoutViewModel(
 
     private fun restoreTimerFromSession(session: ActiveWorkoutSession) {
         if (session.timerEndTimeMillis <= 0L || session.timerTotalSeconds <= 0) return
-        val now = System.currentTimeMillis()
-        val remainingSeconds = ((session.timerEndTimeMillis - now) / 1000L).toInt().coerceAtLeast(0)
+        val remainingSeconds = remainingSecondsUntil(session.timerEndTimeMillis)
         if (remainingSeconds <= 0) {
             activeWorkoutSessionPreferences.clearTimerState()
             return
@@ -402,6 +399,9 @@ class ActiveWorkoutViewModel(
             setNumber = state.setNumber
         )
     }
+
+    private fun remainingSecondsUntil(endTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): Int =
+        (((endTimeMillis - nowMillis) + 999L) / 1000L).toInt().coerceAtLeast(0)
 
     private fun startWorkoutElapsedTicker() {
         workoutElapsedJob?.cancel()

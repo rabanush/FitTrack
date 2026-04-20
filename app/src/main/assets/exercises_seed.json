@@ -614,5 +614,145 @@
     "muscleGroup": "Outer Thigh",
     "germanName": "Abduktor",
     "description": "Trains the outer thigh muscles (abductors) by pressing the legs apart against resistance, e.g. at the abductor machine."
+  },
+  {
+    "id": 89,
+    "name": "Single Arm Bench Press",
+    "muscleGroup": "Chest",
+    "germanName": "Einarmiges Bankdrücken",
+    "description": ""
+  },
+  {
+    "id": 90,
+    "name": "Single Arm Incline Dumbbell Press",
+    "muscleGroup": "Chest",
+    "germanName": "Einarmiges Schrägbank Kurzhanteldrücken",
+    "description": ""
+  },
+  {
+    "id": 91,
+    "name": "Single Arm Chest Press Machine",
+    "muscleGroup": "Chest",
+    "germanName": "Einarmige Brustpresse Maschine",
+    "description": ""
+  },
+  {
+    "id": 92,
+    "name": "Single Arm Cable Flyes",
+    "muscleGroup": "Chest",
+    "germanName": "Einarmige Kabel Fliegende",
+    "description": ""
+  },
+  {
+    "id": 93,
+    "name": "Single Arm Lat Pulldown",
+    "muscleGroup": "Back",
+    "germanName": "Einarmiges Latziehen",
+    "description": ""
+  },
+  {
+    "id": 94,
+    "name": "Single Arm Seated Cable Row",
+    "muscleGroup": "Back",
+    "germanName": "Einarmiges Rudern am Kabel sitzend",
+    "description": ""
+  },
+  {
+    "id": 95,
+    "name": "Single Arm T-Bar Row",
+    "muscleGroup": "Back",
+    "germanName": "Einarmiges T-Stangen Rudern",
+    "description": ""
+  },
+  {
+    "id": 96,
+    "name": "Single Arm Straight Arm Pulldown",
+    "muscleGroup": "Back",
+    "germanName": "Einarmiges Gerader Arm Latziehen",
+    "description": ""
+  },
+  {
+    "id": 97,
+    "name": "Single Arm Overhead Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Einarmiges Schulterdrücken",
+    "description": ""
+  },
+  {
+    "id": 98,
+    "name": "Single Arm Dumbbell Shoulder Press",
+    "muscleGroup": "Shoulders",
+    "germanName": "Einarmiges Kurzhantel Schulterdrücken",
+    "description": ""
+  },
+  {
+    "id": 99,
+    "name": "Single Arm Lateral Raise",
+    "muscleGroup": "Shoulders",
+    "germanName": "Einarmiges Seitheben",
+    "description": ""
+  },
+  {
+    "id": 100,
+    "name": "Single Arm Front Raise",
+    "muscleGroup": "Shoulders",
+    "germanName": "Einarmiges Frontheben",
+    "description": ""
+  },
+  {
+    "id": 101,
+    "name": "Single Arm Rear Delt Fly",
+    "muscleGroup": "Shoulders",
+    "germanName": "Einarmiges Hintere Schulter Fliegende",
+    "description": ""
+  },
+  {
+    "id": 102,
+    "name": "Single Arm Barbell Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Einarmiger Langhantel Bizepscurl",
+    "description": ""
+  },
+  {
+    "id": 103,
+    "name": "Single Arm Dumbbell Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Einarmiger Kurzhantel Bizepscurl",
+    "description": ""
+  },
+  {
+    "id": 104,
+    "name": "Single Arm Hammer Curl",
+    "muscleGroup": "Biceps",
+    "germanName": "Einarmiger Hammer Curl",
+    "description": ""
+  },
+  {
+    "id": 105,
+    "name": "Single Arm Tricep Pushdown",
+    "muscleGroup": "Triceps",
+    "germanName": "Einarmiges Trizepsdrücken",
+    "description": ""
+  },
+  {
+    "id": 106,
+    "name": "Single Arm Overhead Tricep Extension",
+    "muscleGroup": "Triceps",
+    "germanName": "Einarmiges Trizeps Überkopfdrücken",
+    "description": ""
+  },
+  {
+    "id": 107,
+    "name": "Single Arm Tricep Kickback",
+    "muscleGroup": "Triceps",
+    "germanName": "Einarmiger Trizeps Kickback",
+    "description": ""
+  },
+  {
+    "id": 108,
+    "name": "Single Arm Cable Kickback",
+    "muscleGroup": "Glutes",
+    "germanName": "Einarmiger Kabel Kickback",
+    "description": ""
   }
 ]

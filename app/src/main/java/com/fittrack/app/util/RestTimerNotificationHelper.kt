@@ -72,7 +72,11 @@ class RestTimerNotificationHelper(context: Context) {
             timerEndTimeMillis = endTimeMillis
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
+            val showIntent = mainActivityPendingIntent(workoutId)
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(endTimeMillis, showIntent),
+                pendingIntent
+            )
             return
         }
         alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
