@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,13 +35,13 @@ fun FoodTrackerScreen(
     val totalBurned by viewModel.totalBurnedToday.collectAsState()
     val netCalories by viewModel.netCalories.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
-    var expandedMealIds by remember(sessionKey) { mutableStateOf(setOf<Long>()) }
+    var expandedMealIds by rememberSaveable(sessionKey) { mutableStateOf(emptyList<Long>()) }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
         val existingMealIds = mealsWithEntries.map { it.meal.id }.toSet()
-        expandedMealIds = expandedMealIds.filterTo(mutableSetOf()) { it in existingMealIds }
+        expandedMealIds = expandedMealIds.filter { it in existingMealIds }
         if (pendingExpandMealId != null && pendingExpandMealId in existingMealIds) {
-            expandedMealIds = expandedMealIds + pendingExpandMealId
+            expandedMealIds = (expandedMealIds + pendingExpandMealId).distinct()
             onPendingExpandHandled(pendingExpandMealId)
         }
     }
