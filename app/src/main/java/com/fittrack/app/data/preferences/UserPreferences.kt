@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.fittrack.app.util.normalizeHueDegrees
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
+const val DEFAULT_THEME_HUE_DEGREES = 340f
 
 enum class ActivityLevel(val multiplier: Float, val label: String) {
     SEDENTARY(1.2f, "Keine Bewegung (fast nur Sitzen)"),
@@ -25,7 +27,8 @@ data class UserProfile(
     val ageYears: Int = 25,
     val gender: Gender = Gender.MALE,
     val activityLevel: ActivityLevel = ActivityLevel.MODERATE,
-    val timerVolumePercent: Int = 50
+    val timerVolumePercent: Int = 50,
+    val themeHueDegrees: Float = DEFAULT_THEME_HUE_DEGREES
 ) {
     /**
      * Mifflin-St Jeor BMR:
@@ -51,6 +54,7 @@ class UserPreferences(private val context: Context) {
         val GENDER = stringPreferencesKey("gender")
         val ACTIVITY = stringPreferencesKey("activity_level")
         val TIMER_VOLUME = intPreferencesKey("timer_volume_percent")
+        val THEME_HUE_DEGREES = floatPreferencesKey("theme_hue_degrees")
         val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
         val HAS_PROMPTED_BACKUP_FOLDER = booleanPreferencesKey("has_prompted_backup_folder")
         val LAST_CLEANUP_DATE = longPreferencesKey("last_cleanup_date_millis")
@@ -63,7 +67,8 @@ class UserPreferences(private val context: Context) {
             ageYears = prefs[Keys.AGE] ?: 25,
             gender = prefs[Keys.GENDER]?.let { runCatching { Gender.valueOf(it) }.getOrNull() } ?: Gender.MALE,
             activityLevel = prefs[Keys.ACTIVITY]?.let { runCatching { ActivityLevel.valueOf(it) }.getOrNull() } ?: ActivityLevel.MODERATE,
-            timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 50).coerceIn(0, 100)
+            timerVolumePercent = (prefs[Keys.TIMER_VOLUME] ?: 50).coerceIn(0, 100),
+            themeHueDegrees = normalizeHueDegrees(prefs[Keys.THEME_HUE_DEGREES] ?: DEFAULT_THEME_HUE_DEGREES)
         )
     }
 
@@ -90,6 +95,7 @@ class UserPreferences(private val context: Context) {
             prefs[Keys.GENDER] = profile.gender.name
             prefs[Keys.ACTIVITY] = profile.activityLevel.name
             prefs[Keys.TIMER_VOLUME] = profile.timerVolumePercent.coerceIn(0, 100)
+            prefs[Keys.THEME_HUE_DEGREES] = normalizeHueDegrees(profile.themeHueDegrees)
         }
     }
 

@@ -22,6 +22,7 @@ import com.fittrack.app.data.model.WorkoutExerciseWithExercise
 import com.fittrack.app.data.preferences.ActiveWorkoutSession
 import com.fittrack.app.data.preferences.ActiveWorkoutSessionPreferences
 import com.fittrack.app.data.preferences.ActivityLevel
+import com.fittrack.app.data.preferences.DEFAULT_THEME_HUE_DEGREES
 import com.fittrack.app.data.preferences.Gender
 import com.fittrack.app.data.preferences.UserPreferences
 import com.fittrack.app.data.preferences.UserProfile
@@ -71,7 +72,8 @@ private data class BackupUserProfile(
     @SerializedName("ageYears") val ageYears: Int,
     @SerializedName("gender") val gender: String,
     @SerializedName("activityLevel") val activityLevel: String,
-    @SerializedName("timerVolumePercent") val timerVolumePercent: Int? = null
+    @SerializedName("timerVolumePercent") val timerVolumePercent: Int? = null,
+    @SerializedName("themeHueDegrees") val themeHueDegrees: Float? = null
 )
 
 private data class BackupCustomFood(
@@ -183,7 +185,8 @@ object WorkoutBackupHelper {
                 ageYears = userProfile.ageYears,
                 gender = userProfile.gender.name,
                 activityLevel = userProfile.activityLevel.name,
-                timerVolumePercent = userProfile.timerVolumePercent
+                timerVolumePercent = userProfile.timerVolumePercent,
+                themeHueDegrees = userProfile.themeHueDegrees
             ),
             customFoods = customFoods.map { food ->
                 BackupCustomFood(
@@ -430,7 +433,8 @@ object WorkoutBackupHelper {
                         ageYears = profile.ageYears,
                         gender = gender,
                         activityLevel = activityLevel,
-                        timerVolumePercent = profile.timerVolumePercent ?: DEFAULT_TIMER_VOLUME_PERCENT
+                        timerVolumePercent = profile.timerVolumePercent ?: DEFAULT_TIMER_VOLUME_PERCENT,
+                        themeHueDegrees = profile.themeHueDegrees ?: DEFAULT_THEME_HUE_DEGREES
                     )
                 )
             }

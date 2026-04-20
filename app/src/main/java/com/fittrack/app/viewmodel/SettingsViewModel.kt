@@ -23,7 +23,8 @@ class SettingsViewModel(
         ageYears: Int,
         gender: Gender,
         activityLevel: ActivityLevel,
-        timerVolumePercent: Int
+        timerVolumePercent: Int,
+        themeHueDegrees: Float
     ) {
         viewModelScope.launch {
             withContext(NonCancellable) {
@@ -34,7 +35,8 @@ class SettingsViewModel(
                         ageYears = ageYears,
                         gender = gender,
                         activityLevel = activityLevel,
-                        timerVolumePercent = timerVolumePercent
+                        timerVolumePercent = timerVolumePercent,
+                        themeHueDegrees = themeHueDegrees
                     )
                 )
             }
