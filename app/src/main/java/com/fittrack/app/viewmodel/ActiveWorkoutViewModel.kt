@@ -2,6 +2,7 @@ package com.fittrack.app.viewmodel
 
 import android.util.Log
 import android.content.Context
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.lifecycle.*
 import androidx.compose.runtime.Immutable
 import com.fittrack.app.data.model.*
@@ -83,6 +84,7 @@ class ActiveWorkoutViewModel(
     private val _workoutElapsedSeconds = MutableStateFlow(0)
     val workoutElapsedSeconds: StateFlow<Int> = _workoutElapsedSeconds
     private var restoredProgressByWorkoutExerciseId = emptyMap<Long, PersistedExerciseSessionState>()
+    private val isFinishing = AtomicBoolean(false)
 
     init {
         val restoredSession = activeWorkoutSessionPreferences.getSession()
@@ -312,6 +314,7 @@ class ActiveWorkoutViewModel(
     }
 
     fun finishWorkout(onFinished: () -> Unit) {
+        if (!isFinishing.compareAndSet(false, true)) return
         viewModelScope.launch {
             val entries = _exerciseSessions.value.flatMap { session ->
                 session.sets.mapNotNull { set -> buildLogEntry(session, set) }
@@ -412,16 +415,15 @@ class ActiveWorkoutViewModel(
         )
     }
 
-    // Add 999 ms before integer division so the countdown rounds up:
-    // with a 3-second timer it shows "3" until <2.0 s remain, instead of immediately jumping to "2".
     /**
-     * Returns the number of whole seconds left until [endTimeMillis], rounded up.
-     * The +999 ms bias ensures the display shows the full starting second (e.g. a 3 s timer
-     * shows "3" from 3.0 s down to 2.001 s) instead of jumping to "2" immediately.
+     * Returns the whole seconds remaining until [endTimeMillis] using ceiling division.
+     * Adding 999 ms before dividing by 1000 implements ceiling (round toward +∞), so a timer
+     * with exactly 3.0 s left shows "3" until fewer than 2.001 s remain rather than jumping
+     * to "2" immediately.
      *
      * @param endTimeMillis Target epoch-millisecond when the timer expires.
      * @param nowMillis     Current epoch milliseconds; defaults to [System.currentTimeMillis].
-     * @return Remaining seconds ≥ 0.
+     * @return Remaining whole seconds ≥ 0.
      */
     private fun remainingSecondsUntil(endTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): Int =
         (((endTimeMillis - nowMillis) + 999L) / 1000L).toInt().coerceAtLeast(0)
