@@ -6,7 +6,6 @@ import com.fittrack.app.data.database.FitTrackDatabase
 import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.FoodEntry
-import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.model.Workout
 import com.fittrack.app.data.model.WorkoutExerciseWithExercise
@@ -129,9 +128,6 @@ class FitTrackApplication : Application() {
             .combine(repository.allExercises) { snapshot, exercises ->
                 snapshot.copy(customExercises = exercises.filter { it.isCustom })
             }
-            .combine(foodRepository.observeAllMeals()) { snapshot, meals ->
-                snapshot.copy(meals = meals)
-            }
             .combine(foodRepository.observeAllFoodEntries()) { snapshot, foodEntries ->
                 snapshot.copy(foodEntries = foodEntries)
             }
@@ -156,7 +152,6 @@ class FitTrackApplication : Application() {
                     customFoods = snapshot.customFoods,
                     recipes = snapshot.recipes,
                     customExercises = snapshot.customExercises,
-                    meals = snapshot.meals,
                     foodEntries = snapshot.foodEntries,
                     activeWorkoutSession = snapshot.activeWorkoutSession,
                     activeWorkoutExerciseSessionsState = snapshot.activeWorkoutExerciseSessionsState
@@ -170,7 +165,6 @@ class FitTrackApplication : Application() {
         val customFoods: List<CustomFood> = emptyList(),
         val recipes: List<RecipeWithItems> = emptyList(),
         val customExercises: List<Exercise> = emptyList(),
-        val meals: List<Meal> = emptyList(),
         val foodEntries: List<FoodEntry> = emptyList(),
         val activeWorkoutSession: ActiveWorkoutSession? = null,
         val activeWorkoutExerciseSessionsState: String? = null

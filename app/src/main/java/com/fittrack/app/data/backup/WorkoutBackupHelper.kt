@@ -12,7 +12,6 @@ import com.fittrack.app.data.dao.WorkoutDao
 import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Exercise
 import com.fittrack.app.data.model.FoodEntry
-import com.fittrack.app.data.model.Meal
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
@@ -153,6 +152,8 @@ object WorkoutBackupHelper {
     /**
      * Serialises all relevant app data to JSON and writes FitTrackBackup.json into the
      * user-chosen SAF folder. No-op when [treeUriString] is null (folder not yet configured).
+     * Meals are intentionally not backed up; food entries are deduplicated to one entry per
+     * unique food (latest usage within the 90-day retention window).
      */
     fun exportData(
         context: Context,
@@ -162,16 +163,12 @@ object WorkoutBackupHelper {
         customFoods: List<CustomFood>,
         recipes: List<RecipeWithItems>,
         customExercises: List<Exercise>,
-        meals: List<Meal>,
         foodEntries: List<FoodEntry>,
         activeWorkoutSession: ActiveWorkoutSession?,
         activeWorkoutExerciseSessionsState: String?
     ) {
         if (treeUriString == null) return
-        val mealDateById = meals.associate { it.id to it.dateMillis }
-        val latestFoodEntries = keepLatestFoodUsagePerFood(foodEntries, mealDateById)
-        val mealIdsUsedByLatestEntries = latestFoodEntries.mapNotNull { it.mealId }.toSet()
-        val mealsForBackup = meals.filter { it.id in mealIdsUsedByLatestEntries }
+        val latestFoodEntries = keepLatestFoodUsagePerFood(foodEntries)
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -231,16 +228,10 @@ object WorkoutBackupHelper {
                     description = ex.description
                 )
             },
-            meals = mealsForBackup.map { meal ->
-                BackupMeal(
-                    id = meal.id,
-                    name = meal.name,
-                    dateMillis = meal.dateMillis
-                )
-            },
+            meals = emptyList(),
             foodEntries = latestFoodEntries.map { entry ->
                 BackupFoodEntry(
-                    mealId = entry.mealId,
+                    mealId = null,
                     name = entry.name,
                     barcode = entry.barcode,
                     caloriesPer100 = entry.caloriesPer100,
@@ -267,10 +258,7 @@ object WorkoutBackupHelper {
         writeJson(context, treeUriString, gson.toJson(data))
     }
 
-    private fun keepLatestFoodUsagePerFood(
-        foodEntries: List<FoodEntry>,
-        mealDateById: Map<Long, Long>
-    ): List<FoodEntry> {
+    private fun keepLatestFoodUsagePerFood(foodEntries: List<FoodEntry>): List<FoodEntry> {
         val latestByKey = LinkedHashMap<BackupFoodUsageKey, FoodEntry>()
         foodEntries.forEach { entry ->
             val trimmedName = entry.name.trim()
@@ -280,20 +268,12 @@ object WorkoutBackupHelper {
                 barcode = entry.barcode?.trim().takeUnless { it.isNullOrEmpty() },
                 normalizedName = trimmedName.lowercase(Locale.ROOT)
             )
-            val normalizedEntry = entry.withResolvedLoggedDate(mealDateById)
             val current = latestByKey[key]
-            if (current == null || normalizedEntry.isMoreRecentThan(current)) {
-                latestByKey[key] = normalizedEntry
+            if (current == null || entry.isMoreRecentThan(current)) {
+                latestByKey[key] = entry
             }
         }
-        return latestByKey.values
-            .sortedWith(compareByDescending<FoodEntry> { it.loggedDateMillis }.thenByDescending { it.id })
-    }
-
-    private fun FoodEntry.withResolvedLoggedDate(mealDateById: Map<Long, Long>): FoodEntry {
-        if (loggedDateMillis != 0L) return this
-        val resolvedLoggedDate = mealId?.let { mealDateById[it] } ?: 0L
-        return copy(loggedDateMillis = resolvedLoggedDate)
+        return latestByKey.values.toList()
     }
 
     private fun FoodEntry.isMoreRecentThan(other: FoodEntry): Boolean {
@@ -304,8 +284,10 @@ object WorkoutBackupHelper {
     /**
      * Reads FitTrackBackup.json from the SAF folder and restores all data.
      * Only restores each category if the corresponding DB table is empty (fresh install / data-clear).
+     * Meals are not backed up; food entries are restored as orphaned rows (mealId = null)
+     * so they remain discoverable via loggedDateMillis for "recently used" lookups.
      * Restore order: custom exercises → workouts + exercises in workouts → custom foods →
-     * recipes → meals → food entries → user profile → active session.
+     * recipes → food entries → user profile → active session.
      */
     suspend fun importData(
         context: Context,
@@ -329,7 +311,6 @@ object WorkoutBackupHelper {
         val workoutsEmpty = workoutDao.getWorkoutCount() == 0
         val customFoodsEmpty = customFoodDao.getCount() == 0
         val recipesEmpty = recipeDao.getCount() == 0
-        val mealsEmpty = foodDao.getMealCount() == 0
         val foodEntriesEmpty = foodDao.getFoodEntryCount() == 0
 
         val workoutIdMapping = mutableMapOf<Long, Long>()
@@ -408,44 +389,20 @@ object WorkoutBackupHelper {
             }
         }
 
-        val mealIdMap = mutableMapOf<Long, Long>()
-        if (mealsEmpty) {
-            data.meals.forEach { backupMeal ->
-                val newMealId = foodDao.insertMeal(
-                    Meal(
-                        name = backupMeal.name,
-                        dateMillis = backupMeal.dateMillis
-                    )
-                )
-                backupMeal.id?.let { oldId -> mealIdMap[oldId] = newMealId }
-            }
-        }
-
         if (foodEntriesEmpty) {
             data.foodEntries.forEach { backupEntry ->
-                // Entries from old meals (cleaned up, mealId null in backup) are restored
-                // as orphaned rows; their loggedDateMillis preserves the date for search.
-                val mappedMealId = backupEntry.mealId?.let { mealIdMap[it] }
-                if (backupEntry.mealId != null && mappedMealId == null) {
-                    // Backup entry references a meal that was not restored (old backup without
-                    // that meal or the meal was already cleaned up).  Keep the entry as orphaned.
-                    Log.d(TAG, "Restoring food-entry as orphan (mealId=${backupEntry.mealId} not in map)")
-                }
-                // Resolve loggedDateMillis: prefer value from backup; fall back to the restored
-                // meal's dateMillis for entries from older backups that lack this field.
-                // If neither is available (truly orphaned entry from an old backup), use today
-                // so the entry stays within the 90-day retention window instead of being
-                // immediately purged by the next daily cleanup.
+                // Food entries are restored as orphaned rows (mealId = null) because meals are
+                // not backed up. loggedDateMillis preserves the original date for per-day queries
+                // and "recently used" lookups. Fall back to today so legacy entries (loggedDateMillis=0)
+                // stay within the 90-day retention window and aren't immediately purged.
                 val loggedDateMillis = if (backupEntry.loggedDateMillis != 0L) {
                     backupEntry.loggedDateMillis
                 } else {
-                    mappedMealId?.let { id ->
-                        foodDao.getMealById(id)?.dateMillis
-                    } ?: todayMillis()
+                    todayMillis()
                 }
                 foodDao.insertFoodEntry(
                     FoodEntry(
-                        mealId = mappedMealId,
+                        mealId = null,
                         name = backupEntry.name,
                         barcode = backupEntry.barcode,
                         caloriesPer100 = backupEntry.caloriesPer100,
