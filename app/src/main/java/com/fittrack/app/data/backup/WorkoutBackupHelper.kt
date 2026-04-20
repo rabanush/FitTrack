@@ -119,6 +119,11 @@ private data class BackupFoodEntry(
     @SerializedName("loggedDateMillis") val loggedDateMillis: Long = 0L
 )
 
+private data class BackupFoodUsageKey(
+    val barcode: String?,
+    val normalizedName: String
+)
+
 private data class BackupActiveWorkoutSession(
     @SerializedName("workoutId") val workoutId: Long,
     @SerializedName("workoutStartTimeMillis") val workoutStartTimeMillis: Long,
@@ -163,6 +168,10 @@ object WorkoutBackupHelper {
         activeWorkoutExerciseSessionsState: String?
     ) {
         if (treeUriString == null) return
+        val mealDateById = meals.associate { it.id to it.dateMillis }
+        val latestFoodEntries = keepLatestFoodUsagePerFood(foodEntries, mealDateById)
+        val mealIdsUsedByLatestEntries = latestFoodEntries.mapNotNull { it.mealId }.toSet()
+        val mealsForBackup = meals.filter { it.id in mealIdsUsedByLatestEntries }
         val data = BackupData(
             workouts = workoutsWithExercises.map { (workout, exercises) ->
                 BackupWorkout(
@@ -222,14 +231,14 @@ object WorkoutBackupHelper {
                     description = ex.description
                 )
             },
-            meals = meals.map { meal ->
+            meals = mealsForBackup.map { meal ->
                 BackupMeal(
                     id = meal.id,
                     name = meal.name,
                     dateMillis = meal.dateMillis
                 )
             },
-            foodEntries = foodEntries.map { entry ->
+            foodEntries = latestFoodEntries.map { entry ->
                 BackupFoodEntry(
                     mealId = entry.mealId,
                     name = entry.name,
@@ -256,6 +265,40 @@ object WorkoutBackupHelper {
         )
 
         writeJson(context, treeUriString, gson.toJson(data))
+    }
+
+    private fun keepLatestFoodUsagePerFood(
+        foodEntries: List<FoodEntry>,
+        mealDateById: Map<Long, Long>
+    ): List<FoodEntry> {
+        val latestByKey = LinkedHashMap<BackupFoodUsageKey, FoodEntry>()
+        foodEntries.forEach { entry ->
+            val trimmedName = entry.name.trim()
+            if (trimmedName.isEmpty()) return@forEach
+
+            val key = BackupFoodUsageKey(
+                barcode = entry.barcode?.trim().takeUnless { it.isNullOrEmpty() },
+                normalizedName = trimmedName.lowercase(Locale.ROOT)
+            )
+            val normalizedEntry = entry.withResolvedLoggedDate(mealDateById)
+            val current = latestByKey[key]
+            if (current == null || normalizedEntry.isMoreRecentThan(current)) {
+                latestByKey[key] = normalizedEntry
+            }
+        }
+        return latestByKey.values
+            .sortedWith(compareByDescending<FoodEntry> { it.loggedDateMillis }.thenByDescending { it.id })
+    }
+
+    private fun FoodEntry.withResolvedLoggedDate(mealDateById: Map<Long, Long>): FoodEntry {
+        if (loggedDateMillis != 0L) return this
+        val resolvedLoggedDate = mealId?.let { mealDateById[it] } ?: 0L
+        return copy(loggedDateMillis = resolvedLoggedDate)
+    }
+
+    private fun FoodEntry.isMoreRecentThan(other: FoodEntry): Boolean {
+        if (loggedDateMillis != other.loggedDateMillis) return loggedDateMillis > other.loggedDateMillis
+        return id > other.id
     }
 
     /**
