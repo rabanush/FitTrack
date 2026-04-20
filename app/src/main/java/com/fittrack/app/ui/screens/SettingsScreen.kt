@@ -82,6 +82,34 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ── App design color ────────────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("App-Designfarbe", style = MaterialTheme.typography.titleSmall)
+                    Text("Hue: ${themeHueDegrees.toInt()}°", style = MaterialTheme.typography.bodyMedium)
+                    ThemeHueWheel(
+                        hue = themeHueDegrees,
+                        onHueChange = { themeHueDegrees = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    )
+                }
+            }
+
+            // ── Timer volume ────────────────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Timer-Lautstärke", style = MaterialTheme.typography.titleSmall)
+                    Text("$timerVolumePercent%", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = timerVolumePercent.toFloat(),
+                        onValueChange = { timerVolumePercent = it.toInt() },
+                        valueRange = 0f..100f
+                    )
+                }
+            }
+
             // ── Body data ──────────────────────────────────────────────────────
             Text("Körperdaten", style = MaterialTheme.typography.titleMedium)
 
@@ -152,32 +180,6 @@ fun SettingsScreen(
                         "${tdee.toInt()} kcal/Tag",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Timer-Lautstärke", style = MaterialTheme.typography.titleSmall)
-                    Text("$timerVolumePercent%", style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = timerVolumePercent.toFloat(),
-                        onValueChange = { timerVolumePercent = it.toInt() },
-                        valueRange = 0f..100f
-                    )
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("App-Designfarbe", style = MaterialTheme.typography.titleSmall)
-                    Text("Hue: ${themeHueDegrees.toInt()}°", style = MaterialTheme.typography.bodyMedium)
-                    ThemeHueWheel(
-                        hue = themeHueDegrees,
-                        onHueChange = { themeHueDegrees = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
                     )
                 }
             }
