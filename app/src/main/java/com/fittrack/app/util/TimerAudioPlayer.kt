@@ -171,7 +171,11 @@ class TimerAudioPlayer(context: Context) {
         const val TICK_TONE_DURATION_MS = 120
         // Gap between the start of each pip — matches the 1-second countdown cadence.
         const val TICK_SEQUENCE_STEP_MS = 1_000L
-        // Extra time held after the last tick so the tone fully rings before music resumes.
-        const val TICK_POST_SEQUENCE_BUFFER_MS = 250L
+        // Extra time held after the last tick. Set to (TICK_SEQUENCE_STEP_MS - TICK_TONE_DURATION_MS)
+        // so that the total delay after the final tick equals TICK_SEQUENCE_STEP_MS (1 000 ms) —
+        // matching every other inter-tick gap. This means audio focus is held for exactly
+        // count × TICK_SEQUENCE_STEP_MS (= 3 s), which covers the full countdown window and
+        // prevents music from resuming in the ~630 ms gap before the end sequence acquires focus.
+        const val TICK_POST_SEQUENCE_BUFFER_MS = 880L // = TICK_SEQUENCE_STEP_MS - TICK_TONE_DURATION_MS
     }
 }
