@@ -18,9 +18,9 @@ import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.MealWithEntries
 
-private val ExpandedMealIdsStateSaver: Saver<MutableState<Set<Long>>, Any> = Saver(
-    save = { it.value.toList() },
-    restore = { mutableStateOf((it as List<*>).filterIsInstance<Long>().toSet()) }
+private val ExpandedMealIdsStateSaver: Saver<Set<Long>, Any> = Saver(
+    save = { it.toList() },
+    restore = { (it as List<*>).filterIsInstance<Long>().toSet() }
 )
 
 /**
