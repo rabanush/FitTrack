@@ -44,10 +44,15 @@ fun WorkoutListScreen(
     var foodTabSessionKey by rememberSaveable { mutableIntStateOf(0) }
     var previousPage by rememberSaveable { mutableIntStateOf(currentPage) }
     var pendingExpandMealId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var skipNextFoodTabReset by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(currentPage) {
         if (previousPage != 1 && currentPage == 1) {
-            foodTabSessionKey++
+            if (skipNextFoodTabReset) {
+                skipNextFoodTabReset = false
+            } else {
+                foodTabSessionKey++
+            }
         }
         previousPage = currentPage
     }
@@ -134,10 +139,12 @@ fun WorkoutListScreen(
                         },
                         onAddFood = { mealId, mealName ->
                             pendingExpandMealId = mealId
+                            skipNextFoodTabReset = true
                             onAddFood(mealId, mealName)
                         },
                         onAddRecipeToMeal = { mealId, mealName ->
                             pendingExpandMealId = mealId
+                            skipNextFoodTabReset = true
                             onAddRecipeToMeal(mealId, mealName)
                         }
                     )
