@@ -19,20 +19,39 @@ class TimerAudioPlayer(context: Context) {
      * `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` for the **entire** sequence so that
      * background music stays silent between ticks.  Works over Bluetooth because the
      * tone is rendered on [STREAM_MUSIC].
+     *
+     * A fresh [ToneGenerator] is created for each tick to avoid playback issues that
+     * arise when calling [ToneGenerator.startTone] repeatedly on a single instance.
      */
     suspend fun playTickSequence(count: Int, volumePercent: Int) {
         withAudioFocus(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE) {
-            val ctx = setupToneContext(volumePercent) ?: return@withAudioFocus
+            val stream = preferredStream()
+            val toneVolume = toEffectiveAudioPercent(volumePercent)
+            val originalVolume = audioManager.getStreamVolume(stream)
+            val maxVolume = audioManager.getStreamMaxVolume(stream).coerceAtLeast(1)
+            val targetVolume = ((maxVolume * (toneVolume / 100f)).roundToInt()).coerceIn(1, maxVolume)
+            if (targetVolume > originalVolume) {
+                audioManager.setStreamVolume(stream, targetVolume, 0)
+            }
             try {
                 repeat(count) { index ->
-                    ctx.toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, TICK_TONE_DURATION_MS)
-                    delay(
-                        if (index == count - 1) TICK_TONE_DURATION_MS.toLong()
-                        else TICK_SEQUENCE_STEP_MS
-                    )
+                    val toneGen = runCatching { ToneGenerator(stream, toneVolume) }.getOrNull()
+                    try {
+                        toneGen?.startTone(ToneGenerator.TONE_PROP_BEEP, TICK_TONE_DURATION_MS)
+                        // After the last tick, keep focus a little longer so the tone fully
+                        // rings out before music is allowed to resume.
+                        delay(
+                            if (index == count - 1) TICK_TONE_DURATION_MS.toLong() + TICK_POST_SEQUENCE_BUFFER_MS
+                            else TICK_SEQUENCE_STEP_MS
+                        )
+                    } finally {
+                        runCatching { toneGen?.release() }
+                    }
                 }
             } finally {
-                ctx.release()
+                if (targetVolume > originalVolume) {
+                    audioManager.setStreamVolume(stream, originalVolume, 0)
+                }
             }
         }
     }
@@ -163,5 +182,7 @@ class TimerAudioPlayer(context: Context) {
         const val TICK_TONE_DURATION_MS = 120
         // Gap between the start of each pip — matches the 1-second countdown cadence.
         const val TICK_SEQUENCE_STEP_MS = 1_000L
+        // Extra time held after the last tick so the tone fully rings before music resumes.
+        const val TICK_POST_SEQUENCE_BUFFER_MS = 250L
     }
 }
