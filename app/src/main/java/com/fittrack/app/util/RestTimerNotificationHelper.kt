@@ -153,7 +153,6 @@ class RestTimerNotificationHelper(context: Context) {
             description = appContext.getString(R.string.timer_notification_channel_description)
             setSound(null, null)
             enableVibration(false)
-            vibrationPattern = longArrayOf(0L)
         }
         notificationManager.createNotificationChannel(channel)
     }
