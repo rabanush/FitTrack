@@ -166,6 +166,7 @@ class RestTimerNotificationHelper(context: Context) {
         private const val FINISHED_TIMER_NOTIFICATION_ID = 3002
         private const val TIMER_ALARM_REQUEST_CODE = 4101
         private const val MAIN_ACTIVITY_REQUEST_CODE = 4102
+        // Keeps the running notification visible just past zero to avoid abrupt UI flicker.
         private const val NOTIFICATION_TIMEOUT_BUFFER_MS = 1_000L
     }
 }
