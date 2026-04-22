@@ -22,6 +22,7 @@ class RestTimerNotificationHelper(context: Context) {
     fun showRunningTimer(endTimeMillis: Long, exerciseName: String?, setNumber: Int, workoutId: Long) {
         ensureChannel()
         notificationManager.cancel(FINISHED_TIMER_NOTIFICATION_ID)
+        val millisUntilEnd = (endTimeMillis - System.currentTimeMillis()).coerceAtLeast(0L)
         val content = buildString {
             append(appContext.getString(R.string.timer_set_label, setNumber))
             exerciseName?.takeIf { it.isNotBlank() }?.let {
@@ -39,6 +40,8 @@ class RestTimerNotificationHelper(context: Context) {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setTimeoutAfter(millisUntilEnd + NOTIFICATION_TIMEOUT_BUFFER_MS)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(remoteViews)
             .setCustomBigContentView(remoteViews)
@@ -57,6 +60,7 @@ class RestTimerNotificationHelper(context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
+            .setSilent(true)
             .build()
         notificationManager.notify(FINISHED_TIMER_NOTIFICATION_ID, notification)
     }
@@ -147,6 +151,8 @@ class RestTimerNotificationHelper(context: Context) {
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = appContext.getString(R.string.timer_notification_channel_description)
+            setSound(null, null)
+            enableVibration(false)
         }
         notificationManager.createNotificationChannel(channel)
     }
@@ -155,10 +161,12 @@ class RestTimerNotificationHelper(context: Context) {
         const val EXTRA_TIMER_VOLUME_PERCENT = "extra_timer_volume_percent"
         const val EXTRA_WORKOUT_ID = "extra_workout_id"
         const val EXTRA_TIMER_END_TIME_MILLIS = "extra_timer_end_time_millis"
-        private const val CHANNEL_ID = "rest_timer_channel"
+        private const val CHANNEL_ID = "rest_timer_channel_silent_v2"
         private const val RUNNING_TIMER_NOTIFICATION_ID = 3001
         private const val FINISHED_TIMER_NOTIFICATION_ID = 3002
         private const val TIMER_ALARM_REQUEST_CODE = 4101
         private const val MAIN_ACTIVITY_REQUEST_CODE = 4102
+        // Keeps the running notification visible just past zero to avoid abrupt UI flicker.
+        private const val NOTIFICATION_TIMEOUT_BUFFER_MS = 1_000L
     }
 }
