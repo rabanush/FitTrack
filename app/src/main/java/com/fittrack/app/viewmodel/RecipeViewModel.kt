@@ -1,11 +1,14 @@
 package com.fittrack.app.viewmodel
 
 import androidx.lifecycle.*
+import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
 import com.fittrack.app.data.repository.FoodRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -33,6 +36,10 @@ class RecipeViewModel(
         MutableStateFlow<RecipeBarcodeLookupState>(RecipeBarcodeLookupState.Idle)
     val barcodeLookupState: StateFlow<RecipeBarcodeLookupState> = _barcodeLookupState
 
+    private val _ingredientSearchResults = MutableStateFlow<List<CustomFood>>(emptyList())
+    val ingredientSearchResults: StateFlow<List<CustomFood>> = _ingredientSearchResults
+    private var ingredientSearchJob: Job? = null
+
     fun lookupBarcodeForRecipe(barcode: String, recipeId: Long) {
         viewModelScope.launch {
             val product = foodRepository.getProductByBarcode(barcode)
@@ -54,6 +61,33 @@ class RecipeViewModel(
 
     fun clearBarcodeLookupState() {
         _barcodeLookupState.value = RecipeBarcodeLookupState.Idle
+    }
+
+    /**
+     * Searches the local food database (custom foods + recently used) for ingredients
+     * matching [query]. Results are debounced by 300 ms and capped at 10 entries.
+     * Clears [ingredientSearchResults] when [query] is blank.
+     */
+    fun searchIngredients(query: String) {
+        ingredientSearchJob?.cancel()
+        ingredientSearchJob = viewModelScope.launch {
+            if (query.isBlank()) {
+                _ingredientSearchResults.value = emptyList()
+                return@launch
+            }
+            delay(300)
+            val customFoods = foodRepository.searchCustomFoods(query)
+            val recentFoods = foodRepository.searchRecentFoodEntries(query)
+                .filterNot { recent ->
+                    customFoods.any { it.name.equals(recent.name, ignoreCase = true) }
+                }
+            _ingredientSearchResults.value = (customFoods + recentFoods).take(10)
+        }
+    }
+
+    fun clearIngredientSearch() {
+        ingredientSearchJob?.cancel()
+        _ingredientSearchResults.value = emptyList()
     }
 
     fun createRecipe(name: String) {

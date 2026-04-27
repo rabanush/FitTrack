@@ -3,6 +3,7 @@ package com.fittrack.app.viewmodel
 import androidx.lifecycle.*
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Meal
+import com.fittrack.app.data.model.WorkoutCalories
 import com.fittrack.app.data.preferences.UserProfile
 import com.fittrack.app.data.repository.FoodRepository
 import com.fittrack.app.util.todayMillis
@@ -109,6 +110,30 @@ class FoodTrackerViewModel(
 
     fun deleteFoodEntry(entry: FoodEntry) {
         viewModelScope.launch { foodRepository.deleteFoodEntry(entry) }
+    }
+
+    /**
+     * Stores a manual burned-calories adjustment for the currently selected day.
+     * [calories] may be positive (to add) or negative (to subtract).
+     * The entry is stored with [MANUAL_CALORIES_WORKOUT_ID] so it can be identified
+     * as a manual adjustment rather than an automatic post-workout record.
+     */
+    fun addManualBurnedCalories(calories: Float) {
+        viewModelScope.launch {
+            foodRepository.insertWorkoutCalories(
+                WorkoutCalories(
+                    dateMillis = _selectedDateMillis.value,
+                    workoutId = MANUAL_CALORIES_WORKOUT_ID,
+                    caloriesBurned = calories,
+                    durationMinutes = 0
+                )
+            )
+        }
+    }
+
+    companion object {
+        /** `workoutId` sentinel used for manually entered calorie adjustments. */
+        const val MANUAL_CALORIES_WORKOUT_ID = 0L
     }
 }
 

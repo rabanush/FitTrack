@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.fittrack.app.data.model.CustomFood
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
@@ -45,6 +47,7 @@ fun RecipeListScreen(
 ) {
     val recipes by viewModel.recipes.collectAsState()
     val barcodeLookupState by viewModel.barcodeLookupState.collectAsState()
+    val ingredientSearchResults by viewModel.ingredientSearchResults.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var barcodeAddForRecipeId by remember { mutableStateOf<Long?>(null) }
     var barcodePrefilledData by remember { mutableStateOf<RecipeBarcodeLookupState.Found?>(null) }
@@ -115,6 +118,9 @@ fun RecipeListScreen(
                     RecipeCard(
                         recipeWithItems = recipeWithItems,
                         selectMode = selectMealId != null,
+                        ingredientSearchResults = ingredientSearchResults,
+                        onSearchIngredients = { viewModel.searchIngredients(it) },
+                        onClearIngredientSearch = { viewModel.clearIngredientSearch() },
                         onAddToMeal = {
                             viewModel.addRecipeToMeal(recipeWithItems, selectMealId!!)
                             onRecipeAdded()
@@ -169,6 +175,9 @@ fun RecipeListScreen(
 private fun RecipeCard(
     recipeWithItems: RecipeWithItems,
     selectMode: Boolean,
+    ingredientSearchResults: List<CustomFood> = emptyList(),
+    onSearchIngredients: (String) -> Unit = {},
+    onClearIngredientSearch: () -> Unit = {},
     onAddToMeal: () -> Unit,
     onDelete: () -> Unit,
     onAddItem: (String, Float, Float, Float, Float, Float) -> Unit,
@@ -259,10 +268,16 @@ private fun RecipeCard(
 
     if (showAddItemDialog) {
         AddRecipeItemDialog(
-            onDismiss = { showAddItemDialog = false },
+            searchResults = ingredientSearchResults,
+            onSearchQuery = onSearchIngredients,
+            onDismiss = {
+                showAddItemDialog = false
+                onClearIngredientSearch()
+            },
             onConfirm = { name, kcal, protein, carbs, fat, amount ->
                 onAddItem(name, kcal, protein, carbs, fat, amount)
                 showAddItemDialog = false
+                onClearIngredientSearch()
             }
         )
     }
@@ -300,6 +315,8 @@ private fun AddRecipeItemDialog(
     initialProtein: Float = 0f,
     initialCarbs: Float = 0f,
     initialFat: Float = 0f,
+    searchResults: List<CustomFood> = emptyList(),
+    onSearchQuery: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onConfirm: (String, Float, Float, Float, Float, Float) -> Unit
 ) {
@@ -309,6 +326,11 @@ private fun AddRecipeItemDialog(
     var carbsText by remember { mutableStateOf(if (initialCarbs > 0f) "%.1f".format(initialCarbs) else "") }
     var fatText by remember { mutableStateOf(if (initialFat > 0f) "%.1f".format(initialFat) else "") }
     var amountText by remember { mutableStateOf("100") }
+    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(searchQuery) {
+        onSearchQuery(searchQuery)
+    }
 
     val kcal = kcalText.toFloatOrNull() ?: 0f
     val protein = proteinText.toFloatOrNull() ?: 0f
@@ -325,6 +347,46 @@ private fun AddRecipeItemDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Food search field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Lebensmittel suchen…") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                // Search results — clicking pre-fills the form fields below
+                if (searchResults.isNotEmpty()) {
+                    searchResults.forEach { food ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            onClick = {
+                                name = food.name
+                                kcalText = "%.1f".format(food.caloriesPer100)
+                                proteinText = "%.1f".format(food.proteinPer100)
+                                carbsText = "%.1f".format(food.carbsPer100)
+                                fatText = "%.1f".format(food.fatPer100)
+                                searchQuery = ""
+                            }
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(food.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "${food.caloriesPer100.toInt()} kcal · " +
+                                        "P:${food.proteinPer100.toInt()}g " +
+                                        "K:${food.carbsPer100.toInt()}g " +
+                                        "F:${food.fatPer100.toInt()}g",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

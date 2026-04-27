@@ -3,6 +3,7 @@ package com.fittrack.app.ui.screens.food
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -13,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
@@ -44,6 +46,7 @@ fun FoodTrackerScreen(
     var expandedMealIds by rememberSaveable(sessionKey, stateSaver = ExpandedMealIdsStateSaver) {
         mutableStateOf(emptySet<Long>())
     }
+    var showAdjustBurnedDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(mealsWithEntries, sessionKey, pendingExpandMealId) {
         val existingMealIds = mealsWithEntries.map { it.meal.id }.toSet()
@@ -68,7 +71,8 @@ fun FoodTrackerScreen(
                     net = netCalories,
                     protein = dailyConsumed.protein,
                     carbs = dailyConsumed.carbs,
-                    fat = dailyConsumed.fat
+                    fat = dailyConsumed.fat,
+                    onAdjustBurned = { showAdjustBurnedDialog = true }
                 )
             }
 
@@ -113,6 +117,56 @@ fun FoodTrackerScreen(
             }
         }
     }
+
+    if (showAdjustBurnedDialog) {
+        AdjustBurnedCaloriesDialog(
+            onDismiss = { showAdjustBurnedDialog = false },
+            onConfirm = { delta ->
+                viewModel.addManualBurnedCalories(delta)
+                showAdjustBurnedDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun AdjustBurnedCaloriesDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Float) -> Unit
+) {
+    var valueText by remember { mutableStateOf("") }
+    val value = valueText.toFloatOrNull()
+    val isValid = value != null && value != 0f
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Verbrannte Kalorien anpassen") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Gib einen Wert ein. Positiv (+) zum Hinzufügen, negativ (-) zum Abziehen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedTextField(
+                    value = valueText,
+                    onValueChange = { valueText = it },
+                    label = { Text("Kalorien (z. B. 100 oder -37)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (isValid) onConfirm(value!!) },
+                enabled = isValid
+            ) { Text("Übernehmen") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        }
+    )
 }
 
 @Composable
@@ -123,7 +177,8 @@ private fun CalorieSummaryCard(
     net: Float,
     protein: Float,
     carbs: Float,
-    fat: Float
+    fat: Float,
+    onAdjustBurned: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -137,7 +192,7 @@ private fun CalorieSummaryCard(
             ) {
                 CalorieItem("Ziel", "${target.toInt()} kcal")
                 CalorieItem("Konsumiert", "${consumed.toInt()} kcal")
-                CalorieItem("Verbrannt", "${burned.toInt()} kcal")
+                EditableCalorieItem("Verbrannt", "${burned.toInt()} kcal", onAdjustBurned)
             }
             HorizontalDivider()
             Row(
@@ -175,6 +230,28 @@ private fun CalorieItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
         Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun EditableCalorieItem(label: String, value: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = "$label anpassen",
+                modifier = Modifier
+                    .size(14.dp)
+                    .padding(start = 2.dp)
+            )
+        }
+        TextButton(
+            onClick = onClick,
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 

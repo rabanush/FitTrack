@@ -166,16 +166,6 @@ class ActiveWorkoutViewModel(
             return
         }
 
-        val initialBatch = exercises.take(INITIAL_EXERCISE_BATCH_SIZE)
-        val initialSessions = buildExerciseSessions(initialBatch)
-        _exerciseSessions.value = initialSessions
-
-        if (exercises.size > INITIAL_EXERCISE_BATCH_SIZE) {
-            delay(DEFERRED_EXERCISE_BATCH_DELAY_MS)
-            val deferredSessions = buildExerciseSessions(exercises.drop(INITIAL_EXERCISE_BATCH_SIZE))
-            _exerciseSessions.value = initialSessions + deferredSessions
-        }
-
         val previousLogsMap = loadPreviousLogsByExerciseId(exercises)
         _exerciseSessions.value = buildExerciseSessions(exercises, previousLogsMap)
     }
@@ -415,8 +405,6 @@ class ActiveWorkoutViewModel(
         private const val TAG = "ActiveWorkoutVM"
         private const val DEFAULT_MET = 3.5f
         private const val LOCAL_END_TONE_WINDOW_MS = 1_500L
-        private const val INITIAL_EXERCISE_BATCH_SIZE = 2
-        private const val DEFERRED_EXERCISE_BATCH_DELAY_MS = 100L
         /** Number of seconds before end at which tick beeps start (3, 2, 1). */
         private const val COUNTDOWN_TICK_SECONDS = 3
         private val GSON = Gson()
