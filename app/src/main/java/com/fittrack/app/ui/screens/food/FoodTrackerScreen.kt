@@ -149,10 +149,15 @@ private fun AdjustBurnedCaloriesDialog(
                 )
                 OutlinedTextField(
                     value = valueText,
-                    onValueChange = { valueText = it },
+                    // Accept signed integers only: optional leading minus followed by digits.
+                    // KeyboardType.Decimal is used instead of Number because it includes the
+                    // minus key on most soft keyboards, enabling negative adjustments.
+                    onValueChange = { new ->
+                        if (new.matches(Regex("-?\\d*"))) valueText = new
+                    },
                     label = { Text("Kalorien (z. B. 100 oder -37)") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
