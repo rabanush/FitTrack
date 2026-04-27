@@ -105,6 +105,10 @@ class TimerAudioPlayer(context: Context) {
      * If [volumePercent] is higher than the current stream level, the stream is temporarily
      * boosted so the alert is audible over background music; [ToneContext.release] restores
      * the original level afterwards.
+     *
+     * The stream volume is raised **before** creating [ToneGenerator] so the track opens
+     * at the correct level rather than starting silently and then jumping up mid-tone.
+     *
      * Returns null if [ToneGenerator] creation fails (e.g. audio subsystem unavailable).
      */
     private fun setupToneContext(volumePercent: Int): ToneContext? {
@@ -113,9 +117,17 @@ class TimerAudioPlayer(context: Context) {
         val originalVolume = audioManager.getStreamVolume(stream)
         val maxVolume = audioManager.getStreamMaxVolume(stream).coerceAtLeast(1)
         val targetVolume = ((maxVolume * (toneVolume / 100f)).roundToInt()).coerceIn(1, maxVolume)
-        val toneGenerator = runCatching { ToneGenerator(stream, toneVolume) }.getOrNull() ?: return null
+        // Raise stream volume before opening ToneGenerator so the stream is at the
+        // correct level from the very first sample.
         if (targetVolume > originalVolume) {
             audioManager.setStreamVolume(stream, targetVolume, 0)
+        }
+        val toneGenerator = runCatching { ToneGenerator(stream, toneVolume) }.getOrNull() ?: run {
+            // Restore volume if ToneGenerator creation failed.
+            if (targetVolume > originalVolume) {
+                audioManager.setStreamVolume(stream, originalVolume, 0)
+            }
+            return null
         }
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
@@ -137,6 +149,10 @@ class TimerAudioPlayer(context: Context) {
     private suspend fun withAudioFocus(focusGain: Int, block: suspend () -> Unit) {
         val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        // Give other apps a moment to pause playback after receiving the focus-loss callback
+        // before we raise the stream volume, so the user never hears the volume jump over
+        // still-playing background audio.
+        if (focusGranted) delay(AUDIO_FOCUS_SETTLE_DELAY_MS)
         try {
             block()
         } finally {
@@ -147,6 +163,9 @@ class TimerAudioPlayer(context: Context) {
     private fun withAudioFocusBlocking(focusGain: Int, block: () -> Unit) {
         val focusRequest = buildAudioFocusRequest(focusGain)
         val focusGranted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        // Give other apps a moment to pause playback after receiving the focus-loss callback
+        // before we raise the stream volume.
+        if (focusGranted) Thread.sleep(AUDIO_FOCUS_SETTLE_DELAY_MS)
         try {
             block()
         } finally {
@@ -177,5 +196,11 @@ class TimerAudioPlayer(context: Context) {
         // count × TICK_SEQUENCE_STEP_MS (= 3 s), which covers the full countdown window and
         // prevents music from resuming in the ~630 ms gap before the end sequence acquires focus.
         const val TICK_POST_SEQUENCE_BUFFER_MS = 880L // = TICK_SEQUENCE_STEP_MS - TICK_TONE_DURATION_MS
+
+        // Milliseconds to wait after requesting audio focus before raising the stream volume
+        // and playing the tone. This gives other media apps time to actually pause playback
+        // in response to the focus-loss callback so the user never hears the volume jump
+        // while background audio is still playing.
+        private const val AUDIO_FOCUS_SETTLE_DELAY_MS = 150L
     }
 }
