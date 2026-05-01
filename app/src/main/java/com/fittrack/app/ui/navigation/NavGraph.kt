@@ -253,7 +253,7 @@ fun FitTrackNavGraph(
                 .getStateFlow<String?>("barcode_recipe_name", null)
                 .collectAsState()
 
-            LaunchedEffect(scannedFoodBarcode, foodBarcodeRecipeId) {
+            LaunchedEffect(scannedFoodBarcode, foodBarcodeRecipeId, foodBarcodeRecipeName) {
                 val barcode = scannedFoodBarcode
                 val recipeId = foodBarcodeRecipeId
                 val recipeName = foodBarcodeRecipeName ?: ""
