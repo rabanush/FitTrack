@@ -256,7 +256,7 @@ fun RecipeFoodSearchScreen(
         }
     }
 
-    // Add OFf product to recipe
+    // Add OFF product to recipe
     selectedProduct?.let { product ->
         AddProductDialog(
             product = product,
