@@ -13,6 +13,7 @@ import com.fittrack.app.FitTrackApplication
 import com.fittrack.app.ui.screens.*
 import com.fittrack.app.ui.screens.food.BarcodeScannerScreen
 import com.fittrack.app.ui.screens.food.FoodSearchScreen
+import com.fittrack.app.ui.screens.food.RecipeFoodSearchScreen
 import com.fittrack.app.ui.screens.food.RecipeListScreen
 import com.fittrack.app.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,6 +46,16 @@ sealed class Screen(val route: String) {
     }
     object RecipeBarcodeScanner : Screen("recipe_barcode_scanner/{recipeId}") {
         fun createRoute(recipeId: Long) = "recipe_barcode_scanner/$recipeId"
+    }
+    object RecipeFoodSearch : Screen("recipe_food_search/{recipeId}/{recipeName}?barcode={barcode}") {
+        fun createRoute(recipeId: Long, recipeName: String, barcode: String? = null): String {
+            val base = "recipe_food_search/$recipeId/${java.net.URLEncoder.encode(recipeName, "UTF-8")}"
+            return if (barcode != null) "$base?barcode=${java.net.URLEncoder.encode(barcode, "UTF-8")}" else base
+        }
+    }
+    object RecipeFoodBarcodeScanner : Screen("recipe_food_barcode_scanner/{recipeId}/{recipeName}") {
+        fun createRoute(recipeId: Long, recipeName: String) =
+            "recipe_food_barcode_scanner/$recipeId/${java.net.URLEncoder.encode(recipeName, "UTF-8")}"
     }
 }
 
@@ -99,10 +110,6 @@ fun FitTrackNavGraph(
                     navController.navigate(Screen.RecipeSelect.createRoute(mealId, mealName))
                 },
                 onRecipesClick = { navController.navigate(Screen.RecipeList.route) },
-                onCreateRecipe = { name ->
-                    recipeVm.createRecipe(name)
-                    navController.navigate(Screen.RecipeList.route)
-                },
                 onSettingsClick = { navController.navigate(Screen.Settings.route) }
             )
         }
@@ -233,20 +240,30 @@ fun FitTrackNavGraph(
                 factory = RecipeViewModelFactory(foodRepository)
             )
 
-            val scannedBarcode by backStackEntry.savedStateHandle
-                .getStateFlow<String?>("scanned_recipe_barcode", null)
+            // Barcode scanned directly from the recipe card QR button (via RecipeFoodBarcodeScanner).
+            // Navigate forward to RecipeFoodSearch with the barcode pre-loaded so the full food-search
+            // flow handles the result (same path as + → QR button in RecipeFoodSearch).
+            val scannedFoodBarcode by backStackEntry.savedStateHandle
+                .getStateFlow<String?>("scanned_recipe_food_barcode", null)
                 .collectAsState()
-            val barcodeRecipeId by backStackEntry.savedStateHandle
+            val foodBarcodeRecipeId by backStackEntry.savedStateHandle
                 .getStateFlow<Long?>("barcode_recipe_id", null)
                 .collectAsState()
+            val foodBarcodeRecipeName by backStackEntry.savedStateHandle
+                .getStateFlow<String?>("barcode_recipe_name", null)
+                .collectAsState()
 
-            LaunchedEffect(scannedBarcode, barcodeRecipeId) {
-                val barcode = scannedBarcode
-                val recipeId = barcodeRecipeId
+            LaunchedEffect(scannedFoodBarcode, foodBarcodeRecipeId, foodBarcodeRecipeName) {
+                val barcode = scannedFoodBarcode
+                val recipeId = foodBarcodeRecipeId
+                val recipeName = foodBarcodeRecipeName ?: ""
                 if (barcode != null && recipeId != null) {
-                    vm.lookupBarcodeForRecipe(barcode, recipeId)
-                    backStackEntry.savedStateHandle.remove<String>("scanned_recipe_barcode")
+                    backStackEntry.savedStateHandle.remove<String>("scanned_recipe_food_barcode")
                     backStackEntry.savedStateHandle.remove<Long>("barcode_recipe_id")
+                    backStackEntry.savedStateHandle.remove<String>("barcode_recipe_name")
+                    navController.navigate(
+                        Screen.RecipeFoodSearch.createRoute(recipeId, recipeName, barcode)
+                    )
                 }
             }
 
@@ -255,8 +272,13 @@ fun FitTrackNavGraph(
                 selectMealId = null,
                 selectMealName = "",
                 onBack = { navController.popBackStack() },
-                onScanBarcode = { recipeId ->
-                    navController.navigate(Screen.RecipeBarcodeScanner.createRoute(recipeId))
+                onScanBarcode = { recipeId, recipeName ->
+                    navController.navigate(
+                        Screen.RecipeFoodBarcodeScanner.createRoute(recipeId, recipeName)
+                    )
+                },
+                onAddFoodToRecipe = { recipeId, recipeName ->
+                    navController.navigate(Screen.RecipeFoodSearch.createRoute(recipeId, recipeName))
                 }
             )
         }
@@ -293,6 +315,85 @@ fun FitTrackNavGraph(
                 onBarcodeDetected = { barcode ->
                     navController.previousBackStackEntry?.savedStateHandle?.set("scanned_recipe_barcode", barcode)
                     navController.previousBackStackEntry?.savedStateHandle?.set("barcode_recipe_id", recipeId)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.RecipeFoodSearch.route,
+            arguments = listOf(
+                navArgument("recipeId") { type = NavType.LongType },
+                navArgument("recipeName") { type = NavType.StringType },
+                navArgument("barcode") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: return@composable
+            val recipeName = backStackEntry.arguments?.getString("recipeName")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: ""
+            val initialBarcode = backStackEntry.arguments?.getString("barcode")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            }
+            val foodSearchVm: FoodSearchViewModel = viewModel(
+                factory = FoodSearchViewModelFactory(foodRepository)
+            )
+            val recipeVm: RecipeViewModel = viewModel(
+                factory = RecipeViewModelFactory(foodRepository)
+            )
+
+            // Trigger barcode lookup when screen is launched with a pre-scanned barcode
+            // (e.g. QR button on recipe card → RecipeFoodBarcodeScanner → RecipeFoodSearch).
+            LaunchedEffect(initialBarcode) {
+                if (!initialBarcode.isNullOrEmpty()) {
+                    foodSearchVm.lookupBarcode(initialBarcode)
+                }
+            }
+
+            // Pick up barcode scanned via the QR button inside RecipeFoodSearchScreen
+            val scannedBarcode by backStackEntry.savedStateHandle
+                .getStateFlow<String?>("scanned_recipe_food_barcode", null)
+                .collectAsState()
+            LaunchedEffect(scannedBarcode) {
+                scannedBarcode?.let { barcode ->
+                    foodSearchVm.lookupBarcode(barcode)
+                    backStackEntry.savedStateHandle.remove<String>("scanned_recipe_food_barcode")
+                }
+            }
+
+            RecipeFoodSearchScreen(
+                foodSearchViewModel = foodSearchVm,
+                recipeViewModel = recipeVm,
+                recipeId = recipeId,
+                recipeName = recipeName,
+                onBack = { navController.popBackStack() },
+                onScanBarcode = {
+                    navController.navigate(
+                        Screen.RecipeFoodBarcodeScanner.createRoute(recipeId, recipeName)
+                    )
+                }
+            )
+        }
+
+        composable(
+            route = Screen.RecipeFoodBarcodeScanner.route,
+            arguments = listOf(
+                navArgument("recipeId") { type = NavType.LongType },
+                navArgument("recipeName") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: return@composable
+            val recipeName = backStackEntry.arguments?.getString("recipeName")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: ""
+            BarcodeScannerScreen(
+                onBarcodeDetected = { barcode ->
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set("scanned_recipe_food_barcode", barcode)
+                        set("barcode_recipe_id", recipeId)
+                        set("barcode_recipe_name", recipeName)
+                    }
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() }

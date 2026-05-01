@@ -11,7 +11,8 @@ data class ActiveWorkoutSession(
     val timerEndTimeMillis: Long = 0L,
     val timerTotalSeconds: Int = 0,
     val timerExerciseIndex: Int = -1,
-    val timerSetNumber: Int = -1
+    val timerSetNumber: Int = -1,
+    val timerVolumePercent: Int = 100
 )
 
 class ActiveWorkoutSessionPreferences(context: Context) {
@@ -28,7 +29,8 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             timerEndTimeMillis = prefs.getLong(KEY_TIMER_END_TIME, 0L),
             timerTotalSeconds = prefs.getInt(KEY_TIMER_TOTAL_SECONDS, 0),
             timerExerciseIndex = prefs.getInt(KEY_TIMER_EXERCISE_INDEX, -1),
-            timerSetNumber = prefs.getInt(KEY_TIMER_SET_NUMBER, -1)
+            timerSetNumber = prefs.getInt(KEY_TIMER_SET_NUMBER, -1),
+            timerVolumePercent = prefs.getInt(KEY_TIMER_VOLUME_PERCENT, 100)
         )
     }
 
@@ -52,12 +54,13 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         notifyChange()
     }
 
-    fun saveTimerState(endTimeMillis: Long, totalSeconds: Int, exerciseIndex: Int, setNumber: Int) {
+    fun saveTimerState(endTimeMillis: Long, totalSeconds: Int, exerciseIndex: Int, setNumber: Int, volumePercent: Int = 100) {
         prefs.edit()
             .putLong(KEY_TIMER_END_TIME, endTimeMillis)
             .putInt(KEY_TIMER_TOTAL_SECONDS, totalSeconds)
             .putInt(KEY_TIMER_EXERCISE_INDEX, exerciseIndex)
             .putInt(KEY_TIMER_SET_NUMBER, setNumber)
+            .putInt(KEY_TIMER_VOLUME_PERCENT, volumePercent.coerceIn(0, 100))
             .apply()
         notifyChange()
     }
@@ -68,6 +71,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             .remove(KEY_TIMER_TOTAL_SECONDS)
             .remove(KEY_TIMER_EXERCISE_INDEX)
             .remove(KEY_TIMER_SET_NUMBER)
+            .remove(KEY_TIMER_VOLUME_PERCENT)
             .apply()
         notifyChange()
     }
@@ -105,6 +109,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
             .putInt(KEY_TIMER_TOTAL_SECONDS, session.timerTotalSeconds)
             .putInt(KEY_TIMER_EXERCISE_INDEX, session.timerExerciseIndex)
             .putInt(KEY_TIMER_SET_NUMBER, session.timerSetNumber)
+            .putInt(KEY_TIMER_VOLUME_PERCENT, session.timerVolumePercent.coerceIn(0, 100))
         if (exerciseSessionsState.isNullOrBlank()) {
             editor.remove(KEY_EXERCISE_SESSIONS_STATE)
         } else {
@@ -126,6 +131,7 @@ class ActiveWorkoutSessionPreferences(context: Context) {
         private const val KEY_TIMER_TOTAL_SECONDS = "timer_total_seconds"
         private const val KEY_TIMER_EXERCISE_INDEX = "timer_exercise_index"
         private const val KEY_TIMER_SET_NUMBER = "timer_set_number"
+        private const val KEY_TIMER_VOLUME_PERCENT = "timer_volume_percent"
         private const val KEY_EXERCISE_SESSIONS_STATE = "exercise_sessions_state"
         private const val NO_WORKOUT_ID = -1L
         private const val NO_WORKOUT_START_TIME = -1L

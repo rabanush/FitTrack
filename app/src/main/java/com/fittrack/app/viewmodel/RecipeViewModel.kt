@@ -6,6 +6,7 @@ import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.data.model.Recipe
 import com.fittrack.app.data.model.RecipeItem
 import com.fittrack.app.data.model.RecipeWithItems
+import com.fittrack.app.data.network.OFFProduct
 import com.fittrack.app.data.repository.FoodRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -108,6 +109,79 @@ class RecipeViewModel(
         amount: Float
     ) {
         viewModelScope.launch {
+            foodRepository.insertRecipeItem(
+                RecipeItem(
+                    recipeId = recipeId,
+                    name = name,
+                    caloriesPer100 = caloriesPer100,
+                    proteinPer100 = proteinPer100,
+                    carbsPer100 = carbsPer100,
+                    fatPer100 = fatPer100,
+                    amount = amount
+                )
+            )
+        }
+    }
+
+    fun addCustomFoodToRecipe(food: CustomFood, recipeId: Long, amount: Float) {
+        viewModelScope.launch {
+            foodRepository.insertRecipeItem(
+                RecipeItem(
+                    recipeId = recipeId,
+                    name = food.name,
+                    caloriesPer100 = food.caloriesPer100,
+                    proteinPer100 = food.proteinPer100,
+                    carbsPer100 = food.carbsPer100,
+                    fatPer100 = food.fatPer100,
+                    amount = amount
+                )
+            )
+        }
+    }
+
+    fun addProductToRecipe(
+        product: OFFProduct,
+        recipeId: Long,
+        amount: Float
+    ) {
+        viewModelScope.launch {
+            val n = product.nutriments
+            foodRepository.insertRecipeItem(
+                RecipeItem(
+                    recipeId = recipeId,
+                    name = product.displayName,
+                    caloriesPer100 = n?.kcalPer100g ?: 0f,
+                    proteinPer100 = n?.proteins100g ?: 0f,
+                    carbsPer100 = n?.carbohydrates100g ?: 0f,
+                    fatPer100 = n?.fat100g ?: 0f,
+                    amount = amount
+                )
+            )
+        }
+    }
+
+    fun createCustomFoodAndAddToRecipe(
+        name: String,
+        barcode: String?,
+        caloriesPer100: Float,
+        proteinPer100: Float,
+        carbsPer100: Float,
+        fatPer100: Float,
+        recipeId: Long,
+        amount: Float
+    ) {
+        viewModelScope.launch {
+            val trimmedBarcode = barcode?.trim()?.takeIf { it.isNotEmpty() }
+            foodRepository.insertCustomFood(
+                CustomFood(
+                    name = name,
+                    barcode = trimmedBarcode,
+                    caloriesPer100 = caloriesPer100,
+                    proteinPer100 = proteinPer100,
+                    carbsPer100 = carbsPer100,
+                    fatPer100 = fatPer100
+                )
+            )
             foodRepository.insertRecipeItem(
                 RecipeItem(
                     recipeId = recipeId,

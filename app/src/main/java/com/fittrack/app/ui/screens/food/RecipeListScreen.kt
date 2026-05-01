@@ -34,6 +34,9 @@ import com.fittrack.app.viewmodel.RecipeViewModel
  * When [selectMealId] is non-null the screen is in "select mode": each recipe
  * shows a "Zur Mahlzeit hinzufügen" button instead of editing controls, and
  * [onRecipeAdded] is called (then the caller navigates back).
+ *
+ * In manage mode ([selectMealId] is null), the "+" button on each recipe card
+ * navigates to the full food-search screen via [onAddFoodToRecipe].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +46,8 @@ fun RecipeListScreen(
     selectMealName: String,
     onBack: () -> Unit,
     onRecipeAdded: () -> Unit = {},
-    onScanBarcode: ((Long) -> Unit)? = null
+    onScanBarcode: ((recipeId: Long, recipeName: String) -> Unit)? = null,
+    onAddFoodToRecipe: ((recipeId: Long, recipeName: String) -> Unit)? = null
 ) {
     val recipes by viewModel.recipes.collectAsState()
     val barcodeLookupState by viewModel.barcodeLookupState.collectAsState()
@@ -134,7 +138,10 @@ fun RecipeListScreen(
                         },
                         onDeleteItem = { viewModel.deleteRecipeItem(it) },
                         onScanBarcode = onScanBarcode?.let { callback ->
-                            { callback(recipeWithItems.recipe.id) }
+                            { callback(recipeWithItems.recipe.id, recipeWithItems.recipe.name) }
+                        },
+                        onAddFoodToRecipe = onAddFoodToRecipe?.let { callback ->
+                            { callback(recipeWithItems.recipe.id, recipeWithItems.recipe.name) }
                         }
                     )
                 }
@@ -182,7 +189,8 @@ private fun RecipeCard(
     onDelete: () -> Unit,
     onAddItem: (String, Float, Float, Float, Float, Float) -> Unit,
     onDeleteItem: (RecipeItem) -> Unit,
-    onScanBarcode: (() -> Unit)? = null
+    onScanBarcode: (() -> Unit)? = null,
+    onAddFoodToRecipe: (() -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(!selectMode) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -218,7 +226,10 @@ private fun RecipeCard(
                             Icon(Icons.Default.QrCodeScanner, contentDescription = "Barcode scannen", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    IconButton(onClick = { showAddItemDialog = true }) {
+                    IconButton(onClick = {
+                        if (onAddFoodToRecipe != null) onAddFoodToRecipe()
+                        else showAddItemDialog = true
+                    }) {
                         Icon(Icons.Default.Add, contentDescription = "Zutat hinzufügen", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = { expanded = !expanded }) {

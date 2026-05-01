@@ -451,7 +451,8 @@ class ActiveWorkoutViewModel(
             endTimeMillis = state.endTimeMillis,
             totalSeconds = state.totalSeconds,
             exerciseIndex = state.exerciseIndex,
-            setNumber = state.setNumber
+            setNumber = state.setNumber,
+            volumePercent = _timerVolumePercent.value
         )
     }
 
