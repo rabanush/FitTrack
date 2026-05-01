@@ -132,14 +132,18 @@ class TimerAudioPlayer(context: Context) {
         return ToneContext(toneGenerator, stream, originalVolume, targetVolume)
     }
 
-    private fun preferredStream(): Int = AudioManager.STREAM_MUSIC
+    /**
+     * Use [STREAM_ALARM] so the tone plays at the alarm volume level, is not silenced
+     * by Do Not Disturb (media/priority mode), and works reliably when the screen is off.
+     */
+    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
 
     /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
     private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
         AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )

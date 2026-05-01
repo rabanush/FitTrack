@@ -35,7 +35,6 @@ fun WorkoutListScreen(
     onAddFood: (mealId: Long, mealName: String) -> Unit,
     onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit,
     onRecipesClick: () -> Unit,
-    onCreateRecipe: (name: String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
@@ -56,9 +55,6 @@ fun WorkoutListScreen(
         }
         previousPage = currentPage
     }
-
-    // Dialog state for "Create Recipe" (food page FAB)
-    var showCreateRecipeDialog by remember { mutableStateOf(false) }
 
     // Dialog state for "Create Workout" (workout page FAB)
     var showCreateWorkoutDialog by remember { mutableStateOf(false) }
@@ -89,14 +85,13 @@ fun WorkoutListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (currentPage == 0) showCreateWorkoutDialog = true
-                    else showCreateRecipeDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Hinzufügen")
+            if (currentPage == 0) {
+                FloatingActionButton(
+                    onClick = { showCreateWorkoutDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Hinzufügen")
+                }
             }
         }
     ) { padding ->
@@ -162,19 +157,6 @@ fun WorkoutListScreen(
             onConfirm = { name ->
                 viewModel.createWorkout(name) {}
                 showCreateWorkoutDialog = false
-            }
-        )
-    }
-
-    // "Create Recipe" dialog
-    if (showCreateRecipeDialog) {
-        NameInputDialog(
-            title = "Rezept erstellen",
-            label = "Rezeptname",
-            onDismiss = { showCreateRecipeDialog = false },
-            onConfirm = { name ->
-                onCreateRecipe(name)
-                showCreateRecipeDialog = false
             }
         )
     }
