@@ -46,7 +46,7 @@ fun RecipeListScreen(
     selectMealName: String,
     onBack: () -> Unit,
     onRecipeAdded: () -> Unit = {},
-    onScanBarcode: ((Long) -> Unit)? = null,
+    onScanBarcode: ((recipeId: Long, recipeName: String) -> Unit)? = null,
     onAddFoodToRecipe: ((recipeId: Long, recipeName: String) -> Unit)? = null
 ) {
     val recipes by viewModel.recipes.collectAsState()
@@ -138,7 +138,7 @@ fun RecipeListScreen(
                         },
                         onDeleteItem = { viewModel.deleteRecipeItem(it) },
                         onScanBarcode = onScanBarcode?.let { callback ->
-                            { callback(recipeWithItems.recipe.id) }
+                            { callback(recipeWithItems.recipe.id, recipeWithItems.recipe.name) }
                         },
                         onAddFoodToRecipe = onAddFoodToRecipe?.let { callback ->
                             { callback(recipeWithItems.recipe.id, recipeWithItems.recipe.name) }
