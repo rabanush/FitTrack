@@ -18,7 +18,8 @@ class TimerAudioPlayer(context: Context) {
      * Plays [count] short countdown ticks (3-2-1) with a 1-second cadence, holding
      * `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` for the **entire** sequence so that
      * background music stays silent between ticks.  Works over Bluetooth because the
-     * tone is rendered on [STREAM_MUSIC].
+     * tone is rendered on [STREAM_MUSIC], which routes to the currently active audio
+     * output (Bluetooth A2DP when connected, built-in speaker otherwise).
      *
      * A single [ToneGenerator] is reused for all ticks in the sequence. Opening and
      * closing an audio stream per tick causes an audible click/pop on many devices;
@@ -133,17 +134,20 @@ class TimerAudioPlayer(context: Context) {
     }
 
     /**
-     * Use [STREAM_ALARM] so the tone plays at the alarm volume level, is not silenced
-     * by Do Not Disturb (media/priority mode), and works reliably when the screen is off.
+     * Use [STREAM_MUSIC] so the tone is routed to the currently active audio output.
+     * When a Bluetooth A2DP device is connected, audio plays exclusively through it;
+     * when no Bluetooth is active, it plays on the built-in speaker.
+     * [STREAM_ALARM] is intentionally avoided because it routes to *all* active outputs
+     * simultaneously (both Bluetooth and built-in speaker), which causes audible duplicates.
      */
-    private fun preferredStream(): Int = AudioManager.STREAM_ALARM
+    private fun preferredStream(): Int = AudioManager.STREAM_MUSIC
 
     /** Builds an [AudioFocusRequest] for the requested [focusGain] mode. */
     private fun buildAudioFocusRequest(focusGain: Int): AudioFocusRequest =
         AudioFocusRequest.Builder(focusGain)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
@@ -182,8 +186,8 @@ class TimerAudioPlayer(context: Context) {
         (displayPercent.coerceIn(0, 100) * 2).coerceIn(0, 100)
 
     companion object {
-        // 2 prominent beeps at the end of the rest timer ("2 mal").
-        const val END_SEQUENCE_REPEAT_COUNT = 2
+        // 1 prominent beep at the end of the rest timer.
+        const val END_SEQUENCE_REPEAT_COUNT = 1
         const val END_SEQUENCE_TONE_DURATION_MS = 600
         const val END_SEQUENCE_STEP_DURATION_MS = 900L
         const val END_SEQUENCE_TOTAL_DURATION_MS =
