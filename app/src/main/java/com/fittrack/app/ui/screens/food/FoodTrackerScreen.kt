@@ -1,42 +1,39 @@
 package com.fittrack.app.ui.screens.food
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fittrack.app.data.model.FoodEntry
 import com.fittrack.app.viewmodel.FoodTrackerViewModel
 import com.fittrack.app.viewmodel.MealWithEntries
 
-private val ExpandedMealIdsStateSaver: Saver<Set<Long>, Any> = Saver(
-    save = { it.toList() },
-    restore = { (it as List<*>).filterIsInstance<Long>().toSet() }
-)
-
-/**
- * Content of the Food Tracker tab. Does NOT include a Scaffold — it is
- * designed to be embedded inside another Scaffold (the WorkoutListScreen pager).
- */
 @Composable
 fun FoodTrackerScreen(
     viewModel: FoodTrackerViewModel,
-    sessionKey: Int,
-    pendingExpandMealId: Long?,
-    onPendingExpandHandled: (Long) -> Unit,
     onAddFood: (mealId: Long, mealName: String) -> Unit,
-    onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit
+    onAddRecipeToMeal: (mealId: Long, mealName: String) -> Unit,
+    pendingExpandMealId: Long? = null,
+    onPendingExpandHandled: (Long) -> Unit = {},
+    sessionKey: Int = 0
 ) {
     val mealsWithEntries by viewModel.mealsWithEntries.collectAsState()
     val dailyConsumed by viewModel.dailyConsumed.collectAsState()
@@ -144,18 +141,15 @@ private fun AdjustBurnedCaloriesDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Gib einen Wert ein. Positiv (+) zum Hinzufügen, negativ (-) zum Abziehen.",
+                    "Gib einen Wert ein. Positiv zum Hinzufügen, negativ (-) zum Abziehen.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 OutlinedTextField(
                     value = valueText,
-                    // Accept signed integers only: optional leading minus followed by digits.
-                    // KeyboardType.Decimal is used instead of Number because it includes the
-                    // minus key on most soft keyboards, enabling negative adjustments.
                     onValueChange = { new ->
                         if (new.matches(Regex("-?\\d*"))) valueText = new
                     },
-                    label = { Text("Kalorien (z. B. 100 oder -37)") },
+                    label = { Text("Kalorien (z. B. 100 oder -30)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
@@ -197,7 +191,8 @@ private fun CalorieSummaryCard(
             ) {
                 CalorieItem("Ziel", "${target.toInt()} kcal")
                 CalorieItem("Konsumiert", "${consumed.toInt()} kcal")
-                EditableCalorieItem("Verbrannt", "${burned.toInt()} kcal", onAdjustBurned)
+                // Nur der Wert ist hier klickbar
+                ValueClickableCalorieItem("Verbrannt", "${burned.toInt()} kcal", onAdjustBurned)
             }
             HorizontalDivider()
             Row(
@@ -239,24 +234,18 @@ private fun CalorieItem(label: String, value: String) {
 }
 
 @Composable
-private fun EditableCalorieItem(label: String, value: String, onClick: () -> Unit) {
+private fun ValueClickableCalorieItem(label: String, value: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-            Icon(
-                Icons.Default.Edit,
-                contentDescription = "$label anpassen",
-                modifier = Modifier
-                    .size(14.dp)
-                    .padding(start = 2.dp)
-            )
-        }
-        TextButton(
-            onClick = onClick,
-            contentPadding = PaddingValues(0.dp)
-        ) {
-            Text(label, style = MaterialTheme.typography.labelSmall)
-        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .clickable { onClick() }
+                .padding(horizontal = 4.dp)
+        )
+        Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -330,7 +319,12 @@ private fun FoodEntryRow(entry: FoodEntry, onDelete: () -> Unit) {
             )
         }
         IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.Close, contentDescription = "Entfernen", modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
         }
     }
 }
+
+private val ExpandedMealIdsStateSaver = androidx.compose.runtime.saveable.Saver<Set<Long>, List<Long>>(
+    save = { it.toList() },
+    restore = { it.toSet() }
+)

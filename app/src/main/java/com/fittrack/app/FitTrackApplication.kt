@@ -19,6 +19,7 @@ import com.fittrack.app.data.repository.FoodRepository
 import com.fittrack.app.util.todayMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -109,6 +110,7 @@ class FitTrackApplication : Application() {
         }
     }
 
+    @OptIn(FlowPreview::class)
     private suspend fun observeAndPersistBackups() {
         combine(
             repository.observeAllWorkoutsWithExercises(),
